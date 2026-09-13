@@ -46,8 +46,20 @@ function parsePackedFilename(output) {
     try {
       const parsed = JSON.parse(trimmed);
       if (Array.isArray(parsed)) return parsed[0]?.filename;
-      if (typeof parsed === "object" && parsed && "filename" in parsed) {
-        return parsed.filename;
+      if (typeof parsed === "object" && parsed) {
+        if ("filename" in parsed && typeof parsed.filename === "string") {
+          return parsed.filename;
+        }
+        for (const val of Object.values(parsed)) {
+          if (
+            val &&
+            typeof val === "object" &&
+            "filename" in val &&
+            typeof val.filename === "string"
+          ) {
+            return val.filename;
+          }
+        }
       }
     } catch {
       // fall through
@@ -55,7 +67,7 @@ function parsePackedFilename(output) {
   }
   return trimmed
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/^["']|["',]+$/g, ""))
     .filter(Boolean)
     .at(-1);
 }

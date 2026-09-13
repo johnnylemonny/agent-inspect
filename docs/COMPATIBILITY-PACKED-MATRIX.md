@@ -2,7 +2,7 @@
 
 **Status:** PARTIAL — evidence from maintainer CI + local smoke scripts; not a full OS×Node grid.  
 **Authority:** [implementation/ROADMAP.md](./implementation/ROADMAP.md) · [STABILITY-BASELINE.md](./STABILITY-BASELINE.md)
-**Date:** 2026-09-12 · tested baseline `agent-inspect@6.23.0` (CI primary); Windows dated row below remains historical evidence for #209
+**Date:** 2026-09-13 · tested baseline `agent-inspect@6.29.0` (CI primary); Windows dated rows provide evidence for #209
 
 ## Method
 
@@ -29,7 +29,7 @@ Do **not** infer untested cells as supported.
 | pnpm consumer | Supported | monorepo + docs guide; CI uses pnpm | **PASS** (repo) / clean consumer **DOCUMENTED** |
 | Linux | Supported | GHA ubuntu | **PASS** |
 | macOS | Supported intent | Maintainer local Darwin; not GHA matrix | **PARTIAL** |
-| Windows | Supported intent | 2026-08-26 manual native Windows + Node 24 evidence below; not in GHA matrix | **PASS** for the #209 root/subpath slice; broader matrix **PARTIAL** |
+| Windows | Supported intent | 2026-09-13 manual native Windows + Node 24 evidence below; not in GHA matrix | **PASS** for the #209 root/subpath and optional suite; broader matrix **PARTIAL** |
 | Jest 29 / 30 | Reporters packed | pack smoke Jest reporter import | **PARTIAL** (import smoke, not full Jest version matrix) |
 | Vitest | Reporters packed | pack smoke Vitest reporter import | **PARTIAL** |
 
@@ -38,13 +38,13 @@ Do **not** infer untested cells as supported.
 | Date | OS | Node | Package managers | Package | Root ESM | Root CJS | Public subpaths ESM | Public subpaths CJS | Result |
 |------|----|------|------------------|---------|----------|----------|---------------------|---------------------|--------|
 | 2026-08-26 | Native Windows; registry product `Windows 10 Home`, display `25H2`, build `26200.9168` | `v24.13.0` | `pnpm 9.15.0`; `npm 11.17.0` | `agent-inspect@6.17.3` | **PASS** | **PASS** | **PASS** (10/10) | **PASS** (10/10) | `pack:smoke` + `compat:smoke` **PASS** |
+| 2026-09-13 | Native Windows 11 (NT 10.0.26200, X64) | `v24.19.0` | `pnpm 9.15.0`; `npm 12.0.2` | `agent-inspect@6.29.0` | **PASS** | **PASS** | **PASS** (10/10) | **PASS** (10/10) | `pack:smoke` + `compat:smoke` **PASS** (all 17 optional packages OK, native `better-sqlite3` rebuild OK with npm 12 allowScripts) |
 
-This Windows + Node 24 row specifically closes the root packed-consumer and
-public-root-subpath slice for issue #209. The same `pack:smoke` run exercised
-all 17 configured optional/public package smoke checks, including the native
-`better-sqlite3` rebuild, but this is not a claim of a complete Windows support
-matrix across the full package family. Node 26 remains untested, and the macOS
-status is unchanged.
+This Windows + Node 24 row re-validates the root packed-consumer,
+public-root-subpath, and full optional-package suite for issue #209 on the 6.29.0
+baseline, including npm 11+ structured pack parsing and npm 12 allowScripts
+for native dependencies. Broader cross-OS automation remains PARTIAL, Node 26
+remains untested, and the macOS status is unchanged.
 
 ## Retention
 

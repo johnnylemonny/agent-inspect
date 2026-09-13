@@ -679,8 +679,20 @@ function parsePackedFilename(output) {
       try {
         const parsed = JSON.parse(jsonCandidate.slice(0, jsonEnd + 1));
         if (Array.isArray(parsed)) return parsed[0]?.filename;
-        if (typeof parsed === "object" && parsed && "filename" in parsed) {
-          return parsed.filename;
+        if (typeof parsed === "object" && parsed) {
+          if ("filename" in parsed && typeof parsed.filename === "string") {
+            return parsed.filename;
+          }
+          for (const val of Object.values(parsed)) {
+            if (
+              val &&
+              typeof val === "object" &&
+              "filename" in val &&
+              typeof val.filename === "string"
+            ) {
+              return val.filename;
+            }
+          }
         }
       } catch {
         // Fall through to line parsing.
@@ -690,7 +702,7 @@ function parsePackedFilename(output) {
 
   return trimmed
     .split(/\r?\n/)
-    .map((l) => l.trim())
+    .map((l) => l.trim().replace(/^["']|["',]+$/g, ""))
     .filter((l) => l.endsWith(".tgz"))
     .at(-1);
 }
@@ -957,10 +969,20 @@ function npmInstall(label, cwd, packages) {
   });
 }
 
-function writeConsumerPackageJson(dir, type = "module") {
+function writeConsumerPackageJson(dir, type = "module", allowScripts = []) {
+  const pkg = { name: "agent-inspect-optional-smoke", private: true, type };
+  if (Array.isArray(allowScripts) && allowScripts.length > 0) {
+    pkg.allowScripts = Object.fromEntries(
+      allowScripts.map((dep) => [dep, true]),
+    );
+    writeFileSync(
+      path.join(dir, ".npmrc"),
+      `allow-scripts=${allowScripts.join(",")}\n`,
+    );
+  }
   writeFileSync(
     path.join(dir, "package.json"),
-    `${JSON.stringify({ name: "agent-inspect-optional-smoke", private: true, type }, null, 2)}\n`,
+    `${JSON.stringify(pkg, null, 2)}\n`,
   );
 }
 
@@ -1044,7 +1066,7 @@ function smokeOptionalPackages(rootTgzPath, tmpRoot) {
       `optional-${check.name.replace(/[@/]/g, "-")}`,
     );
     mkdirSync(installDir, { recursive: true });
-    writeConsumerPackageJson(installDir);
+    writeConsumerPackageJson(installDir, "module", check.rebuildNativeDeps);
     const bundledTarballs = (check.bundledWorkspaceDirs ?? []).map((dir) => packOptionalByDir(dir));
     npmInstall(`${check.name} clean install`, installDir, [
       rootTgzPath,
@@ -1055,6 +1077,7 @@ function smokeOptionalPackages(rootTgzPath, tmpRoot) {
     for (const nativeDep of check.rebuildNativeDeps ?? []) {
       // The clean install runs with --ignore-scripts; native deps that need
       // their install script (prebuild download/build) are rebuilt one by one.
+      // npm 12+ allowScripts policy is satisfied via package.json allowScripts / .npmrc.
       run(`${check.name} rebuild ${nativeDep}`, "npm", ["rebuild", nativeDep], {
         cwd: installDir,
         stdio: "inherit",
