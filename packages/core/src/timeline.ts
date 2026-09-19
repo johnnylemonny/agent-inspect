@@ -52,6 +52,9 @@ export interface TimelineOptions {
   slowTopN?: number;
 }
 
+const ROOT_TIMELINE_DEPTH = 0;
+const MAX_TIMELINE_DEPTH = 1000;
+
 function finite(n: unknown): n is number {
   return typeof n === "number" && Number.isFinite(n);
 }
@@ -167,20 +170,64 @@ export function buildRunTimeline(
   const computeDepth = (stepId: string): number => {
     const cached = depthCache.get(stepId);
     if (cached !== undefined) return cached;
-    const node = steps.get(stepId);
-    if (!node) return 0;
-    const parent = node.parentId;
-    if (
-      typeof parent !== "string" ||
-      parent.trim() === "" ||
-      !steps.has(parent)
-    ) {
-      depthCache.set(stepId, 0);
-      return 0;
+
+    const ancestry: string[] = [];
+    const ancestryIndexes = new Map<string, number>();
+    let currentStepId = stepId;
+    let resolvedDepth: number | undefined;
+
+    while (resolvedDepth === undefined) {
+      const cachedDepth = depthCache.get(currentStepId);
+      if (cachedDepth !== undefined) {
+        resolvedDepth = cachedDepth;
+        continue;
+      }
+
+      const cycleStart = ancestryIndexes.get(currentStepId);
+      if (cycleStart !== undefined) {
+        const cycleStepIds = ancestry.splice(cycleStart);
+        for (const cycleStepId of cycleStepIds) {
+          depthCache.set(cycleStepId, ROOT_TIMELINE_DEPTH);
+        }
+        resolvedDepth = ROOT_TIMELINE_DEPTH;
+        continue;
+      }
+
+      const currentStep = steps.get(currentStepId);
+      if (!currentStep) {
+        resolvedDepth = ROOT_TIMELINE_DEPTH;
+        continue;
+      }
+
+      ancestryIndexes.set(currentStepId, ancestry.length);
+      ancestry.push(currentStepId);
+
+      const parentId = currentStep.parentId;
+      if (
+        typeof parentId !== "string" ||
+        parentId.trim() === "" ||
+        !steps.has(parentId)
+      ) {
+        ancestry.pop();
+        depthCache.set(currentStepId, ROOT_TIMELINE_DEPTH);
+        resolvedDepth = ROOT_TIMELINE_DEPTH;
+        continue;
+      }
+
+      currentStepId = parentId;
     }
-    const d = Math.min(1000, computeDepth(parent) + 1);
-    depthCache.set(stepId, d);
-    return d;
+
+    ancestry.reverse();
+    for (const ancestorStepId of ancestry) {
+      resolvedDepth = Math.min(MAX_TIMELINE_DEPTH, resolvedDepth + 1);
+      depthCache.set(ancestorStepId, resolvedDepth);
+    }
+
+    const resolvedStepDepth = depthCache.get(stepId);
+    if (resolvedStepDepth === undefined) {
+      throw new Error(`Failed to resolve timeline depth for step "${stepId}"`);
+    }
+    return resolvedStepDepth;
   };
 
   const entries: TimelineEntry[] = [];
