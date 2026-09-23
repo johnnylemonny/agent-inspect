@@ -41,10 +41,6 @@ function validateOtlpJson(content: string): ExportValidationResult {
     return { ok: false, format: "otlp-json", errors, warnings };
   }
 
-  if (parsed.resourceSpans.length === 0) {
-    pushPath(errors, "$.resourceSpans", "must contain at least one resourceSpan");
-  }
-
   parsed.resourceSpans.forEach((resourceSpan, rsi) => {
     const rsPath = `$.resourceSpans[${rsi}]`;
     if (!isRecord(resourceSpan)) {
@@ -101,20 +97,64 @@ function validateOtlpJson(content: string): ExportValidationResult {
             "must be a decimal-string 64-bit integer when present",
           );
         }
-        if (typeof span.kind !== "number" || !Number.isInteger(span.kind)) {
-          pushPath(errors, `${spanPath}.kind`, "must be a numeric SpanKind enum");
-        }
-        if (!isRecord(span.status)) {
-          pushPath(errors, `${spanPath}.status`, "must be an object");
-        } else if (
-          typeof span.status.code !== "number" ||
-          ![0, 1, 2].includes(span.status.code)
-        ) {
+
+        // SpanKind: numeric preferred; historical string enums remain protocol-valid.
+        if (typeof span.kind === "number") {
+          if (!Number.isInteger(span.kind)) {
+            pushPath(errors, `${spanPath}.kind`, "must be an integer SpanKind enum");
+          }
+        } else if (typeof span.kind === "string") {
+          warnings.push(
+            `${spanPath}.kind: string SpanKind enum is legacy; prefer numeric (INTERNAL=1)`,
+          );
+        } else if (span.kind !== undefined) {
           pushPath(
             errors,
-            `${spanPath}.status.code`,
-            "must be numeric StatusCode 0 (UNSET), 1 (OK), or 2 (ERROR)",
+            `${spanPath}.kind`,
+            "must be numeric SpanKind or historical string enum",
           );
+        }
+
+        if (!isRecord(span.status)) {
+          pushPath(errors, `${spanPath}.status`, "must be an object");
+        } else {
+          const code = span.status.code;
+          if (typeof code === "number") {
+            if (![0, 1, 2].includes(code)) {
+              pushPath(
+                errors,
+                `${spanPath}.status.code`,
+                "must be numeric StatusCode 0 (UNSET), 1 (OK), or 2 (ERROR)",
+              );
+            }
+          } else if (typeof code === "string") {
+            const upper = code.toUpperCase();
+            if (
+              upper !== "STATUS_CODE_UNSET" &&
+              upper !== "STATUS_CODE_OK" &&
+              upper !== "STATUS_CODE_ERROR" &&
+              upper !== "UNSET" &&
+              upper !== "OK" &&
+              upper !== "ERROR" &&
+              !/^[012]$/.test(code.trim())
+            ) {
+              pushPath(
+                errors,
+                `${spanPath}.status.code`,
+                "unrecognized StatusCode string",
+              );
+            } else {
+              warnings.push(
+                `${spanPath}.status.code: string StatusCode is legacy; prefer numeric 0/1/2`,
+              );
+            }
+          } else {
+            pushPath(
+              errors,
+              `${spanPath}.status.code`,
+              "must be numeric StatusCode 0/1/2 or historical string enum",
+            );
+          }
         }
       });
     });
