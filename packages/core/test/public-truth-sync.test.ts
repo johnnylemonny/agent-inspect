@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { existsSync, readFileSync, renameSync, unlinkSync } from "node:fs";
+import {
+  existsSync,
+  readFileSync,
+  renameSync,
+  unlinkSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { spawnSync } from "node:child_process";
@@ -53,6 +59,15 @@ describe("public-truth sync and claim digest", () => {
     expect(ledger.claimContentDigest).toMatch(/^[a-f0-9]{64}$/);
     expect(ledger.lastReviewedCommit.length).toBeGreaterThan(0);
 
+    const roadmap = readFileSync(path.join(repoRoot, "ROADMAP.md"), "utf8");
+    const markers = [
+      ...roadmap.matchAll(
+        /^## Current — published `(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)`$/gm,
+      ),
+    ];
+    expect(markers).toHaveLength(1);
+    expect(markers[0]?.[1]).toBe(pkgVersion);
+
     const second = spawnSync(process.execPath, [syncScript, "--check"], {
       cwd: repoRoot,
       encoding: "utf8",
@@ -64,6 +79,32 @@ describe("public-truth sync and claim digest", () => {
       encoding: "utf8",
     });
     expect(check.status, check.stderr || check.stdout).toBe(0);
+  });
+
+  it("fails sync --check when ROADMAP Current published marker is stale", () => {
+    const roadmapPath = path.join(repoRoot, "ROADMAP.md");
+    const original = readFileSync(roadmapPath, "utf8");
+    const pkgVersion = JSON.parse(
+      readFileSync(path.join(repoRoot, "package.json"), "utf8"),
+    ).version as string;
+    const stale = original.replace(
+      new RegExp(
+        `## Current — published \`${pkgVersion.replace(/\./g, "\\.")}\``,
+      ),
+      "## Current — published `0.0.0`",
+    );
+    expect(stale).not.toBe(original);
+    try {
+      writeFileSync(roadmapPath, stale, "utf8");
+      const check = spawnSync(process.execPath, [syncScript, "--check"], {
+        cwd: repoRoot,
+        encoding: "utf8",
+      });
+      expect(check.status).not.toBe(0);
+      expect(`${check.stdout}\n${check.stderr}`).toMatch(/ROADMAP\.md/);
+    } finally {
+      writeFileSync(roadmapPath, original, "utf8");
+    }
   });
 });
 

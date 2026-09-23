@@ -1,10 +1,15 @@
 # ai-sdk starter
 
-Manual trace demo (no API keys). Replace with `@agent-inspect/ai-sdk` telemetry in production.
+Keyless AI SDK telemetry demo: `MockLanguageModelV3` + `@agent-inspect/ai-sdk`.
 
-Adoption guide: [docs/ADOPTION.md](../../../docs/ADOPTION.md) · Framework: [docs/AI-SDK-ADOPTION.md](../../../docs/AI-SDK-ADOPTION.md)
+Runs **correct** (`lookup_orders`) and **wrong** (`delete_orders`) tool paths that return the **same** final answer, then selects each run by exact `runName` (never newest).
+
+Adoption guide: [docs/AI-SDK-ADOPTION.md](../../../docs/AI-SDK-ADOPTION.md)
 
 ```bash
 pnpm install && pnpm start
-npx agent-inspect list --dir .agent-inspect
+npx agent-inspect view <correct-run-id> --dir .agent-inspect --summary
+npx agent-inspect check <correct-run-id> --dir .agent-inspect --required-tool lookup_orders
 ```
+
+Tested peer: `ai@6.0.210`. Wire telemetry with `experimental_telemetry.integrations: [integration]`.

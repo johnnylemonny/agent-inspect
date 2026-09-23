@@ -1,0 +1,12 @@
+{
+  "name": "agent-inspect-recipe-otel-collector-roundtrip",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "node verify.mjs",
+    "verify:docker": "node verify.mjs --docker"
+  },
+  "dependencies": {
+    "agent-inspect": "workspace:*"
+  }
+}

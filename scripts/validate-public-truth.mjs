@@ -104,6 +104,34 @@ if (!readme.includes(`**${version}**`) && !readme.includes(`Current release:** *
   }
 }
 
+// ROADMAP.md must carry exactly one Current published heading matching root version
+{
+  const roadmapPath = path.join(root, "ROADMAP.md");
+  if (!existsSync(roadmapPath)) {
+    failures.push("ROADMAP.md is required");
+  } else {
+    const roadmap = readFileSync(roadmapPath, "utf8");
+    const currentMarkers = [
+      ...roadmap.matchAll(
+        /^## Current — published `(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)`$/gm,
+      ),
+    ];
+    if (currentMarkers.length === 0) {
+      failures.push(
+        "ROADMAP.md: missing ## Current — published `x.y.z` marker",
+      );
+    } else if (currentMarkers.length > 1) {
+      failures.push(
+        `ROADMAP.md: duplicate Current published markers (${currentMarkers.length})`,
+      );
+    } else if (currentMarkers[0][1] !== version) {
+      failures.push(
+        `ROADMAP.md: Current published ${currentMarkers[0][1]} must match root ${version}`,
+      );
+    }
+  }
+}
+
 // Stale public status strings outside historical contexts
 const scanFiles = [
   "README.md",

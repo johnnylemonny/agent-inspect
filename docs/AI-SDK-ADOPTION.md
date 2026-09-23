@@ -2,10 +2,12 @@
 
 Blessed path for **Vercel AI SDK** + AgentInspect — local traces only, metadata-first by default.
 
+**Peer:** `ai@^6.0.0` — tested with **`ai@6.0.210`**. This guide does not claim AI SDK 7 support.
+
 ## Install
 
 ```bash
-npm install agent-inspect @agent-inspect/ai-sdk ai
+npm install agent-inspect @agent-inspect/ai-sdk ai@6.0.210
 ```
 
 Or bootstrap a project:
@@ -20,23 +22,30 @@ npx agent-inspect init --framework ai-sdk
 import { generateText } from "ai";
 import { agentInspect } from "@agent-inspect/ai-sdk";
 
-await generateText({
-  model: yourModel,
-  prompt: "Hello",
-  experimental_telemetry: {
-    isEnabled: true,
-    recordInputs: false,
-    recordOutputs: false,
-    integrations: [
-      agentInspect({
-        traceDir: ".agent-inspect",
-        runName: "support-agent",
-        capture: "metadata-only",
-      }),
-    ],
-  },
+const integration = agentInspect({
+  traceDir: ".agent-inspect",
+  runName: "support-agent",
+  capture: "metadata-only",
 });
+
+try {
+  await generateText({
+    model: yourModel,
+    prompt: "Hello",
+    experimental_telemetry: {
+      isEnabled: true,
+      recordInputs: false,
+      recordOutputs: false,
+      integrations: [integration],
+    },
+  });
+} finally {
+  await integration.flush();
+  await integration.close();
+}
 ```
+
+Pass the integration only through `experimental_telemetry.integrations`. AgentInspect does **not** expose `getTelemetryMetadata()` or `getTelemetryHandlers()`.
 
 ## `streamText` (metadata-only)
 
@@ -44,29 +53,47 @@ await generateText({
 import { streamText } from "ai";
 import { agentInspect } from "@agent-inspect/ai-sdk";
 
-const result = streamText({
-  model: yourModel,
-  prompt: "Hello",
-  experimental_telemetry: {
-    isEnabled: true,
-    recordInputs: false,
-    recordOutputs: false,
-    integrations: [
-      agentInspect({
-        traceDir: ".agent-inspect",
-        runName: "stream-demo",
-        capture: "metadata-only",
-      }),
-    ],
-  },
+const integration = agentInspect({
+  traceDir: ".agent-inspect",
+  runName: "stream-demo",
+  capture: "metadata-only",
 });
 
-for await (const _chunk of result.textStream) {
-  // consume stream
+try {
+  const result = streamText({
+    model: yourModel,
+    prompt: "Hello",
+    experimental_telemetry: {
+      isEnabled: true,
+      recordInputs: false,
+      recordOutputs: false,
+      integrations: [integration],
+    },
+  });
+
+  for await (const _chunk of result.textStream) {
+    // consume stream
+  }
+} finally {
+  await integration.flush();
+  await integration.close();
 }
 ```
 
 Streaming lifecycle metadata is captured; raw token streams are not persisted by default.
+
+## Concurrent generations
+
+Create a **new** `agentInspect()` instance for each concurrent generation. Do not share one integration across overlapping `generateText` / `streamText` calls.
+
+## Diagnostics
+
+```ts
+const d = integration.getDiagnostics();
+console.log(d.writeFailures, d.lifecycleWarnings, d.lastWarning, d.capture);
+```
+
+Use `onDiagnostic` in options for live callbacks. Failures degrade locally; they do not throw into your agent return path.
 
 ## Tool calls
 
@@ -110,10 +137,11 @@ Use `--fail-on-observation` only when the run records explicit OUTCOME events.
 
 | Symptom | Fix |
 | ------- | --- |
-| No trace file | Ensure `experimental_telemetry.isEnabled: true` and integrations include `agentInspect()` |
+| No trace file | Ensure `experimental_telemetry.isEnabled: true` and `integrations: [integration]` |
 | Empty trace | Confirm `AGENT_INSPECT` is not `0` |
 | Prompts in trace | Set `recordInputs: false` and `recordOutputs: false` on the AI SDK call |
 | Wrong directory | Pass `traceDir` to `agentInspect()` or set `AGENT_INSPECT_TRACE_DIR` |
+| Mixed concurrent runs | Use a separate `agentInspect()` instance per overlapping generation |
 
 ## Recipes (no network)
 

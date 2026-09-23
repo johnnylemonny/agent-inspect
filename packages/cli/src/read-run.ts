@@ -5,11 +5,19 @@ import {
   unknownTraceFormatMessage,
   type TraceEvent,
 } from "@agent-inspect/core/advanced";
-import { persistedInspectEventsToTraceEvents } from "@agent-inspect/core/persisted";
+import {
+  persistedInspectEventsToTraceEvents,
+  type PersistedInspectEvent,
+} from "@agent-inspect/core/persisted";
 import { openTrace } from "@agent-inspect/core/readers";
 
 export interface ReadRunTraceResult {
   events: TraceEvent[];
+  format: "0.1" | "0.2" | "mixed" | "empty";
+}
+
+export interface ReadRunPersistedResult {
+  events: PersistedInspectEvent[];
   format: "0.1" | "0.2" | "mixed" | "empty";
 }
 
@@ -37,13 +45,12 @@ function isMissingFileError(error: unknown): boolean {
 
 /**
  * Shared CLI read path: loads a run JSONL file through the canonical reader
- * pipeline, then adapts persisted reader rows back to legacy TraceEvent rows for
- * existing run-id command compatibility.
+ * and returns persisted rows without the lossy TraceEvent downgrade.
  */
-export async function readRunTraceEvents(
+export async function readRunPersistedEvents(
   runId: string,
   traceDir: string,
-): Promise<ReadRunTraceResult | undefined> {
+): Promise<ReadRunPersistedResult | undefined> {
   const filePath = getTraceFilePath(runId, traceDir);
   try {
     await access(filePath);
@@ -51,15 +58,33 @@ export async function readRunTraceEvents(
       { type: "file", path: filePath },
       { format: "agent-inspect-jsonl" },
     );
-    const events = persistedInspectEventsToTraceEvents(result.events);
     return {
-      events,
-      format: events.length > 0 ? mapReaderFormat(result.format) : "empty",
+      events: result.events,
+      format:
+        result.events.length > 0 ? mapReaderFormat(result.format) : "empty",
     };
   } catch (error) {
     if (isMissingFileError(error)) return undefined;
     throw error;
   }
+}
+
+/**
+ * Shared CLI read path: loads a run JSONL file through the canonical reader
+ * pipeline, then adapts persisted reader rows back to legacy TraceEvent rows for
+ * existing run-id command compatibility.
+ */
+export async function readRunTraceEvents(
+  runId: string,
+  traceDir: string,
+): Promise<ReadRunTraceResult | undefined> {
+  const persisted = await readRunPersistedEvents(runId, traceDir);
+  if (persisted === undefined) return undefined;
+  const events = persistedInspectEventsToTraceEvents(persisted.events);
+  return {
+    events,
+    format: events.length > 0 ? persisted.format : "empty",
+  };
 }
 
 export { unknownTraceFormatMessage };

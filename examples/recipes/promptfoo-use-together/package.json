@@ -3,10 +3,14 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "start": "tsx src/index.ts"
+    "start": "node verify.mjs",
+    "verify": "node verify.mjs",
+    "promptfoo": "PROMPTFOO_DISABLE_REMOTE_GENERATION=true npx --yes promptfoo@0.118.17 eval -c promptfooconfig.yaml --no-cache"
   },
   "dependencies": {
-    "agent-inspect": "workspace:*",
-    "tsx": "^4.19.0"
+    "agent-inspect": "workspace:*"
+  },
+  "devDependencies": {
+    "promptfoo": "0.118.17"
   }
 }

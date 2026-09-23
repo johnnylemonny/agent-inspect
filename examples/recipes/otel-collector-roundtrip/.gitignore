@@ -1,0 +1,4 @@
+.recipe-work/
+.agent-inspect-runs/
+collected*.json
+otlp.json
