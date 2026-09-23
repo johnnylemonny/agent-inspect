@@ -9,8 +9,5 @@
   },
   "dependencies": {
     "agent-inspect": "workspace:*"
-  },
-  "devDependencies": {
-    "promptfoo": "0.118.17"
   }
 }
