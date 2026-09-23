@@ -169,6 +169,28 @@ export function persistedInspectEventToInspectEvent(
   ) {
     out.durationMs = event.durationMs;
   }
+  if (event.startedAt !== undefined) {
+    const started = parseIsoToMs(event.startedAt);
+    if (!started.invalidTimestamp) {
+      attrs.startedAtMs = started.ms;
+      // Prefer real start instant for span timing when timestamp alone is completion-skewed.
+      out.timestamp = started.ms;
+    }
+  }
+  if (event.endedAt !== undefined) {
+    const ended = parseIsoToMs(event.endedAt);
+    if (!ended.invalidTimestamp) {
+      attrs.endedAtMs = ended.ms;
+      if (
+        out.durationMs === undefined &&
+        typeof attrs.startedAtMs === "number" &&
+        ended.ms >= attrs.startedAtMs
+      ) {
+        out.durationMs = ended.ms - attrs.startedAtMs;
+      }
+    }
+  }
+  out.attributes = compactAttributes(attrs);
 
   return out;
 }

@@ -1,14 +1,14 @@
 # AgentInspect Canonical Roadmap (permanent)
 
-**Baseline:** `agent-inspect@6.31.0` (`988b747`)
-**Roadmap horizon:** website-first repair → **6.31.1–6.31.3** patches; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
-**Status:** **6.31.0 published**; website P04 in progress; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
-**Primary objective:** Repair website/onboarding and remaining correctness defects before expanding integrations—without schema 1.1, hosted SaaS, or fabricated external evidence
+**Baseline:** `agent-inspect@6.31.6` (published)
+**Roadmap horizon:** correctness **6.31.7** → export/OTLP **6.31.8** → recipes; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Status:** **6.31.6 published**; website headers (#458) done; BigInt OTLP timestamps done; next = P06 AI SDK docs + 6.31.7 correctness; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
+**Primary objective:** Close remaining correctness defects and make export→OTLP→destination evidence trustworthy—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
 **Package policy:** no new public packages before the conditional v7 decision
 **Network policy:** no new default network behavior
 **Product boundary:** local-first and customer-owned; no maintainer-hosted SaaS
-**Named train:** `website-correctness-post-6310`
+**Named train:** `correctness-after-6316`
 **Active plan:** [active/NEXT-RELEASES.md](./active/NEXT-RELEASES.md)
 
 ---
@@ -78,20 +78,25 @@ The canonical release sequence is:
 6.30.1  Rich-CLI contract corrections only
 
 6.31.0  Scoped typed cross-kind ordering  (amends prior failure-first review-UX allocation)  (published)
-6.31.1  Status validation + publish skip + LangChain parentage (after website hotfix)
-6.31.2  Copyable integrations / README / Jest
-6.31.3  OTLP correctness + Collector conformance
+6.31.1–6.31.5  Status/publish/parentage, integrations, OTLP BigInt timestamps, URL/FS, URI userinfo  (published)
+6.31.6  false-SAFE marker-slash + multihost MongoDB residuals  (published)
+6.31.7  Timeline identity (#454) + P03 false-pass checks; P06 AI SDK docs ready in parallel
+6.31.8  P07 export fidelity + P20 OTLP numeric enums / nested validation
+recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
-website  Links, quickstart, TOC, badges, dedicated website CI  (no mandatory npm)
+website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 
 6.32.0  Conditional external conformance + compact failure review — BLOCKED_ON_EXTERNAL_EVIDENCE
+6.33.0  Runnable integrations when additive
 
 7.0.0   Assessment only — V7_DECISION: NO-GO
 ```
 
 **Amendment (2026-09-18):** Prior `6.30.0` comparable-Evidence / interop and `6.31.0` failure-first review-UX allocations are superseded by the sequence above. Do **not** mark `EVIDENCE GATE APPROVED` from private case-study summaries alone.
 
-**Amendment (2026-09-19):** Post-6.31.0 train is **website-first** (`website-correctness-post-6310`). Do **not** invent or consume **6.32.0** for website/routine patches; next npm patches are **6.31.1+**.
+**Amendment (2026-09-19):** Post-6.31.0 train was **website-first** (`website-correctness-post-6310`). Do **not** invent or consume **6.32.0** for website/routine patches.
+
+**Amendment (2026-09-22):** After **6.31.6**, named train is `correctness-after-6316`. Website headers (#458) and OTLP BigInt timestamps are done. Next: P06 AI SDK docs + **6.31.7** correctness, then **6.31.8** export/OTLP.
 
 No major version is required. No new trace schema. No TrueForge-specific package. No full-content capture mode. No general temporal/workflow DSL.
 
@@ -187,12 +192,13 @@ Fail-closed deterministic gate hardening:
 | **6.26.0** | Outcome-aware behavioral sessions | #362 dual-axis summaries | Published |
 | **6.27.0** | Bounded safe recovery | read-recovery oracle first | Published |
 | **6.28.0** | Reviewer-reproducible Evidence | resolved contract binding | Published |
-| **6.29.0**–**6.29.4** | Usage fidelity through MCP/package trust | published line | Published |
-| **6.29.5** | Trustworthy existing checks | confidence; write recovery; circuit; accounting | Published |
-| **6.29.6** | Safe sharing + integration clarity | N8; outcome help; Jest; N9 investigate | Published |
-| **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | After 6.29.6 |
-| **6.31.0** | Typed cross-kind ordering | amends prior review-UX plan | Fixture-gated |
+| **6.29.0**–**6.29.6** | Usage fidelity through safe sharing | published line | Published |
+| **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | Published |
+| **6.31.0**–**6.31.6** | Typed ordering through false-SAFE security | published line | Published |
+| **6.31.7** | Timeline + false-pass checks | #454 / P03 | Next patch |
+| **6.31.8** | Export fidelity + OTLP encoding | P07 / P20 | Planned patch |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
+| **6.33.0** | Runnable integrations when additive | recipes | Planned minor |
 
 ### 3.1 v6.18.0 — adapter capture parity (#311)
 

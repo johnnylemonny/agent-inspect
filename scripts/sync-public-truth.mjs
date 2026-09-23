@@ -167,18 +167,13 @@ for (const rel of ["apps/website/public/llms.txt", "apps/website/public/llms-ful
   writeText(rel, text);
 }
 
-// --- README / ROADMAP / docs/README mechanical current-version lines ---
+// --- README / docs/README mechanical current-version lines ---
 {
   const pairs = [
     [
       "README.md",
       /\*\*Current published baseline:\*\* \*\*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\*\*/,
       `**Current published baseline:** **${version}**`,
-    ],
-    [
-      "ROADMAP.md",
-      /\*\*Current release on npm:\*\* \*\*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\*\*/,
-      `**Current release on npm:** **${version}**`,
     ],
     [
       "docs/README.md",
@@ -193,6 +188,38 @@ for (const rel of ["apps/website/public/llms.txt", "apps/website/public/llms-ful
     const next = text.replace(re, replacement);
     writeText(rel, next);
   }
+}
+
+// --- ROADMAP.md canonical Current published heading (fail closed on missing/duplicate) ---
+{
+  const rel = "ROADMAP.md";
+  const abs = path.join(root, rel);
+  if (!existsSync(abs)) {
+    console.error(`[public-truth:sync] missing ${rel}`);
+    process.exit(1);
+  }
+  let text = readFileSync(abs, "utf8");
+  const currentRe =
+    /^## Current — published `\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?`$/gm;
+  const matches = text.match(currentRe);
+  if (!matches || matches.length === 0) {
+    console.error(
+      `[public-truth:sync] ${rel}: missing ## Current — published \`x.y.z\` marker`,
+    );
+    process.exit(1);
+  }
+  if (matches.length > 1) {
+    console.error(
+      `[public-truth:sync] ${rel}: duplicate Current published markers (${matches.length})`,
+    );
+    process.exit(1);
+  }
+  text = text.replace(currentRe, `## Current — published \`${version}\``);
+  text = text.replace(
+    /^LAST_PUBLISHED_RELEASE:\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/m,
+    `LAST_PUBLISHED_RELEASE: ${version}`,
+  );
+  writeText(rel, text);
 }
 
 // --- release-train baselineVersion (not publishedVersion fabrication beyond package truth) ---

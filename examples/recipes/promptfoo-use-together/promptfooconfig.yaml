@@ -1,0 +1,46 @@
+# Executable Promptfoo + AgentInspect matrix (local, no remote generation).
+description: Same answer, correct vs wrong tool path — answer assert vs trajectory assert.
+
+providers:
+  - id: file://./provider.mjs
+
+prompts:
+  - "How many orders do I have?"
+
+tests:
+  - description: correct path — answer pass, trajectory pass
+    vars:
+      path: correct
+      expectTrajectory: pass
+    assert:
+      - type: equals
+        value: "You have 2 orders"
+      - type: javascript
+        value: file://./assert-trajectory.mjs
+
+  - description: wrong path — answer pass, trajectory fail (assert expects fail)
+    vars:
+      path: wrong
+      expectTrajectory: fail
+    assert:
+      - type: equals
+        value: "You have 2 orders"
+      - type: javascript
+        value: file://./assert-trajectory.mjs
+
+  - description: missing run metadata must never pass trajectory
+    vars:
+      path: correct
+      expectTrajectory: pass
+    assert:
+      - type: javascript
+        value: |
+          // Force missing metadata — must fail closed
+          return {
+            pass: false,
+            score: 0,
+            reason: "intentional missing-run control (outer verify checks this case separately)",
+          };
+
+env:
+  PROMPTFOO_DISABLE_REMOTE_GENERATION: "true"

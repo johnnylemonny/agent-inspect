@@ -133,4 +133,18 @@ describe("exportOtlpJson", () => {
     expect(span.endTimeUnixNano).toBe(String(expectedEnd));
     expect(BigInt(span.startTimeUnixNano) > BigInt(Number.MAX_SAFE_INTEGER)).toBe(true);
   });
+
+  it("emits numeric StatusCode and SpanKind enums", () => {
+    const tree = manualTraceEventsToRunTree(treeWithTokens());
+    const parsed = JSON.parse(exportOtlpJson(tree).content) as {
+      resourceSpans: {
+        scopeSpans: {
+          spans: { kind: number; status: { code: number } }[];
+        }[];
+      }[];
+    };
+    const span = parsed.resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
+    expect(span.kind).toBe(1);
+    expect(span.status.code).toBe(1);
+  });
 });

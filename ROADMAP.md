@@ -10,24 +10,23 @@ This public roadmap describes direction — not a delivery guarantee. See [docs/
 
 ---
 
-## Current — published `6.29.4`
+## Current — published `6.31.6`
 
-**Current release line:** **6.29.4** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
+**Current release line:** **6.31.6** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
 
 Core boundary frozen; evidence-backed **security, correctness, compatibility, interoperability, and public-truth patches** remain active. Retained-use / conformance claims stay gated on accepted external evidence. **v7 is NO-GO**.
 
 | Release | Theme | Status |
 | ------- | ----- | ------ |
-| **6.19.0**–**6.29.4** | Adoption-first through MCP/package trust integrity | Published |
-| **6.29.5** | Trustworthy existing checks (confidence, recovery, circuit, accounting) | Next patch |
-| **6.29.6** | Safe sharing and integration clarity | Planned patch |
-| **6.30.0** | Strict CLI access to existing rich TraceContracts | Planned minor |
-| **6.31.0** | Scoped typed cross-kind ordering | Fixture-gated |
+| **6.19.0**–**6.31.6** | Adoption through MCP trust + false-SAFE security patches | Published |
+| **6.31.7** | Correctness: timeline identity + false-pass checks | Next patch |
+| **6.31.8** | Export fidelity + OTLP encoding/validator | Planned patch |
 | **6.32.0** | Conditional external conformance + compact review | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
+| **6.33.0** | Runnable integrations when additive | Planned minor |
 | **7.0.0** | Major | Assessment only / **NO-GO** |
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.29.4
+LAST_PUBLISHED_RELEASE: 6.31.6
 V7_DECISION: NO-GO
 ```
 

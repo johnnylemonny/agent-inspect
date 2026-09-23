@@ -21,7 +21,7 @@ Vercel AI SDK telemetry → local AgentInspect traces (metadata-only by default)
 npm install agent-inspect @agent-inspect/ai-sdk ai
 ```
 
-**Peer:** `ai@^6.0.0`
+**Peer:** `ai@^6.0.0` — tested with **`ai@6.0.210`**. Do not assume AI SDK 7 compatibility.
 
 ## Example
 
@@ -29,23 +29,36 @@ npm install agent-inspect @agent-inspect/ai-sdk ai
 import { generateText } from "ai";
 import { agentInspect } from "@agent-inspect/ai-sdk";
 
-const integration = agentInspect({ traceDir: ".agent-inspect" });
-
-const result = await generateText({
-  model: yourModel,
-  prompt: "Hello",
-  experimental_telemetry: {
-    isEnabled: true,
-    recordInputs: false,
-    recordOutputs: false,
-    functionId: "my-agent",
-    metadata: integration.getTelemetryMetadata(),
-  },
-  ...integration.getTelemetryHandlers(),
+const integration = agentInspect({
+  traceDir: ".agent-inspect",
+  runName: "my-agent",
 });
+
+try {
+  const result = await generateText({
+    model: yourModel,
+    prompt: "Hello",
+    experimental_telemetry: {
+      isEnabled: true,
+      recordInputs: false,
+      recordOutputs: false,
+      integrations: [integration],
+    },
+  });
+  console.log(result.text);
+} finally {
+  await integration.flush();
+  await integration.close();
+}
 ```
 
 **Required:** `recordInputs: false` and `recordOutputs: false` — AgentInspect does not upload to Vercel; traces stay local.
+
+Pass the integration only through `experimental_telemetry.integrations`. There are no `getTelemetryMetadata()` / `getTelemetryHandlers()` helpers.
+
+## Concurrent generations
+
+Use a **separate** `agentInspect()` instance per concurrent `generateText` / `streamText` call. Sharing one integration across overlapping generations can mix lifecycle rows.
 
 ## Privacy
 
@@ -59,10 +72,11 @@ const result = await generateText({
 
 | Export | Purpose |
 | ------ | ------- |
-| `agentInspect(options)` | Telemetry integration factory |
-| `getTelemetryHandlers()` | Spread into AI SDK call |
-| `getTelemetryMetadata()` | Safe metadata for telemetry block |
-| `getDiagnostics()` | Local warnings plus resolved capture mode and preview counters |
+| `agentInspect(options)` | Returns an AI SDK `TelemetryIntegration` plus local helpers |
+| `integration.flush()` | Flush pending writes (safe to call more than once) |
+| `integration.close()` | Terminalize open rows and close the writer |
+| `integration.getDiagnostics()` | Local warnings plus resolved capture mode and preview counters |
+| `integration.getWriterStats()` | Optional writer stats when a writer is active |
 
 ## CLI
 
@@ -76,7 +90,7 @@ const result = await generateText({
 
 ## Troubleshooting
 
-- **No trace events:** Ensure `experimental_telemetry.isEnabled: true` and handlers are spread
+- **No trace events:** Ensure `experimental_telemetry.isEnabled: true` and `integrations: [integration]`
 - **Empty previews in preview mode:** the AI SDK did not provide the field for that step. AgentInspect reports `AI_CAPTURE_FIELD_UNAVAILABLE` through `onDiagnostic` and `getDiagnostics().capture`
 - **Previews look cut off:** they are bounded by `maxPreviewChars`, which the `share` and `strict` redaction profiles cap further
 

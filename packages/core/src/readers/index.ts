@@ -1430,20 +1430,41 @@ function extractOtlpDocument(root: unknown): OtlpDocument | undefined {
 function mapOtlpStatus(status: unknown): PersistedEventStatus | undefined {
   if (!isRecord(status)) return undefined;
   const rawCode = status.code;
-  if (typeof rawCode !== "string") return undefined;
-  switch (rawCode.toUpperCase()) {
-    case "STATUS_CODE_OK":
-    case "OK":
-      return "ok";
-    case "STATUS_CODE_ERROR":
-    case "ERROR":
-      return "error";
-    case "STATUS_CODE_UNSET":
-    case "UNSET":
-      return "unknown";
-    default:
-      return "unknown";
+
+  if (typeof rawCode === "number" && Number.isFinite(rawCode)) {
+    switch (rawCode) {
+      case 0:
+        return "unknown";
+      case 1:
+        return "ok";
+      case 2:
+        return "error";
+      default:
+        return "unknown";
+    }
   }
+
+  if (typeof rawCode === "string") {
+    const trimmed = rawCode.trim();
+    if (/^\d+$/.test(trimmed)) {
+      return mapOtlpStatus({ code: Number(trimmed) });
+    }
+    switch (trimmed.toUpperCase()) {
+      case "STATUS_CODE_OK":
+      case "OK":
+        return "ok";
+      case "STATUS_CODE_ERROR":
+      case "ERROR":
+        return "error";
+      case "STATUS_CODE_UNSET":
+      case "UNSET":
+        return "unknown";
+      default:
+        return "unknown";
+    }
+  }
+
+  return undefined;
 }
 
 function readOtlpKind(

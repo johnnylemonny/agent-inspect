@@ -3,9 +3,13 @@
   "private": true,
   "type": "module",
   "scripts": {
+    "prestart": "pnpm --filter @agent-inspect/ai-sdk run build",
     "start": "node run.mjs"
   },
   "dependencies": {
-    "agent-inspect": "workspace:*"
+    "@agent-inspect/ai-sdk": "workspace:*",
+    "agent-inspect": "workspace:*",
+    "ai": "6.0.210",
+    "zod": "^4.0.0"
   }
 }

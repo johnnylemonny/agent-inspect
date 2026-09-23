@@ -4,17 +4,17 @@ import path from "node:path";
 import { resolveTraceDir, type RedactionProfile } from "@agent-inspect/core/advanced";
 import {
   exportRunTree,
-  manualTraceEventsToRunTree,
   validateExport,
   type ExportFormat,
   type ExportOptions,
 } from "@agent-inspect/core/exporters";
+import { persistedInspectEventsToRunTrees } from "@agent-inspect/core/persisted";
 
 import {
   resolveOutputOption,
   resolveRedactionProfileOption,
 } from "./cli-option-aliases.js";
-import { readRunTraceEvents } from "./read-run.js";
+import { readRunPersistedEvents } from "./read-run.js";
 
 export interface ExportCommandOptions {
   dir?: string;
@@ -82,7 +82,7 @@ export async function exportCommand(
   const traceDir = resolveTraceDir({ dir: options.dir });
   let events;
   try {
-    const result = await readRunTraceEvents(id, traceDir);
+    const result = await readRunPersistedEvents(id, traceDir);
     events = result?.events ?? [];
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
@@ -99,7 +99,11 @@ export async function exportCommand(
 
   let tree;
   try {
-    tree = manualTraceEventsToRunTree(events);
+    const trees = persistedInspectEventsToRunTrees(events);
+    tree = trees.find((candidate) => candidate.runId === id) ?? trees[0];
+    if (tree === undefined) {
+      throw new Error("No run tree could be built from persisted events");
+    }
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     console.error(`[AgentInspect] export failed: ${msg}`);
@@ -135,7 +139,10 @@ export async function exportCommand(
     await writeFile(outPath, result.content, "utf-8");
     const vlabel =
       validation !== undefined ? (validation.ok ? "ok" : "failed") : "skipped";
-    console.log(`Wrote ${result.fileExtension} export to ${outPath} (validation: ${vlabel})`);
+    // Human progress stays on stderr so `--json` stdout remains a single parseable object.
+    console.error(
+      `Wrote ${result.fileExtension} export to ${outPath} (validation: ${vlabel})`,
+    );
     if (validation !== undefined && !validation.ok) {
       console.error("Validation errors:", validation.errors.join("; "));
     }
@@ -149,7 +156,9 @@ export async function exportCommand(
       warnings: [...result.warnings, ...(validation?.warnings ?? [])],
       validation,
     };
-    if (outPath === undefined) {
+    if (outPath !== undefined) {
+      payload.out = outPath;
+    } else {
       payload.content = result.content;
     }
     console.log(JSON.stringify(payload, null, 2));

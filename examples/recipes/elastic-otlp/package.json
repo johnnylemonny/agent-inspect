@@ -1,0 +1,12 @@
+{
+  "name": "agent-inspect-recipe-elastic-otlp",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "node verify.mjs",
+    "verify:live": "node verify.mjs --live"
+  },
+  "dependencies": {
+    "agent-inspect": "workspace:*"
+  }
+}

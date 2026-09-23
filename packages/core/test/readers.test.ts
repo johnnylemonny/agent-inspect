@@ -787,6 +787,63 @@ describe("OTLP JSON reader", () => {
     ]);
   });
 
+  it("maps numeric OTLP StatusCode 0/1/2 on public reader path", async () => {
+    const content = JSON.stringify({
+      resourceSpans: [
+        {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: "trace-numeric",
+                  spanId: "span-ok",
+                  name: "llm-ok",
+                  startTimeUnixNano: "1700000000000000000",
+                  endTimeUnixNano: "1700000001000000000",
+                  attributes: [
+                    {
+                      key: "gen_ai.operation.name",
+                      value: { stringValue: "chat" },
+                    },
+                  ],
+                  status: { code: 1 },
+                },
+                {
+                  traceId: "trace-numeric",
+                  spanId: "span-err",
+                  name: "tool-err",
+                  startTimeUnixNano: "1700000001000000000",
+                  endTimeUnixNano: "1700000002000000000",
+                  attributes: [
+                    {
+                      key: "gen_ai.operation.name",
+                      value: { stringValue: "execute_tool" },
+                    },
+                  ],
+                  status: { code: 2, message: "boom" },
+                },
+                {
+                  traceId: "trace-numeric",
+                  spanId: "span-unset",
+                  name: "logic-unset",
+                  startTimeUnixNano: "1700000002000000000",
+                  status: { code: 0 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await readTrace({ type: "string", content });
+    expect(result.format).toBe("otlp-json");
+    const byId = Object.fromEntries(result.events.map((e) => [e.eventId, e]));
+    expect(byId["span-ok"]?.status).toBe("ok");
+    expect(byId["span-err"]?.status).toBe("error");
+    expect(byId["span-unset"]?.status).toBe("unknown");
+  });
+
   it("rejects malformed OTLP documents with structured warnings", async () => {
     const detection = await detectTraceFormat({
       type: "file",

@@ -6,6 +6,7 @@ packages:
   - "examples/adapter-sdk/*"
   - "examples/recipes/*"
   - "examples/starters/broken-agent-debugging"
+  - "examples/starters/ai-sdk"
 allowBuilds:
   esbuild: true
   unrs-resolver: false

@@ -49,6 +49,25 @@ describe("init CLI", () => {
     expect(payload.planned.length).toBeGreaterThan(0);
   });
 
+  it("ai-sdk demo uses real MockLanguageModelV3 telemetry wiring", async () => {
+    await initCommand({ framework: "ai-sdk", cwd: tmpDir, yes: true });
+    const demo = await readFile(
+      path.join(tmpDir, "examples/agent-inspect-ai-sdk-demo.mjs"),
+      "utf8",
+    );
+    expect(demo).toContain('from "ai"');
+    expect(demo).toContain('from "ai/test"');
+    expect(demo).toContain("MockLanguageModelV3");
+    expect(demo).toContain("experimental_telemetry");
+    expect(demo).toContain("integrations: [integration]");
+    expect(demo).toContain("lookup_orders");
+    expect(demo).toContain("delete_orders");
+    expect(demo).toContain("selectRunIdByName");
+    expect(demo).not.toContain("getTelemetryMetadata");
+    expect(demo).not.toContain("getTelemetryHandlers");
+    expect(demo).not.toContain('from "agent-inspect"');
+  });
+
   it("adds GitHub workflow snippet with --ci github", async () => {
     await initCommand({ framework: "custom", cwd: tmpDir, ci: "github", yes: true });
     const workflow = await readFile(

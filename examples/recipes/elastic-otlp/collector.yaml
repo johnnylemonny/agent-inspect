@@ -1,0 +1,21 @@
+receivers:
+  otlp:
+    protocols:
+      http:
+        endpoint: 127.0.0.1:4318
+
+exporters:
+  # Configure credentials via env — never commit secrets.
+  # otlphttp/elastic:
+  #   endpoint: ${env:ELASTIC_OTLP_ENDPOINT}
+  #   headers:
+  #     Authorization: "Bearer ${env:ELASTIC_API_KEY}"
+  file:
+    path: ./collected-for-elastic.json
+    format: json
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [file]

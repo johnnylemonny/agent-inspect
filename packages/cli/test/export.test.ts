@@ -189,4 +189,102 @@ describe("export CLI", () => {
     expect(out.toLowerCase()).toContain("<!doctype html");
     logSpy.mockRestore();
   });
+
+  it("preserves AI SDK source attribution on OTLP export (no manual relabel)", async () => {
+    const runId = "ai_sdk_export_fidelity";
+    const startedAt = "2026-09-22T12:00:00.000Z";
+    const endedAt = "2026-09-22T12:00:01.500Z";
+    const lines = [
+      JSON.stringify({
+        schemaVersion: "1.0",
+        eventId: `${runId}:run`,
+        runId,
+        name: "ai-sdk-export-fixture",
+        kind: "RUN",
+        timestamp: startedAt,
+        startedAt,
+        endedAt,
+        durationMs: 1500,
+        status: "ok",
+        confidence: "explicit",
+        source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.6" },
+      }),
+      JSON.stringify({
+        schemaVersion: "1.0",
+        eventId: `${runId}:llm`,
+        runId,
+        parentId: `${runId}:run`,
+        name: "ai-sdk-step-0",
+        kind: "LLM",
+        timestamp: startedAt,
+        startedAt,
+        endedAt,
+        durationMs: 1500,
+        status: "ok",
+        confidence: "explicit",
+        source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.6" },
+        attributes: {
+          model: "fixture-generate",
+          provider: "fixture-provider",
+        },
+        tokenUsage: { input: 4, output: 3, total: 7 },
+      }),
+      JSON.stringify({
+        schemaVersion: "1.0",
+        eventId: `${runId}:tool`,
+        runId,
+        parentId: `${runId}:llm`,
+        name: "lookup_orders",
+        kind: "TOOL",
+        timestamp: startedAt,
+        startedAt,
+        endedAt,
+        durationMs: 200,
+        status: "ok",
+        confidence: "explicit",
+        source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.6" },
+      }),
+      "",
+    ].join("\n");
+    await writeFile(path.join(traceDir, `${runId}.jsonl`), lines, "utf-8");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await exportCommand(runId, {
+      dir: traceDir,
+      format: "otlp-json",
+      json: true,
+      includeAttributes: true,
+    });
+    const raw = String(logSpy.mock.calls[0]?.[0] ?? "");
+    const parsed = JSON.parse(raw) as { content?: string };
+    expect(parsed.content).toBeDefined();
+    const otlp = JSON.parse(String(parsed.content)) as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{ spans: Array<{ attributes: Array<{ key: string; value: Record<string, string> }> }> }>;
+      }>;
+    };
+    const attrs = otlp.resourceSpans
+      .flatMap((rs) => rs.scopeSpans)
+      .flatMap((ss) => ss.spans)
+      .flatMap((span) => span.attributes);
+    const sourceTypes = attrs
+      .filter((a) => a.key === "agent_inspect.source.type")
+      .map((a) => a.value.stringValue);
+    expect(sourceTypes.length).toBeGreaterThan(0);
+    expect(sourceTypes.every((v) => v === "adapter")).toBe(true);
+    expect(JSON.stringify(attrs)).toContain("originalSourceType");
+    expect(JSON.stringify(otlp)).toContain("lookup_orders");
+    expect(JSON.stringify(otlp)).toContain("fixture-generate");
+    expect(JSON.stringify(otlp)).not.toMatch(/"stringValue"\s*:\s*"manual"/);
+    // Repeated export is stable
+    logSpy.mockClear();
+    await exportCommand(runId, {
+      dir: traceDir,
+      format: "otlp-json",
+      json: true,
+      includeAttributes: true,
+    });
+    const second = String(logSpy.mock.calls[0]?.[0] ?? "");
+    expect(second).toBe(raw);
+    logSpy.mockRestore();
+  });
 });
