@@ -224,7 +224,8 @@ describe("export CLI", () => {
         confidence: "explicit",
         source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.6" },
         attributes: {
-          model: "fixture-generate",
+          modelId: "fixture-tools",
+          responseModelId: "fixture-tools-response",
           provider: "fixture-provider",
         },
         tokenUsage: { input: 4, output: 3, total: 7 },
@@ -239,10 +240,10 @@ describe("export CLI", () => {
         timestamp: startedAt,
         startedAt,
         endedAt,
-        durationMs: 200,
+        durationMs: 1.75,
         status: "ok",
         confidence: "explicit",
-        source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.6" },
+        source: { type: "ai-sdk", name: "@agent-inspect/ai-sdk", version: "6.31.7" },
       }),
       "",
     ].join("\n");
@@ -259,7 +260,7 @@ describe("export CLI", () => {
     expect(parsed.content).toBeDefined();
     const otlp = JSON.parse(String(parsed.content)) as {
       resourceSpans: Array<{
-        scopeSpans: Array<{ spans: Array<{ attributes: Array<{ key: string; value: Record<string, string> }> }> }>;
+        scopeSpans: Array<{ spans: Array<{ attributes: Array<{ key: string; value: Record<string, string | number> }> }> }>;
       }>;
     };
     const attrs = otlp.resourceSpans
@@ -270,10 +271,16 @@ describe("export CLI", () => {
       .filter((a) => a.key === "agent_inspect.source.type")
       .map((a) => a.value.stringValue);
     expect(sourceTypes.length).toBeGreaterThan(0);
-    expect(sourceTypes.every((v) => v === "adapter")).toBe(true);
-    expect(JSON.stringify(attrs)).toContain("originalSourceType");
+    expect(sourceTypes.every((v) => v === "ai-sdk")).toBe(true);
     expect(JSON.stringify(otlp)).toContain("lookup_orders");
-    expect(JSON.stringify(otlp)).toContain("fixture-generate");
+    expect(JSON.stringify(otlp)).toContain("fixture-tools");
+    expect(JSON.stringify(otlp)).toContain("gen_ai.request.model");
+    expect(JSON.stringify(otlp)).toContain("gen_ai.response.model");
+    const duration = attrs.find((a) => a.key === "agent_inspect.duration_ms");
+    expect(duration?.value.doubleValue ?? duration?.value.intValue).toBeDefined();
+    if (duration?.value.doubleValue !== undefined) {
+      expect(duration.value.doubleValue).toBe(1.75);
+    }
     expect(JSON.stringify(otlp)).not.toMatch(/"stringValue"\s*:\s*"manual"/);
     // Repeated export is stable
     logSpy.mockClear();
@@ -285,6 +292,114 @@ describe("export CLI", () => {
     });
     const second = String(logSpy.mock.calls[0]?.[0] ?? "");
     expect(second).toBe(raw);
+    logSpy.mockRestore();
+  });
+
+  it("coalesces nested schema 0.1 start/complete into logical tool spans", async () => {
+    const runId = "nested_tools_export";
+    const lines = [
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "run_started",
+        timestamp: 1000,
+        runId,
+        name: "nested",
+        startTime: 1000,
+      }),
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "step_started",
+        timestamp: 1001,
+        runId,
+        stepId: "parent_tool",
+        name: "lookup_orders",
+        type: "tool",
+        startTime: 1001,
+      }),
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "step_started",
+        timestamp: 1002,
+        runId,
+        stepId: "child_tool",
+        parentId: "parent_tool",
+        name: "fetch_item",
+        type: "tool",
+        startTime: 1002,
+      }),
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "step_completed",
+        timestamp: 1003,
+        runId,
+        stepId: "child_tool",
+        status: "success",
+        endTime: 1003,
+        durationMs: 1,
+      }),
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "step_completed",
+        timestamp: 1004,
+        runId,
+        stepId: "parent_tool",
+        status: "success",
+        endTime: 1004,
+        durationMs: 3,
+      }),
+      JSON.stringify({
+        schemaVersion: "0.1",
+        event: "run_completed",
+        timestamp: 1005,
+        runId,
+        status: "success",
+        endTime: 1005,
+        durationMs: 5,
+      }),
+      "",
+    ].join("\n");
+    await writeFile(path.join(traceDir, `${runId}.jsonl`), lines, "utf-8");
+    const logSpy = vi.spyOn(console, "log").mockImplementation(() => {});
+    await exportCommand(runId, {
+      dir: traceDir,
+      format: "otlp-json",
+      json: true,
+    });
+    const raw = String(logSpy.mock.calls[0]?.[0] ?? "");
+    const parsed = JSON.parse(raw) as { content?: string };
+    const otlp = JSON.parse(String(parsed.content)) as {
+      resourceSpans: Array<{
+        scopeSpans: Array<{
+          spans: Array<{
+            name: string;
+            spanId: string;
+            parentSpanId?: string;
+            status?: { code: number };
+            attributes: Array<{ key: string; value: Record<string, string> }>;
+          }>;
+        }>;
+      }>;
+    };
+    const spans = otlp.resourceSpans
+      .flatMap((rs) => rs.scopeSpans)
+      .flatMap((ss) => ss.spans);
+    // One RUN + two TOOL logical spans (not six lifecycle rows).
+    expect(spans).toHaveLength(3);
+    const byName = Object.fromEntries(spans.map((s) => [s.name, s]));
+    expect(byName.lookup_orders).toBeDefined();
+    expect(byName.fetch_item).toBeDefined();
+    const kinds = spans.map(
+      (s) =>
+        s.attributes.find((a) => a.key === "agent_inspect.kind")?.value
+          .stringValue,
+    );
+    expect(kinds.filter((k) => k === "TOOL")).toHaveLength(2);
+    expect(kinds.filter((k) => k === "RUN")).toHaveLength(1);
+    const parent = byName.lookup_orders!;
+    const child = byName.fetch_item!;
+    expect(child.parentSpanId).toBe(parent.spanId);
+    expect(parent.status?.code).toBe(1); // OK
+    expect(child.status?.code).toBe(1);
     logSpy.mockRestore();
   });
 });

@@ -15,12 +15,48 @@ function isRecord(value: unknown): value is Record<string, unknown> {
   return value !== null && typeof value === "object" && !Array.isArray(value);
 }
 
+function isHexId(value: unknown, byteLen: number): boolean {
+  return typeof value === "string" && new RegExp(`^[0-9a-fA-F]{${byteLen * 2}}$`).test(value);
+}
+
+function validateAnyValue(
+  errors: string[],
+  path: string,
+  value: unknown,
+): void {
+  if (!isRecord(value)) {
+    pushPath(errors, path, "must be an AnyValue object");
+    return;
+  }
+  const variants = [
+    "stringValue",
+    "boolValue",
+    "intValue",
+    "doubleValue",
+    "bytesValue",
+    "arrayValue",
+    "kvlistValue",
+  ].filter((key) => value[key] !== undefined);
+  if (variants.length !== 1) {
+    pushPath(
+      errors,
+      path,
+      `AnyValue must set exactly one variant (found ${variants.length}: ${variants.join(",")})`,
+    );
+  }
+  if (value.intValue !== undefined) {
+    if (typeof value.intValue !== "string" || !/^-?\d+$/.test(value.intValue)) {
+      pushPath(errors, `${path}.intValue`, "must be a decimal integer string");
+    }
+  }
+}
+
 function validateOtlpJson(content: string): ExportValidationResult {
   const errors: string[] = [];
   const warnings: string[] = [
     EXPERIMENTAL,
     "OTLP JSON mapping uses OTel GenAI-aligned attributes where applicable; collectors may require transformation.",
-    "protocol-valid ≠ profile-complete ≠ fixture-complete — nested path diagnostics report protocol shape only.",
+    "producer-profile checks IDs, timing, and AnyValue shape; historical string enums are reader-compat warnings only.",
   ];
 
   let parsed: unknown;
@@ -67,11 +103,29 @@ function validateOtlpJson(content: string): ExportValidationResult {
           pushPath(errors, spanPath, "must be an object");
           return;
         }
-        if (typeof span.traceId !== "string" || span.traceId.length === 0) {
-          pushPath(errors, `${spanPath}.traceId`, "must be a non-empty string");
+        if (!isHexId(span.traceId, 16)) {
+          pushPath(
+            errors,
+            `${spanPath}.traceId`,
+            "must be a 32-char hex trace id (16 bytes)",
+          );
         }
-        if (typeof span.spanId !== "string" || span.spanId.length === 0) {
-          pushPath(errors, `${spanPath}.spanId`, "must be a non-empty string");
+        if (!isHexId(span.spanId, 8)) {
+          pushPath(
+            errors,
+            `${spanPath}.spanId`,
+            "must be a 16-char hex span id (8 bytes)",
+          );
+        }
+        if (
+          span.parentSpanId !== undefined &&
+          !isHexId(span.parentSpanId, 8)
+        ) {
+          pushPath(
+            errors,
+            `${spanPath}.parentSpanId`,
+            "must be a 16-char hex span id when present",
+          );
         }
         if (typeof span.name !== "string") {
           pushPath(errors, `${spanPath}.name`, "must be a string");
@@ -97,15 +151,47 @@ function validateOtlpJson(content: string): ExportValidationResult {
             "must be a decimal-string 64-bit integer when present",
           );
         }
+        if (
+          typeof span.startTimeUnixNano === "string" &&
+          /^\d+$/.test(span.startTimeUnixNano) &&
+          typeof span.endTimeUnixNano === "string" &&
+          /^\d+$/.test(span.endTimeUnixNano)
+        ) {
+          try {
+            if (BigInt(span.endTimeUnixNano) < BigInt(span.startTimeUnixNano)) {
+              pushPath(
+                errors,
+                `${spanPath}.endTimeUnixNano`,
+                "must be >= startTimeUnixNano",
+              );
+            }
+          } catch {
+            pushPath(errors, `${spanPath}.endTimeUnixNano`, "out of integer range");
+          }
+        }
 
-        // SpanKind: numeric preferred; historical string enums remain protocol-valid.
+        if (Array.isArray(span.attributes)) {
+          span.attributes.forEach((attr, ai) => {
+            const attrPath = `${spanPath}.attributes[${ai}]`;
+            if (!isRecord(attr)) {
+              pushPath(errors, attrPath, "must be an object");
+              return;
+            }
+            if (typeof attr.key !== "string") {
+              pushPath(errors, `${attrPath}.key`, "must be a string");
+            }
+            validateAnyValue(errors, `${attrPath}.value`, attr.value);
+          });
+        }
+
+        // SpanKind: numeric preferred; historical string enums remain reader-compat.
         if (typeof span.kind === "number") {
           if (!Number.isInteger(span.kind)) {
             pushPath(errors, `${spanPath}.kind`, "must be an integer SpanKind enum");
           }
         } else if (typeof span.kind === "string") {
           warnings.push(
-            `${spanPath}.kind: string SpanKind enum is legacy; prefer numeric (INTERNAL=1)`,
+            `${spanPath}.kind: string SpanKind is historical reader-compat only; producer wire format uses numeric enums`,
           );
         } else if (span.kind !== undefined) {
           pushPath(
@@ -145,7 +231,7 @@ function validateOtlpJson(content: string): ExportValidationResult {
               );
             } else {
               warnings.push(
-                `${spanPath}.status.code: string StatusCode is legacy; prefer numeric 0/1/2`,
+                `${spanPath}.status.code: string StatusCode is historical reader-compat only; producer wire format uses numeric 0/1/2`,
               );
             }
           } else {

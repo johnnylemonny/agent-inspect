@@ -99,7 +99,11 @@ export async function exportCommand(
 
   let tree;
   try {
-    const trees = persistedInspectEventsToRunTrees(events);
+    // Coalesce v0.1 start/complete rows into logical steps so export matches
+    // 6.31.6-class span identity (one span per tool; one RUN; remapped parents).
+    const trees = persistedInspectEventsToRunTrees(events, {
+      coalesceLifecycle: true,
+    });
     tree = trees.find((candidate) => candidate.runId === id) ?? trees[0];
     if (tree === undefined) {
       throw new Error("No run tree could be built from persisted events");

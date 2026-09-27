@@ -115,11 +115,17 @@ export function exportOpenInference(
 
     const { openInferenceKind } = mapInspectKindToOI(ev.kind, warnings);
 
+    const meta = ev.attributes;
+    const originalSource =
+      typeof meta?.originalSourceType === "string" && meta.originalSourceType.trim() !== ""
+        ? meta.originalSourceType.trim()
+        : ev.source.type;
+
     const attrs: Record<string, unknown> = {
       "openinference.span.kind": openInferenceKind,
       "agent_inspect.kind": ev.kind,
       "agent_inspect.confidence": ev.confidence,
-      "agent_inspect.source.type": ev.source.type,
+      "agent_inspect.source.type": originalSource,
       "agent_inspect.run_id": tree.runId,
       "agent_inspect.event_id": ev.eventId,
       "agent_inspect.status": ev.status ?? "unset",
@@ -128,9 +134,11 @@ export function exportOpenInference(
       attrs["agent_inspect.duration_ms"] = ev.durationMs;
     }
 
-    const meta = ev.attributes;
-    if (meta?.model !== undefined && typeof meta.model === "string") {
-      attrs["llm.model_name"] = meta.model;
+    const requestModel =
+      (typeof meta?.model === "string" && meta.model.trim() !== "" ? meta.model : undefined) ??
+      (typeof meta?.modelId === "string" && meta.modelId.trim() !== "" ? meta.modelId : undefined);
+    if (requestModel !== undefined) {
+      attrs["llm.model_name"] = requestModel;
     }
     const tokens = meta?.tokens;
     if (tokens && typeof tokens === "object" && tokens !== null) {
@@ -141,8 +149,9 @@ export function exportOpenInference(
     }
 
     if (includeAttributes && meta && typeof meta === "object") {
+      const skipKeys = new Set(["tokens", "model", "modelId", "originalSourceType"]);
       for (const [k, v] of Object.entries(meta)) {
-        if (k === "tokens" || k === "model") continue;
+        if (skipKeys.has(k)) continue;
         if (v !== undefined && v !== null && typeof v !== "object") {
           attrs[`agent_inspect.preview.${k}`] =
             typeof v === "string" ? v.slice(0, maxLen) : v;
