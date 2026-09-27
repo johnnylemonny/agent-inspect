@@ -5,8 +5,8 @@
 > **Canonical roadmap:** [ROADMAP.md](./ROADMAP.md)
 
 ```yaml
-baselineVersion: "6.31.10"
-publishedVersion: "6.31.10"
+baselineVersion: "6.31.11"
+publishedVersion: "6.31.11"
 pendingPublishVersion: null
 currentTrain: "suite-context-trust-after-6318"
 trainStatus: "active"

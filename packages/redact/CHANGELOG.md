@@ -1,5 +1,11 @@
 # @agent-inspect/redact
 
+## 6.31.11
+
+### Patch Changes
+
+- 7180204: C06–C13 suite/capture trust follow-through: explain logical lifecycle counts; TraceCheckSummary rule-status totals and Execution wording in `what`; mock OpenAI Node chat.completions recipe; suite `expect` for semantic failures; Nest Evidence v2 docs; skip exact `[REDACTED]` key-noise in `@agent-inspect/redact`; additive Evidence `inputs` provenance bindings; bounded consumer smoke (disk reread + evidence verify).
+
 ## 6.31.10
 
 ### Patch Changes
