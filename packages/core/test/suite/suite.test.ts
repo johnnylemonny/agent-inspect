@@ -86,3 +86,199 @@ describe("trace suite config", () => {
     expect(markdown).toContain("PASS");
   });
 });
+
+describe("suite assertion integrity", () => {
+  const repoRoot = path.resolve(import.meta.dirname, "../../../..");
+  const tracesDir = path.join(repoRoot, "fixtures/traces");
+
+  async function writeSuiteConfig(
+    dir: string,
+    config: Record<string, unknown>,
+  ): Promise<string> {
+    const configPath = path.join(dir, "agent-inspect.suite.json");
+    await writeFile(configPath, JSON.stringify(config, null, 2), "utf-8");
+    return configPath;
+  }
+
+  it("fails closed when a case declares no effective assertions", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-no-assert-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "no-assertions",
+        traces: tracesDir,
+        cases: [{ id: "bare", runId: "minimal-success" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.cases[0]?.status).toBe("error");
+      expect(result.cases[0]?.diagnostics.some((d) => d.code === "AI_SUITE_NO_ASSERTIONS")).toBe(
+        true,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails closed on unknown-only selectors", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-unknown-select-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "unknown-select",
+        traces: tracesDir,
+        checks: { select: ["run.sttaus"] },
+        cases: [{ id: "typo", runId: "minimal-success" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.cases[0]?.diagnostics.some((d) => d.code === "AI_SUITE_UNKNOWN_SELECTOR")).toBe(
+        true,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("passes known run.status on a success trace", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-status-ok-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "status-ok",
+        traces: tracesDir,
+        checks: { select: ["run.status"] },
+        cases: [{ id: "ok", runId: "minimal-success" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(true);
+      expect(result.cases[0]?.status).toBe("pass");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects known + unknown selector combinations", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-mixed-select-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "mixed-select",
+        traces: tracesDir,
+        checks: { select: ["run.status", "run.sttaus"] },
+        cases: [{ id: "mixed", runId: "minimal-success" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.cases[0]?.diagnostics.some((d) => d.code === "AI_SUITE_UNKNOWN_SELECTOR")).toBe(
+        true,
+      );
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("honors eval.requireSuccess on an error trace", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-require-success-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "require-success",
+        traces: tracesDir,
+        eval: { requireSuccess: true },
+        cases: [{ id: "error-run", runId: "minimal-error" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.cases[0]?.status).toBe("fail");
+      expect(result.cases[0]?.checkOk).toBe(false);
+      expect(result.cases[0]?.evalOk).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails run.status on the same error trace", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-status-error-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "status-error",
+        traces: tracesDir,
+        checks: { select: ["run.status"] },
+        cases: [{ id: "error-run", runId: "minimal-error" }],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.cases[0]?.status).toBe("fail");
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("preserves observation-only positive and negative controls", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-obs-only-"));
+    try {
+      const passPath = await writeSuiteConfig(dir, {
+        name: "obs-pass",
+        traces: tracesDir,
+        cases: [
+          {
+            id: "present",
+            runId: "outcome-pass",
+            expectedObservations: ["policyShown"],
+          },
+        ],
+      });
+      const pass = await runSuite({ configPath: passPath });
+      expect(pass.ok).toBe(true);
+      expect(pass.cases[0]?.status).toBe("pass");
+
+      const failPath = await writeSuiteConfig(dir, {
+        name: "obs-fail",
+        traces: tracesDir,
+        cases: [
+          {
+            id: "missing",
+            runId: "minimal-success",
+            expectedObservations: ["policyShown"],
+          },
+        ],
+      });
+      const fail = await runSuite({ configPath: failPath });
+      expect(fail.ok).toBe(false);
+      expect(fail.cases[0]?.status).toBe("fail");
+      expect(
+        fail.cases[0]?.diagnostics.some((d) => d.code === "AI_SUITE_CASE_OBSERVATION_FAILED"),
+      ).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("fails a mixed suite containing an unasserted case", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-mixed-cases-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "mixed-unasserted",
+        traces: tracesDir,
+        cases: [
+          {
+            id: "asserted",
+            runId: "outcome-pass",
+            expectedObservations: ["policyShown"],
+          },
+          { id: "bare", runId: "minimal-success" },
+        ],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.cases.find((c) => c.id === "asserted")?.status).toBe("pass");
+      expect(result.cases.find((c) => c.id === "bare")?.status).toBe("error");
+      expect(
+        result.cases
+          .find((c) => c.id === "bare")
+          ?.diagnostics.some((d) => d.code === "AI_SUITE_NO_ASSERTIONS"),
+      ).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+});

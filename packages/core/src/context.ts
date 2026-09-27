@@ -13,7 +13,29 @@ type RuntimeExecutionContext = ExecutionContext & {
   traceSafety: TraceSafetyOptions;
 };
 
-const storage = new AsyncLocalStorage<RuntimeExecutionContext>();
+/**
+ * Versioned process key so packed CJS root and `/advanced` entrypoints share one
+ * AsyncLocalStorage instance. Bump the suffix only when the store shape is incompatible.
+ * createInspector keeps a separate per-instance ALS in inspector-runtime.ts.
+ */
+const GLOBAL_CONTEXT_ALS_KEY = "agent-inspect:execution-context-als:v1";
+
+type GlobalAlsHost = typeof globalThis & {
+  [GLOBAL_CONTEXT_ALS_KEY]?: AsyncLocalStorage<RuntimeExecutionContext>;
+};
+
+function getSharedContextStorage(): AsyncLocalStorage<RuntimeExecutionContext> {
+  const host = globalThis as GlobalAlsHost;
+  const existing = host[GLOBAL_CONTEXT_ALS_KEY];
+  if (existing instanceof AsyncLocalStorage) {
+    return existing;
+  }
+  const created = new AsyncLocalStorage<RuntimeExecutionContext>();
+  host[GLOBAL_CONTEXT_ALS_KEY] = created;
+  return created;
+}
+
+const storage = getSharedContextStorage();
 
 function toPublicContext(ctx: RuntimeExecutionContext): ExecutionContext {
   return {

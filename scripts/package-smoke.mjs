@@ -1193,6 +1193,54 @@ try {
   }
   smokeRootSubpaths("cjs", cjsDir, rootSubpathSpecifiers);
 
+  // Packed CJS root + /advanced must share run context (guards call hasActiveContext from advanced).
+  const cjsContext = spawnSync(
+    process.execPath,
+    [
+      "-e",
+      `
+const path = require("node:path");
+const os = require("node:os");
+const fs = require("node:fs");
+const root = require("agent-inspect");
+const advanced = require("agent-inspect/advanced");
+const dir = fs.mkdtempSync(path.join(os.tmpdir(), "ai-ctx-"));
+let seen = false;
+root.inspectRun({ name: "packed-context", dir, silent: true }, async () => {
+  if (!advanced.hasActiveContext()) throw new Error("advanced.hasActiveContext false inside root inspectRun");
+  if (advanced.getCurrentRunId() === undefined) throw new Error("advanced.getCurrentRunId missing");
+  await root.step("guarded", async () => {
+    if (!advanced.hasActiveContext()) throw new Error("advanced context lost in nested step");
+    seen = true;
+  });
+}).then(() => {
+  if (!seen) throw new Error("nested step did not run");
+  if (advanced.hasActiveContext()) throw new Error("context leaked after run");
+  // Separate inspectors stay isolated from the global ALS.
+  const a = advanced.createInspector({ name: "iso-a", dir, silent: true });
+  const b = advanced.createInspector({ name: "iso-b", dir, silent: true });
+  return a.run("a", async () => {
+    if (advanced.hasActiveContext()) throw new Error("inspector must not populate global hasActiveContext");
+    return b.run("b", async () => "ok");
+  });
+}).then(() => {
+  fs.rmSync(dir, { recursive: true, force: true });
+}).catch((err) => {
+  console.error(err);
+  process.exit(1);
+});
+`,
+    ],
+    { cwd: cjsDir, encoding: "utf8" },
+  );
+  if (cjsContext.status !== 0) {
+    console.error(
+      "[pack:smoke] CJS root/advanced context identity check failed:\n",
+      cjsContext.stderr || cjsContext.stdout,
+    );
+    process.exit(1);
+  }
+
   const binPath = path.join(tmpRoot, "node_modules", ".bin", "agent-inspect");
   if (!existsSync(binPath)) {
     console.error("[pack:smoke] missing node_modules/.bin/agent-inspect");

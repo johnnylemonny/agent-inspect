@@ -9,6 +9,8 @@ export type SuiteDiagnosticCode =
   | "AI_SUITE_CASE_CHECK_FAILED"
   | "AI_SUITE_CASE_EVAL_FAILED"
   | "AI_SUITE_CASE_OBSERVATION_FAILED"
+  | "AI_SUITE_NO_ASSERTIONS"
+  | "AI_SUITE_UNKNOWN_SELECTOR"
   | "AI_SUITE_TRACE_UNREADABLE";
 
 export interface SuiteDiagnostic {
