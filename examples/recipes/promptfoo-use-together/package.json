@@ -5,6 +5,7 @@
   "scripts": {
     "start": "node verify.mjs",
     "verify": "node verify.mjs",
+    "verify:offline": "node verify.mjs --offline-only",
     "promptfoo": "PROMPTFOO_DISABLE_REMOTE_GENERATION=true npx --yes promptfoo@0.118.17 eval -c promptfooconfig.yaml --no-cache"
   },
   "dependencies": {

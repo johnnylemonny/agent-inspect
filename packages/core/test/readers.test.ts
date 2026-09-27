@@ -527,7 +527,7 @@ describe("OpenInference JSON reader", () => {
       trace: { traceId: "trace-oi-basic", spanId: "span-root" },
     });
     expect(result.events[1]).toMatchObject({
-      eventId: "span-llm",
+      eventId: "trace-oi-basic:span-llm",
       runId: "trace-oi-basic",
       parentId: "run-event",
       kind: "LLM",
@@ -575,7 +575,7 @@ describe("OpenInference JSON reader", () => {
     expect(result.format).toBe("openinference-json");
     expect(result.events).toEqual([
       expect.objectContaining({
-        eventId: "span-tool",
+        eventId: "trace-array:span-tool",
         runId: "trace-array",
         parentId: "span-parent",
         kind: "TOOL",
@@ -703,7 +703,7 @@ describe("OTLP JSON reader", () => {
       },
     });
     expect(result.events[1]).toMatchObject({
-      eventId: "00f067aa0ba902b8",
+      eventId: "4bf92f3577b34da6a3ce929d0e0e4736:00f067aa0ba902b8",
       runId: "4bf92f3577b34da6a3ce929d0e0e4736",
       parentId: "run-event",
       kind: "LLM",
@@ -776,7 +776,7 @@ describe("OTLP JSON reader", () => {
     expect(result.format).toBe("otlp-json");
     expect(result.events).toEqual([
       expect.objectContaining({
-        eventId: "span-error",
+        eventId: "trace-error:span-error",
         runId: "trace-error",
         parentId: "span-parent",
         kind: "TOOL",
@@ -839,9 +839,9 @@ describe("OTLP JSON reader", () => {
     const result = await readTrace({ type: "string", content });
     expect(result.format).toBe("otlp-json");
     const byId = Object.fromEntries(result.events.map((e) => [e.eventId, e]));
-    expect(byId["span-ok"]?.status).toBe("ok");
-    expect(byId["span-err"]?.status).toBe("error");
-    expect(byId["span-unset"]?.status).toBe("unknown");
+    expect(byId["trace-numeric:span-ok"]?.status).toBe("ok");
+    expect(byId["trace-numeric:span-err"]?.status).toBe("error");
+    expect(byId["trace-numeric:span-unset"]?.status).toBe("unknown");
   });
 
   it("rejects malformed OTLP documents with structured warnings", async () => {
@@ -887,6 +887,60 @@ describe("OTLP JSON reader", () => {
       "00f067aa0ba902b7",
       "00f067aa0ba902b8",
     ]);
+  });
+
+  it("keeps parent lookup scoped to the same traceId when spanIds collide", async () => {
+    const content = JSON.stringify({
+      resourceSpans: [
+        {
+          scopeSpans: [
+            {
+              spans: [
+                {
+                  traceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  spanId: "1111111111111111",
+                  name: "A-root",
+                  startTimeUnixNano: "1",
+                  status: { code: 1 },
+                },
+                {
+                  traceId: "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+                  spanId: "2222222222222222",
+                  parentSpanId: "1111111111111111",
+                  name: "A-child",
+                  startTimeUnixNano: "2",
+                  status: { code: 1 },
+                },
+                {
+                  traceId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  spanId: "1111111111111111",
+                  name: "B-root",
+                  startTimeUnixNano: "3",
+                  status: { code: 1 },
+                },
+                {
+                  traceId: "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+                  spanId: "3333333333333333",
+                  parentSpanId: "1111111111111111",
+                  name: "B-child",
+                  startTimeUnixNano: "4",
+                  status: { code: 1 },
+                },
+              ],
+            },
+          ],
+        },
+      ],
+    });
+
+    const result = await readTrace(
+      { type: "string", content },
+      { format: otlpJsonReader.format },
+    );
+    const byName = Object.fromEntries(result.events.map((e) => [e.name, e]));
+    expect(byName["A-child"]?.parentId).toBe(byName["A-root"]?.eventId);
+    expect(byName["B-child"]?.parentId).toBe(byName["B-root"]?.eventId);
+    expect(byName["A-child"]?.parentId).not.toBe(byName["B-root"]?.eventId);
   });
 
   it("reports ambiguity when another reader closely matches an OTLP fixture", async () => {

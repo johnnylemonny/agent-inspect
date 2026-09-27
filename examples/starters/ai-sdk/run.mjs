@@ -1,6 +1,6 @@
 /**
  * Keyless AI SDK starter — MockLanguageModelV3 only (no API keys).
- * Correct and wrong tool paths produce the same final answer; select runs by exact runName.
+ * Correct and wrong tool paths produce the same final answer; select runs by exact runId.
  *
  * Install (outside monorepo): npm install agent-inspect @agent-inspect/ai-sdk ai@6.0.210 zod
  */
@@ -8,13 +8,15 @@ import { generateText, stepCountIs, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { agentInspect } from "@agent-inspect/ai-sdk";
 import { z } from "zod";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
-const TRACE_DIR = ".agent-inspect";
+const SESSION = randomUUID().slice(0, 8);
+const TRACE_DIR = path.join(".agent-inspect", `starter-${SESSION}`);
 const ANSWER = "You have 2 orders";
-const CORRECT_RUN = "ai-sdk-starter-correct";
-const WRONG_RUN = "ai-sdk-starter-wrong";
+const CORRECT_RUN = `ai-sdk-starter-correct-${SESSION}`;
+const WRONG_RUN = `ai-sdk-starter-wrong-${SESSION}`;
 
 const usage = {
   inputTokens: { total: 4, noCache: 4, cacheRead: 0, cacheWrite: 0 },
@@ -59,7 +61,8 @@ async function runPath(runName, toolName) {
                   type: "tool-call",
                   toolCallId: `call-${toolName}`,
                   toolName,
-                  input: { userId: "u1" },
+                  // AI SDK 6 expects tool-call input as a JSON string.
+                  input: JSON.stringify({ userId: "u1" }),
                 },
               ],
               finishReason: { unified: "tool-calls", raw: "tool-calls" },
@@ -116,20 +119,54 @@ function selectRunIdByName(runName) {
   return matches[0];
 }
 
-await runPath(CORRECT_RUN, "lookup_orders");
-await runPath(WRONG_RUN, "delete_orders");
+/** @param {string} runId @param {string} requiredTool */
+function assertToolExecuted(runId, requiredTool) {
+  const text = readFileSync(path.join(TRACE_DIR, `${runId}.jsonl`), "utf8");
+  const toolHits = text
+    .split("\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+    .filter(
+      (ev) =>
+        (ev.kind === "TOOL" || ev.type === "tool" || ev.attributes?.stepType === "tool") &&
+        (ev.name === requiredTool ||
+          ev.attributes?.toolName === requiredTool ||
+          ev.attributes?.legacyEvent === "step_started" && ev.name === requiredTool),
+    );
+  if (toolHits.length === 0) {
+    throw new Error(
+      `expected TOOL events for ${requiredTool} in ${runId}; found none (tools did not execute)`,
+    );
+  }
+}
 
-const correctId = selectRunIdByName(CORRECT_RUN);
-const wrongId = selectRunIdByName(WRONG_RUN);
+mkdirSync(TRACE_DIR, { recursive: true });
 
-console.log("AI SDK starter complete (same answer, different tool paths).");
-console.log(`Trace directory: ${TRACE_DIR}`);
-console.log(`Correct path runId: ${correctId} (tool: lookup_orders)`);
-console.log(`Wrong path runId:   ${wrongId} (tool: delete_orders)`);
-console.log("");
-console.log("Inspect exact runs (do not use newest):");
-console.log(`  npx agent-inspect view ${correctId} --dir ${TRACE_DIR} --summary`);
-console.log(`  npx agent-inspect view ${wrongId} --dir ${TRACE_DIR} --summary`);
-console.log(
-  `  npx agent-inspect check ${correctId} --dir ${TRACE_DIR} --required-tool lookup_orders`,
-);
+try {
+  await runPath(CORRECT_RUN, "lookup_orders");
+  await runPath(WRONG_RUN, "delete_orders");
+
+  const correctId = selectRunIdByName(CORRECT_RUN);
+  const wrongId = selectRunIdByName(WRONG_RUN);
+
+  assertToolExecuted(correctId, "lookup_orders");
+  assertToolExecuted(wrongId, "delete_orders");
+
+  console.log("AI SDK starter complete (same answer, different tool paths).");
+  console.log(`Trace directory: ${TRACE_DIR}`);
+  console.log(`Correct path runId: ${correctId} (tool: lookup_orders)`);
+  console.log(`Wrong path runId:   ${wrongId} (tool: delete_orders)`);
+  console.log("");
+  console.log("Inspect exact runs (do not use newest):");
+  console.log(`  npx agent-inspect view ${correctId} --dir ${TRACE_DIR} --summary`);
+  console.log(`  npx agent-inspect view ${wrongId} --dir ${TRACE_DIR} --summary`);
+  console.log(
+    `  npx agent-inspect check ${correctId} --dir ${TRACE_DIR} --required-tool lookup_orders`,
+  );
+  console.log(
+    `  npx agent-inspect check ${wrongId} --dir ${TRACE_DIR} --required-tool lookup_orders  # expect fail`,
+  );
+} catch (err) {
+  rmSync(TRACE_DIR, { recursive: true, force: true });
+  throw err;
+}

@@ -1,0 +1,11 @@
+{
+  "name": "agent-inspect-reviewer-kit-promptfoo-trajectory",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "verify": "node verify.mjs"
+  },
+  "dependencies": {
+    "agent-inspect": "^6.31.7"
+  }
+}

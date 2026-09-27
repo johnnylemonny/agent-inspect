@@ -63,6 +63,8 @@ describe("init CLI", () => {
     expect(demo).toContain("lookup_orders");
     expect(demo).toContain("delete_orders");
     expect(demo).toContain("selectRunIdByName");
+    expect(demo).toContain("JSON.stringify({ userId: \"u1\" })");
+    expect(demo).toContain("assertToolExecuted");
     expect(demo).not.toContain("getTelemetryMetadata");
     expect(demo).not.toContain("getTelemetryHandlers");
     expect(demo).not.toContain('from "agent-inspect"');

@@ -317,4 +317,36 @@ describe("traceEventsToPersistedRunTrees", () => {
     traceEventsToPersistedRunTrees(events);
     expect(events).toEqual(snapshot);
   });
+
+  it("coalesceLifecycle yields one span per logical tool with remapped parents", () => {
+    const runId = "run_coalesce_nested";
+    const events: TraceEvent[] = [
+      rs(runId, "nested", TS),
+      ss(runId, "parent_tool", "lookup_orders", TS + 10, "tool"),
+      ss(runId, "child_tool", "fetch_item", TS + 20, "tool", "parent_tool"),
+      sc(runId, "child_tool", "success", TS + 30, 10),
+      sc(runId, "parent_tool", "success", TS + 40, 30),
+      rc(runId, "success", TS + 50, 50),
+    ];
+    const raw = traceEventsToPersistedRunTrees(events)[0]!;
+    const coalesced = traceEventsToPersistedRunTrees(events, {
+      coalesceLifecycle: true,
+    })[0]!;
+    expect(countNodes(raw.children)).toBeGreaterThan(countNodes(coalesced.children));
+    // One RUN span + two TOOL spans (RUN-span policy).
+    expect(countNodes(coalesced.children)).toBe(3);
+    const runNode = coalesced.children.find((n) => n.event.kind === "RUN");
+    const parent =
+      coalesced.children.find((n) => n.event.name === "lookup_orders") ??
+      runNode?.children.find((n) => n.event.name === "lookup_orders");
+    const child =
+      parent?.children.find((n) => n.event.name === "fetch_item") ??
+      coalesced.children.find((n) => n.event.name === "fetch_item");
+    expect(runNode?.event.status).toBe("ok");
+    expect(parent?.event.kind).toBe("TOOL");
+    expect(parent?.event.status).toBe("ok");
+    expect(child?.event.kind).toBe("TOOL");
+    expect(child?.event.parentId).toBe(parent?.event.eventId);
+    expect(coalesced.status).toBe("ok");
+  });
 });

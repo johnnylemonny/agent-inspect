@@ -127,17 +127,23 @@ export function exportOtlpJson(
 
     const { startNs, endNs } = resolveSpanTimes(ev);
 
+    const meta = ev.attributes;
+    const originalSource =
+      typeof meta?.originalSourceType === "string" && meta.originalSourceType.trim() !== ""
+        ? meta.originalSourceType.trim()
+        : ev.source.type;
+
     const attrs: OtlpAttr[] = [
       stringAttr("agent_inspect.kind", ev.kind),
       stringAttr("agent_inspect.confidence", ev.confidence),
-      stringAttr("agent_inspect.source.type", ev.source.type),
+      stringAttr("agent_inspect.source.type", originalSource),
       stringAttr("agent_inspect.run_id", tree.runId),
       stringAttr("agent_inspect.event_id", ev.eventId),
       stringAttr("agent_inspect.status", ev.status ?? "unset"),
     ];
 
     if (ev.durationMs !== undefined) {
-      attrs.push(intAttr("agent_inspect.duration_ms", ev.durationMs));
+      attrs.push(numberAttr("agent_inspect.duration_ms", ev.durationMs));
     }
 
     const op = genAiOperationName(ev.kind);
@@ -145,9 +151,23 @@ export function exportOtlpJson(
       attrs.push(stringAttr("gen_ai.operation.name", op));
     }
 
-    const meta = ev.attributes;
-    if (meta?.model !== undefined && typeof meta.model === "string") {
-      attrs.push(stringAttr("gen_ai.request.model", meta.model.slice(0, maxLen)));
+    const requestModel =
+      (typeof meta?.model === "string" && meta.model.trim() !== "" ? meta.model : undefined) ??
+      (typeof meta?.modelId === "string" && meta.modelId.trim() !== "" ? meta.modelId : undefined);
+    if (requestModel !== undefined) {
+      attrs.push(stringAttr("gen_ai.request.model", requestModel.slice(0, maxLen)));
+    }
+    const responseModel =
+      typeof meta?.responseModelId === "string" && meta.responseModelId.trim() !== ""
+        ? meta.responseModelId
+        : typeof meta?.responseModel === "string" && meta.responseModel.trim() !== ""
+          ? meta.responseModel
+          : undefined;
+    if (responseModel !== undefined) {
+      attrs.push(stringAttr("gen_ai.response.model", responseModel.slice(0, maxLen)));
+    }
+    if (typeof meta?.provider === "string" && meta.provider.trim() !== "") {
+      attrs.push(stringAttr("gen_ai.provider.name", meta.provider.slice(0, maxLen)));
     }
 
     const tokens = meta?.tokens;
@@ -159,8 +179,17 @@ export function exportOtlpJson(
     }
 
     if (includeAttributes && meta && typeof meta === "object") {
+      const skipKeys = new Set([
+        "tokens",
+        "model",
+        "modelId",
+        "responseModel",
+        "responseModelId",
+        "provider",
+        "originalSourceType",
+      ]);
       for (const [k, v] of Object.entries(meta)) {
-        if (k === "tokens" || k === "model") continue;
+        if (skipKeys.has(k)) continue;
         if (typeof v === "string") {
           attrs.push(stringAttr(`agent_inspect.preview.${k}`, v.slice(0, maxLen)));
         } else if (typeof v === "number" && Number.isFinite(v)) {

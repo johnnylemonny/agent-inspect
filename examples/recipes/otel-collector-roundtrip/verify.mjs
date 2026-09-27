@@ -2,11 +2,11 @@
 /**
  * Collector round-trip verifier.
  *
- * Default (no Docker): export fixture → validate OTLP shape → simulate collector
- * file batch → compare expected facts → re-import numeric status.
- *
- * With `--docker`: pull pinned Collector image digest, run collector, POST OTLP,
- * parse all file-exporter batches, compare, re-import.
+ * Modes:
+ *   (default) fixture-self-test — compare export as a simulated collector batch
+ *                                 (explicitly labeled; not a live Collector claim).
+ *   --docker  collector — real Collector ingestion; independent /out file readback.
+ *                         Empty/rejected/missing output fails (no export fallback).
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -28,14 +28,11 @@ import {
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const useDocker = process.argv.includes("--docker");
-
-/** Prefer a digest pin after host verification; tag is the default reproducible fallback. */
 const COLLECTOR_IMAGE_DEFAULT = "otel/opentelemetry-collector-contrib:0.109.0";
-
-
+const CONTAINER = `agent-inspect-otel-roundtrip-${process.pid}`;
 const RUN_ID = "collector_roundtrip_fixture";
 const TOOL = "lookup_orders";
-const work = path.join(__dirname, ".recipe-work");
+const work = path.join(__dirname, `.recipe-work-${process.pid}`);
 const traceDir = path.join(work, "traces");
 const otlpOut = path.join(work, "otlp.json");
 const collected = path.join(work, "collected-traces.json");
@@ -64,6 +61,34 @@ function resolveCli() {
   const local = path.resolve(__dirname, "../../../packages/cli/dist/index.cjs");
   if (existsSync(local)) return { cmd: process.execPath, argsPrefix: [local] };
   return { cmd: "npx", argsPrefix: ["agent-inspect"] };
+}
+
+function waitForFile(filePath, timeoutMs = 15_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    if (existsSync(filePath) && readFileSync(filePath, "utf8").trim() !== "") {
+      return true;
+    }
+    spawnSync("sleep", ["0.25"]);
+  }
+  return false;
+}
+
+function waitForReady(timeoutMs = 15_000) {
+  const start = Date.now();
+  while (Date.now() - start < timeoutMs) {
+    const probe = spawnSync(
+      "curl",
+      ["-sS", "-o", "/dev/null", "-w", "%{http_code}", "http://127.0.0.1:4318/"],
+      { encoding: "utf8" },
+    );
+    // Any HTTP response means the port is accepting connections.
+    if (probe.status === 0 && String(probe.stdout).trim() !== "000") {
+      return true;
+    }
+    spawnSync("sleep", ["0.25"]);
+  }
+  return false;
 }
 
 rmSync(work, { recursive: true, force: true });
@@ -99,6 +124,7 @@ if (exportPayload.validation && exportPayload.validation.ok === false) {
 const otlpContent = readFileSync(otlpOut, "utf8");
 const otlpDoc = JSON.parse(otlpContent);
 const exportSpans = collectSpans(otlpDoc);
+const exportTraceId = exportSpans[0]?.traceId;
 const exportCheck = compareExpectedFacts(exportSpans, {
   runId: RUN_ID,
   toolName: TOOL,
@@ -111,10 +137,14 @@ if (!exportCheck.ok) {
 
 /** @type {unknown[]} */
 let batches;
+/** @type {"fixture-self-test" | "collector"} */
+let mode = "fixture-self-test";
+
 if (useDocker) {
+  mode = "collector";
   const image = process.env.OTEL_COLLECTOR_IMAGE || COLLECTOR_IMAGE_DEFAULT;
-  console.log(`[otel-collector-roundtrip] docker image: ${image}`);
-  if (!process.env.OTEL_COLLECTOR_IMAGE?.includes("@sha256:")) {
+  console.log(`[otel-collector-roundtrip] mode=collector image=${image}`);
+  if (!String(image).includes("@sha256:")) {
     console.error(
       "[otel-collector-roundtrip] tip: set OTEL_COLLECTOR_IMAGE=...@sha256:<digest> after verifying",
     );
@@ -127,9 +157,9 @@ if (useDocker) {
       "--rm",
       "-d",
       "--name",
-      "agent-inspect-otel-roundtrip",
+      CONTAINER,
       "-p",
-      "4318:4318",
+      "127.0.0.1:4318:4318",
       "-v",
       `${path.join(__dirname, "collector.yaml")}:/etc/otelcol/config.yaml:ro`,
       "-v",
@@ -140,63 +170,85 @@ if (useDocker) {
     { encoding: "utf8" },
   );
   if (dockerRun.status !== 0) {
-    fail(`docker run failed (live result unverified): ${dockerRun.stderr}`);
-    // Fall through to offline simulation
-    writeFileSync(collected, `${otlpContent}\n`, "utf8");
-    batches = parseCollectorBatches(collected);
-  } else {
-    try {
-      // Point file exporter into mounted work dir — collector.yaml uses ./collected-traces.json
-      // relative to container cwd; for digest-pinned runs operators should mount accordingly.
-      const curl = spawnSync(
-        "curl",
-        [
-          "-sS",
-          "-X",
-          "POST",
-          "http://127.0.0.1:4318/v1/traces",
-          "-H",
-          "Content-Type: application/json",
-          "--data-binary",
-          `@${otlpOut}`,
-        ],
-        { encoding: "utf8" },
-      );
-      if (curl.status !== 0) {
-        fail(`curl POST failed: ${curl.stderr}`);
+    fail(`docker run failed: ${dockerRun.stderr}`);
+    process.exit(1);
+  }
+  try {
+    if (!waitForReady()) {
+      fail("collector readiness timeout on 127.0.0.1:4318");
+      process.exit(1);
+    }
+    const curl = spawnSync(
+      "curl",
+      [
+        "-sS",
+        "-w",
+        "\n%{http_code}",
+        "-X",
+        "POST",
+        "http://127.0.0.1:4318/v1/traces",
+        "-H",
+        "Content-Type: application/json",
+        "--data-binary",
+        `@${otlpOut}`,
+      ],
+      { encoding: "utf8" },
+    );
+    if (curl.status !== 0) {
+      fail(`curl POST failed: ${curl.stderr}`);
+      process.exit(1);
+    }
+    const lines = String(curl.stdout ?? "").trim().split("\n");
+    const httpCode = lines[lines.length - 1] ?? "";
+    const body = lines.slice(0, -1).join("\n");
+    if (httpCode !== "200" && httpCode !== "202") {
+      fail(`collector transport rejected payload (HTTP ${httpCode}): ${body.slice(0, 200)}`);
+      process.exit(1);
+    }
+    if (body.includes("rejected") || body.includes('"partialSuccess"')) {
+      try {
+        const parsed = JSON.parse(body);
+        const rejected =
+          parsed?.partialSuccess?.rejectedSpans ??
+          parsed?.rejectedSpans ??
+          0;
+        if (Number(rejected) > 0) {
+          fail(`collector partial rejection: rejectedSpans=${rejected}`);
+          process.exit(1);
+        }
+      } catch {
+        fail(`collector reported rejection/partialSuccess: ${body.slice(0, 200)}`);
         process.exit(1);
       }
-      // Allow file exporter flush
-      spawnSync("sleep", ["1"]);
-      if (!existsSync(collected) || readFileSync(collected, "utf8").trim() === "") {
-        // Offline-compatible fallback: treat accepted export as the batch under test
-        writeFileSync(collected, `${otlpContent}\n`, "utf8");
-        console.error(
-          "[otel-collector-roundtrip] WARN: collector file empty; using export payload for comparison (label: docker-path-partial)",
-        );
-      }
-      batches = parseCollectorBatches(collected);
-    } finally {
-      spawnSync("docker", ["rm", "-f", "agent-inspect-otel-roundtrip"], {
-        encoding: "utf8",
-      });
     }
+    if (!waitForFile(collected)) {
+      fail(
+        "collector file empty after deadline — independent readback required (no export fallback)",
+      );
+      process.exit(1);
+    }
+    batches = parseCollectorBatches(collected);
+  } finally {
+    spawnSync("docker", ["rm", "-f", CONTAINER], { encoding: "utf8" });
   }
 } else {
-  // Offline simulation: collector file exporter emits one JSON object per batch.
   writeFileSync(collected, `${otlpContent}\n`, "utf8");
   batches = parseCollectorBatches(collected);
   console.log(
-    "[otel-collector-roundtrip] offline mode (no Docker) — comparing export as collector batch",
+    "[otel-collector-roundtrip] mode=fixture-self-test (not a live Collector claim)",
   );
 }
 
-if (batches.length === 0) {
-  fail("partial rejection: no collector batches");
+if (!batches || batches.length === 0) {
+  fail("no collector batches");
   process.exit(1);
 }
 
 const allSpans = batches.flatMap((b) => collectSpans(b));
+if (exportTraceId && !allSpans.some((s) => s.traceId === exportTraceId)) {
+  fail(`collector output missing exact export traceId ${exportTraceId}`);
+  process.exit(1);
+}
 const fieldCheck = compareExpectedFacts(allSpans, {
   runId: RUN_ID,
   toolName: TOOL,
@@ -207,7 +259,6 @@ if (!fieldCheck.ok) {
   process.exit(1);
 }
 
-// Re-import check includes numeric status via AgentInspect OTLP reader
 const importResult = run("open otlp", cli.cmd, [
   ...cli.argsPrefix,
   "open",
@@ -223,10 +274,8 @@ if (!importedText.includes(TOOL)) {
   fail("re-import missing tool name");
   process.exit(1);
 }
-if (!importedText.includes(RUN_ID) && !importedText.includes("lookup")) {
-  // run id may be mapped from traceId hash; tool presence is authoritative here
-  console.error("[otel-collector-roundtrip] note: runId remapped on OTLP import (expected)");
-}
 
-console.log("[otel-collector-roundtrip] OK: export → batch parse → field compare → re-import");
+console.log(
+  `[otel-collector-roundtrip] OK mode=${mode}: field compare + re-import`,
+);
 console.log(`  spans=${allSpans.length} batches=${batches.length} numericStatus=required`);

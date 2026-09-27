@@ -83,13 +83,15 @@ import { generateText, stepCountIs, tool } from "ai";
 import { MockLanguageModelV3 } from "ai/test";
 import { agentInspect } from "@agent-inspect/ai-sdk";
 import { z } from "zod";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync } from "node:fs";
 import path from "node:path";
+import { randomUUID } from "node:crypto";
 
-const TRACE_DIR = ".agent-inspect";
+const SESSION = randomUUID().slice(0, 8);
+const TRACE_DIR = path.join(".agent-inspect", \`demo-\${SESSION}\`);
 const ANSWER = "You have 2 orders";
-const CORRECT_RUN = "ai-sdk-demo-correct";
-const WRONG_RUN = "ai-sdk-demo-wrong";
+const CORRECT_RUN = \`ai-sdk-demo-correct-\${SESSION}\`;
+const WRONG_RUN = \`ai-sdk-demo-wrong-\${SESSION}\`;
 
 const usage = {
   inputTokens: { total: 4, noCache: 4, cacheRead: 0, cacheWrite: 0 },
@@ -129,7 +131,7 @@ async function runPath(runName, toolName) {
                   type: "tool-call",
                   toolCallId: \`call-\${toolName}\`,
                   toolName,
-                  input: { userId: "u1" },
+                  input: JSON.stringify({ userId: "u1" }),
                 },
               ],
               finishReason: { unified: "tool-calls", raw: "tool-calls" },
@@ -181,15 +183,39 @@ function selectRunIdByName(runName) {
   return matches[0];
 }
 
+function assertToolExecuted(runId, requiredTool) {
+  const text = readFileSync(path.join(TRACE_DIR, \`\${runId}.jsonl\`), "utf8");
+  const toolHits = text
+    .split("\\n")
+    .filter(Boolean)
+    .map((line) => JSON.parse(line))
+    .filter(
+      (ev) =>
+        (ev.kind === "TOOL" || ev.attributes?.stepType === "tool") &&
+        (ev.name === requiredTool || ev.attributes?.toolName === requiredTool),
+    );
+  if (toolHits.length === 0) {
+    throw new Error(\`expected TOOL events for \${requiredTool} in \${runId}\`);
+  }
+}
+
 async function main() {
-  await runPath(CORRECT_RUN, "lookup_orders");
-  await runPath(WRONG_RUN, "delete_orders");
-  const correctId = selectRunIdByName(CORRECT_RUN);
-  const wrongId = selectRunIdByName(WRONG_RUN);
-  console.log("Trace written to .agent-inspect/");
-  console.log(\`Correct path runId: \${correctId}\`);
-  console.log(\`Wrong path runId:   \${wrongId}\`);
-  console.log(\`Next: npx agent-inspect check \${correctId} --required-tool lookup_orders\`);
+  mkdirSync(TRACE_DIR, { recursive: true });
+  try {
+    await runPath(CORRECT_RUN, "lookup_orders");
+    await runPath(WRONG_RUN, "delete_orders");
+    const correctId = selectRunIdByName(CORRECT_RUN);
+    const wrongId = selectRunIdByName(WRONG_RUN);
+    assertToolExecuted(correctId, "lookup_orders");
+    assertToolExecuted(wrongId, "delete_orders");
+    console.log(\`Trace written to \${TRACE_DIR}/\`);
+    console.log(\`Correct path runId: \${correctId}\`);
+    console.log(\`Wrong path runId:   \${wrongId}\`);
+    console.log(\`Next: npx agent-inspect check \${correctId} --dir \${TRACE_DIR} --required-tool lookup_orders\`);
+  } catch (error) {
+    rmSync(TRACE_DIR, { recursive: true, force: true });
+    throw error;
+  }
 }
 
 main().catch((error) => {

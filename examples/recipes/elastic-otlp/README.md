@@ -1,20 +1,20 @@
 # Elastic OTLP recipe (indexed readback)
 
-Export AgentInspect OTLP → (optional) Collector → Elastic APM/Elasticsearch, then **query indexed fixture trace IDs**. HTTP accept alone is not success.
+Export AgentInspect OTLP → Elastic managed OTLP (ApiKey) → **exact exported hex `trace.id` query**. HTTP accept alone is not success. Unrelated hits are not success.
 
-## Deployment route (documented)
+## Modes
 
-1. AgentInspect `export --format otlp-json --validate --json`
-2. Optional local Collector (`collector.yaml`) forwarding OTLP/HTTP to Elastic
-3. Query Elasticsearch / Kibana for the fixture `runId` / span names
-4. Produce retained/lost field report
+| Mode | Command | Claim |
+| --- | --- | --- |
+| Offline | `pnpm verify` | Export field compare + **export-document-sim** (explicitly not indexed). |
+| Live | `pnpm verify:live` | Requires `ELASTIC_URL` + `ELASTIC_API_KEY`. Optional `ELASTIC_OTLP_URL` to send the export first. Fails if config missing or exact-trace hits absent. |
 
-Credentials stay **external** (`ELASTIC_URL`, `ELASTIC_API_KEY`). Never commit secrets.
+Credentials stay **external**. Never commit secrets.
 
 ```bash
 pnpm build
 cd examples/recipes/elastic-otlp
 pnpm install
-pnpm verify          # offline field-map + simulated index query
-pnpm verify:live     # live query when ELASTIC_URL is set; else labeled unverified
+pnpm verify
+ELASTIC_URL=... ELASTIC_API_KEY=... ELASTIC_OTLP_URL=... pnpm verify:live
 ```

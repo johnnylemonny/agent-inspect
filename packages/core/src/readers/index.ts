@@ -1026,7 +1026,7 @@ function mapOpenInferenceSpan(
     eventId:
       typeof rawAttributes["agent_inspect.event_id"] === "string"
         ? rawAttributes["agent_inspect.event_id"]
-        : spanId,
+        : `${traceId}:${spanId}`,
     runId:
       typeof rawAttributes["agent_inspect.run_id"] === "string"
         ? rawAttributes["agent_inspect.run_id"]
@@ -1087,12 +1087,19 @@ function mapOpenInferenceEvents(document: OpenInferenceDocument): {
   const mapped = document.spans.map((span, index) =>
     mapOpenInferenceSpan(span, index, document.version),
   );
-  const spanIdToEventId = new Map(
-    mapped.map((span) => [span.spanId, span.event.eventId] as const),
+  const spanKeyToEventId = new Map(
+    mapped.map((span) => {
+      const traceId =
+        typeof span.event.trace?.traceId === "string" ? span.event.trace.traceId : "";
+      return [`${traceId}:${span.spanId}`, span.event.eventId] as const;
+    }),
   );
   for (const span of mapped) {
     if (span.parentSpanId === undefined) continue;
-    span.event.parentId = spanIdToEventId.get(span.parentSpanId) ?? span.parentSpanId;
+    const traceId =
+      typeof span.event.trace?.traceId === "string" ? span.event.trace.traceId : "";
+    span.event.parentId =
+      spanKeyToEventId.get(`${traceId}:${span.parentSpanId}`) ?? span.parentSpanId;
   }
 
   return {
@@ -1752,7 +1759,7 @@ function mapOtlpSpan(context: OtlpSpanContext): OpenInferenceMappedSpan {
     eventId:
       typeof parsedSpanAttributes.attributes["agent_inspect.event_id"] === "string"
         ? parsedSpanAttributes.attributes["agent_inspect.event_id"]
-        : spanId,
+        : `${traceId}:${spanId}`,
     runId:
       typeof parsedSpanAttributes.attributes["agent_inspect.run_id"] === "string"
         ? parsedSpanAttributes.attributes["agent_inspect.run_id"]
@@ -1817,12 +1824,19 @@ function mapOtlpEventsToPersisted(document: OtlpDocument): {
   unsupportedFields: string[];
 } {
   const mapped = document.spans.map((span) => mapOtlpSpan(span));
-  const spanIdToEventId = new Map(
-    mapped.map((span) => [span.spanId, span.event.eventId] as const),
+  const spanKeyToEventId = new Map(
+    mapped.map((span) => {
+      const traceId =
+        typeof span.event.trace?.traceId === "string" ? span.event.trace.traceId : "";
+      return [`${traceId}:${span.spanId}`, span.event.eventId] as const;
+    }),
   );
   for (const span of mapped) {
     if (span.parentSpanId === undefined) continue;
-    span.event.parentId = spanIdToEventId.get(span.parentSpanId) ?? span.parentSpanId;
+    const traceId =
+      typeof span.event.trace?.traceId === "string" ? span.event.trace.traceId : "";
+    span.event.parentId =
+      spanKeyToEventId.get(`${traceId}:${span.parentSpanId}`) ?? span.parentSpanId;
   }
   return {
     events: mapped.map((span) => span.event),
