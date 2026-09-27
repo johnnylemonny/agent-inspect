@@ -31,6 +31,7 @@ const RECIPES = [
   "ai-sdk-local-telemetry",
   "ai-sdk-next-route",
   "openai-agents-local-tracing",
+  "openai-node-chat-completions",
   "langgraph-callback-local",
   "nestjs-langgraph-local",
   "langgraph-swarm-local",

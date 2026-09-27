@@ -145,6 +145,7 @@ export async function explainCommand(
     const explanation = buildLocalExplanation(selected, {
       mode,
       redactionProfile,
+      events: read.events,
     });
 
     if (options.json) {

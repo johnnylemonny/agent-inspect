@@ -11,6 +11,30 @@ import {
 } from "../src/index.js";
 
 describe("@agent-inspect/redact", () => {
+  it("skips key-noise findings when the value is already an exact complete marker", () => {
+    const result = redact({
+      apiKey: "[REDACTED]",
+      token: "[HASH:abcdef12]",
+      password: "[REDACTED:share]",
+      stillSecret: "live-secret-value",
+    });
+    expect(result.value).toEqual({
+      apiKey: "[REDACTED]",
+      token: "[HASH:abcdef12]",
+      password: "[REDACTED:share]",
+      stillSecret: "[REDACTED]",
+    });
+    expect(result.findings.map((f) => f.path)).toEqual(["stillSecret"]);
+  });
+
+  it("still finds residual secrets after an incomplete marker prefix", () => {
+    const result = redact({
+      apiKey: "[REDACTED]canary_ZX936_UserSecret",
+    });
+    expect(result.value).toEqual({ apiKey: "[REDACTED]" });
+    expect(result.findings.some((f) => f.path === "apiKey")).toBe(true);
+  });
+
   it("redacts default sensitive keys and returns findings", () => {
     const result = redact({ token: "abc", ok: 1 });
 

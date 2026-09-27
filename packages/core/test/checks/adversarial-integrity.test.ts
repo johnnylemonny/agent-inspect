@@ -104,6 +104,9 @@ describe("adversarial check integrity", () => {
     );
     expect(result.status).toBe("pass");
     expect(result.summary.rulesEvaluated).toBe(1);
+    expect(result.summary.rulesPassed).toBe(1);
+    expect(result.summary.rulesFailed).toBe(0);
+    expect(result.summary.passed).toBe(0);
     expect(result.ruleExecutions).toEqual([
       expect.objectContaining({
         ruleId: "tool.usage",

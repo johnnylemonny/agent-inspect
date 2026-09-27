@@ -66,7 +66,11 @@ function stepMixLine(summary: RunWhatSummary): string {
   return parts.length > 0 ? parts.join(", ") : "none";
 }
 
-function outcomeLine(summary: RunWhatSummary): string {
+/**
+ * Callback / run execution status (not a business-outcome claim).
+ * Observed durable effects belong in separate observation/outcome facts.
+ */
+function executionLine(summary: RunWhatSummary): string {
   if (summary.status === "success") {
     return summary.errorSteps > 0
       ? "Completed with step errors recorded."
@@ -89,7 +93,7 @@ function outcomeLine(summary: RunWhatSummary): string {
   if (summary.status === "running") {
     return "Run is still in progress (no run_completed).";
   }
-  return "Outcome unknown — inspect events may be incomplete.";
+  return "Execution status unknown — inspect events may be incomplete.";
 }
 
 /**
@@ -204,7 +208,7 @@ export function renderRunWhat(
     }
   }
 
-  lines.push(`Outcome: ${outcomeLine(summary)}`);
+  lines.push(`Execution: ${executionLine(summary)}`);
 
   if (summary.longestStep && summary.totalSteps > 0) {
     lines.push(

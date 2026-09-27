@@ -20,6 +20,7 @@ import type {
   RunSuiteOptions,
   SuiteCaseConfig,
   SuiteCaseResult,
+  SuiteCaseStatus,
   SuiteConfig,
   SuiteDiagnostic,
   SuiteRunResult,
@@ -221,6 +222,100 @@ function validateExpectedObservations(
   return { ok: diagnostics.length === 0, diagnostics };
 }
 
+function evaluateCaseExpect(
+  suiteCase: SuiteCaseConfig,
+  checkResult: {
+    ok: boolean;
+    status: "pass" | "fail" | "error";
+    findings: readonly { ruleId: string; status: string; severity: string }[];
+    diagnostics: readonly { severity: string }[];
+    ruleExecutions: readonly unknown[];
+  },
+  observationCount: number,
+): { ok: boolean; diagnostics: SuiteDiagnostic[] } {
+  const expectation = suiteCase.expect;
+  if (expectation === undefined) {
+    return { ok: true, diagnostics: [] };
+  }
+
+  const diagnostics: SuiteDiagnostic[] = [];
+  if (checkResult.status !== expectation.checkStatus) {
+    diagnostics.push(
+      diagnostic(
+        "AI_SUITE_EXPECT_MISMATCH",
+        `Expected check status "${expectation.checkStatus}", got "${checkResult.status}".`,
+        "error",
+        suiteCase.id,
+      ),
+    );
+  }
+
+  const failedFindings = checkResult.findings.filter(
+    (finding) => finding.status === "fail" && finding.severity === "error",
+  );
+  const requiredIds = expectation.findingRuleIds ?? [];
+  for (const ruleId of requiredIds) {
+    if (!failedFindings.some((finding) => finding.ruleId === ruleId)) {
+      diagnostics.push(
+        diagnostic(
+          "AI_SUITE_EXPECT_MISMATCH",
+          `Expected failing finding for rule "${ruleId}" was not present.`,
+          "error",
+          suiteCase.id,
+        ),
+      );
+    }
+  }
+
+  const rejectUnexpected = expectation.rejectUnexpectedFindings !== false;
+  if (rejectUnexpected && requiredIds.length > 0) {
+    for (const finding of failedFindings) {
+      if (!requiredIds.includes(finding.ruleId)) {
+        diagnostics.push(
+          diagnostic(
+            "AI_SUITE_EXPECT_MISMATCH",
+            `Unexpected failing finding for rule "${finding.ruleId}".`,
+            "error",
+            suiteCase.id,
+          ),
+        );
+      }
+    }
+  }
+
+  if (expectation.minAssertions !== undefined) {
+    const assertionCount = checkResult.ruleExecutions.length + observationCount;
+    if (assertionCount < expectation.minAssertions) {
+      diagnostics.push(
+        diagnostic(
+          "AI_SUITE_EXPECT_MISMATCH",
+          `Expected at least ${expectation.minAssertions} assertion(s), got ${assertionCount}.`,
+          "error",
+          suiteCase.id,
+        ),
+      );
+    }
+  }
+
+  // Evaluator / config errors never satisfy a semantic-failure expectation.
+  if (
+    expectation.checkStatus === "fail" &&
+    checkResult.diagnostics.some((item) => item.severity === "error") &&
+    checkResult.status === "error"
+  ) {
+    diagnostics.push(
+      diagnostic(
+        "AI_SUITE_EXPECT_MISMATCH",
+        "Check ended in evaluator/config error; semantic failure expectation requires status \"fail\".",
+        "error",
+        suiteCase.id,
+      ),
+    );
+  }
+
+  return { ok: diagnostics.length === 0, diagnostics };
+}
+
 async function runSuiteCase(
   suiteCase: SuiteCaseConfig,
   config: SuiteConfig,
@@ -282,14 +377,39 @@ async function runSuiteCase(
           ok: true,
           status: "pass" as const,
           format: read.format,
-          summary: { passed: 0, failed: 0, warnings: 0, errors: 0, rulesEvaluated: 0 },
+          summary: {
+            passed: 0,
+            failed: 0,
+            warnings: 0,
+            errors: 0,
+            rulesEvaluated: 0,
+            rulesPassed: 0,
+            rulesWarning: 0,
+            rulesFailed: 0,
+            rulesError: 0,
+          },
           findings: [],
           diagnostics: [],
           ruleExecutions: [],
         };
   const observationResult = validateExpectedObservations(suiteCase, read);
 
-  const diagnostics = [
+  const checkOk = checkResult.ok;
+  const observationsOk = observationResult.ok;
+  const evalOk =
+    config.eval?.requireSuccess === true
+      ? checkResult.findings.every(
+          (finding) => finding.ruleId !== "run.status" || finding.status !== "fail",
+        ) &&
+        checkResult.diagnostics.every((item) => item.severity !== "error")
+      : undefined;
+
+  const expectResult = evaluateCaseExpect(
+    suiteCase,
+    checkResult,
+    compiled.observationCount,
+  );
+  const checkFailureDiagnostics = [
     ...checkResult.diagnostics.map((item) =>
       diagnostic(
         "AI_SUITE_CASE_CHECK_FAILED",
@@ -308,20 +428,37 @@ async function runSuiteCase(
           suiteCase.id,
         ),
       ),
-    ...observationResult.diagnostics,
   ];
+  const expectMatched =
+    suiteCase.expect !== undefined && expectResult.ok && observationsOk;
+  const diagnostics = expectMatched
+    ? [
+        ...observationResult.diagnostics,
+        ...expectResult.diagnostics,
+        diagnostic(
+          "AI_SUITE_CASE_CHECK_FAILED",
+          `Expected semantic failure matched (check.status=${checkResult.status}).`,
+          "info",
+          suiteCase.id,
+        ),
+      ]
+    : [
+        ...checkFailureDiagnostics,
+        ...observationResult.diagnostics,
+        ...expectResult.diagnostics,
+      ];
 
-  const checkOk = checkResult.ok;
-  const observationsOk = observationResult.ok;
-  const evalOk =
-    config.eval?.requireSuccess === true
-      ? checkResult.findings.every(
-          (finding) => finding.ruleId !== "run.status" || finding.status !== "fail",
-        ) &&
-        checkResult.diagnostics.every((item) => item.severity !== "error")
-      : undefined;
-  const ok = checkOk && observationsOk;
-  const status = ok ? "pass" : checkResult.status === "error" ? "error" : "fail";
+  // When an expect block is present, suite pass/fail follows the expectation
+  // (semantic negatives keep raw checkOk false while the case can pass).
+  const ok =
+    suiteCase.expect !== undefined
+      ? expectResult.ok && observationsOk
+      : checkOk && observationsOk;
+  const status: SuiteCaseStatus = ok
+    ? "pass"
+    : checkResult.status === "error"
+      ? "error"
+      : "fail";
 
   return {
     id: suiteCase.id,

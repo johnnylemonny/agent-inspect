@@ -17,7 +17,17 @@ export interface TraceSessionCheckResult extends TraceCheckResult {
 }
 
 function emptySummary(): TraceCheckSummary {
-  return { passed: 0, failed: 0, warnings: 0, errors: 0, rulesEvaluated: 0 };
+  return {
+    passed: 0,
+    failed: 0,
+    warnings: 0,
+    errors: 0,
+    rulesEvaluated: 0,
+    rulesPassed: 0,
+    rulesWarning: 0,
+    rulesFailed: 0,
+    rulesError: 0,
+  };
 }
 
 function mergeSummary(
@@ -30,6 +40,10 @@ function mergeSummary(
     warnings: target.warnings + source.warnings,
     errors: target.errors + source.errors,
     rulesEvaluated: target.rulesEvaluated + source.rulesEvaluated,
+    rulesPassed: target.rulesPassed + source.rulesPassed,
+    rulesWarning: target.rulesWarning + source.rulesWarning,
+    rulesFailed: target.rulesFailed + source.rulesFailed,
+    rulesError: target.rulesError + source.rulesError,
   };
 }
 

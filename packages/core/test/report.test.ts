@@ -84,7 +84,7 @@ describe("buildRunReport", () => {
     const report = buildRunReport(events as any, { format: "markdown" });
     expect(report.content).toContain("# AgentInspect Report: minimal-success");
     expect(report.content).toContain("## What happened");
-    expect(report.content).toContain("Outcome: Completed successfully.");
+    expect(report.content).toContain("Execution: Completed successfully.");
     expect(report.content).toContain("## Timeline");
     expect(report.content).toContain("Timeline: minimal-success");
     expect(report.content).toContain("## Execution tree");
@@ -105,7 +105,7 @@ describe("buildRunReport", () => {
   it("markdown report includes errors for failing runs", async () => {
     const events = await loadFixtureTrace("minimal-error");
     const report = buildRunReport(events as any, { format: "markdown" });
-    expect(report.content).toContain("Outcome: Failed at step(s): failing-step");
+    expect(report.content).toContain("Execution: Failed at step(s): failing-step");
     expect(report.content).toContain("## Errors");
   });
 

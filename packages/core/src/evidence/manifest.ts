@@ -100,6 +100,7 @@ export function buildEvidenceManifest(parts: {
   note?: string;
   semantics?: EvidenceManifest["semantics"];
   contract?: EvidenceManifest["contract"];
+  inputs?: EvidenceManifest["inputs"];
 }): EvidenceManifest {
   const runIds = [...parts.runIds];
   if (runIds.length === 0) {
@@ -141,6 +142,7 @@ export function buildEvidenceManifest(parts: {
     assessment,
     ...(parts.semantics !== undefined ? { semantics: { ...parts.semantics } } : {}),
     ...(parts.contract !== undefined ? { contract: { ...parts.contract } } : {}),
+    ...(parts.inputs !== undefined ? { inputs: { ...parts.inputs } } : {}),
     files: buildEvidenceFileEntries(parts.files),
   };
 }

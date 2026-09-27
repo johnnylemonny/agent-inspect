@@ -4,6 +4,7 @@ export type {
   RunSuiteOptions,
   SuiteArtifactsConfig,
   SuiteCaseConfig,
+  SuiteCaseExpect,
   SuiteCaseResult,
   SuiteCaseStatus,
   SuiteChecksConfig,

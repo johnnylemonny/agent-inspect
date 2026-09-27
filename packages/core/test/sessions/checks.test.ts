@@ -18,6 +18,10 @@ function runResult(
       warnings: 0,
       errors: status === "error" ? 1 : 0,
       rulesEvaluated: 1,
+      rulesPassed: status === "pass" ? 1 : 0,
+      rulesWarning: 0,
+      rulesFailed: status === "fail" ? 1 : 0,
+      rulesError: status === "error" ? 1 : 0,
     },
     findings:
       status === "fail"

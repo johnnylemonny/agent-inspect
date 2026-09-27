@@ -373,6 +373,10 @@ function errorResult(
       warnings: 0,
       errors: 1,
       rulesEvaluated: 0,
+      rulesPassed: 0,
+      rulesWarning: 0,
+      rulesFailed: 0,
+      rulesError: 0,
     },
     findings: [],
     diagnostics,
@@ -2027,9 +2031,12 @@ function printHuman(
   console.log(`Format: ${result.format}`);
   if (result.runId !== undefined) console.log(`Run: ${result.runId}`);
   console.log(
-    `Summary: ${result.summary.failed} failed, ${result.summary.warnings} warning(s), ${result.summary.errors} error(s)`,
+    `Findings: ${result.summary.failed} failed, ${result.summary.warnings} warning(s), ${result.summary.errors} error(s), ${result.summary.passed} passed`,
   );
-  console.log(`Rules evaluated: ${result.summary.rulesEvaluated ?? result.ruleExecutions?.length ?? 0}`);
+  console.log(
+    `Rules: ${result.summary.rulesEvaluated ?? result.ruleExecutions?.length ?? 0} evaluated` +
+      ` (${result.summary.rulesPassed ?? 0} passed, ${result.summary.rulesWarning ?? 0} warning, ${result.summary.rulesFailed ?? 0} failed, ${result.summary.rulesError ?? 0} error)`,
+  );
   for (const diagnostic of result.diagnostics) {
     console.log(`- ${diagnostic.code}: ${diagnostic.message}`);
   }
