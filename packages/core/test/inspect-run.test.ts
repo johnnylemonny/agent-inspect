@@ -100,6 +100,28 @@ describe("inspectRun", () => {
     expect(msg).toMatch(/function/i);
   });
 
+  it("warns on unsupported writer option without throwing or logging the value", async () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    const fakeWriter = { tag: "secret-writer-token-should-not-appear" };
+    const result = await inspectRun(
+      "writer-misuse",
+      async () => 42,
+      {
+        traceDir,
+        silent: true,
+        writer: fakeWriter,
+      } as Parameters<typeof inspectRun>[2] & { writer: unknown },
+    );
+    expect(result).toBe(42);
+    const files = await readdir(traceDir);
+    expect(files.some((f) => f.endsWith(".jsonl"))).toBe(true);
+    const joined = warnSpy.mock.calls.map((call) => call.map(String).join(" ")).join("\n");
+    expect(joined).toContain("AI_INSPECT_RUN_UNSUPPORTED_OPTION");
+    expect(joined).toContain("createInspector");
+    expect(joined).not.toContain("secret-writer-token-should-not-appear");
+    warnSpy.mockRestore();
+  });
+
   it("normalizes blank name to unnamed-run in trace", async () => {
     await inspectRun("", async () => "ok", { traceDir, silent: true });
     const files = await readdir(traceDir);

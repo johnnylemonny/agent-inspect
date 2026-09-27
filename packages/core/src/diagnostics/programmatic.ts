@@ -14,7 +14,9 @@ export type ProgrammaticDiagnosticCode =
   | "AI_TRACE_FACTS_INPUT_NOT_NORMALIZED"
   | "AI_TRACE_CONTRACT_RUN_SELECTION_REQUIRED"
   | "AI_TRACE_RELATIONSHIP_SELF_PARENT"
-  | "AI_TRACE_RELATIONSHIP_CYCLE";
+  | "AI_TRACE_RELATIONSHIP_CYCLE"
+  | "AI_TRACE_CONTRACT_INPUT_INVALID"
+  | "AI_INSPECT_RUN_UNSUPPORTED_OPTION";
 
 export interface ProgrammaticDiagnosticSpec {
   readonly code: ProgrammaticDiagnosticCode;
@@ -76,6 +78,20 @@ export const PROGRAMMATIC_DIAGNOSTIC_SPECS: Readonly<
     remediation:
       "Use visibility-first tree linking for legacy fixtures; prefer acyclic capture for new adapter output.",
     relatedCodes: ["structure.cycle"],
+  },
+  AI_TRACE_CONTRACT_INPUT_INVALID: {
+    code: "AI_TRACE_CONTRACT_INPUT_INVALID",
+    summary:
+      "evaluateTraceContract expects ({ read }, contract) or use evaluateTraceContractRead(read, contract).",
+    remediation:
+      "Pass TraceCheckInput as the first argument: evaluateTraceContract({ read }, contract).",
+    relatedCodes: ["AI_CHECK_INVALID_ARGUMENTS"],
+  },
+  AI_INSPECT_RUN_UNSUPPORTED_OPTION: {
+    code: "AI_INSPECT_RUN_UNSUPPORTED_OPTION",
+    summary: 'inspectRun does not accept a "writer" option.',
+    remediation:
+      "Use createInspector({ writer }) then inspector.run(...). inspectRun persists via the global JSONL path (schema 0.1).",
   },
 });
 
