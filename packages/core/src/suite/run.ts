@@ -3,8 +3,10 @@ import path from "node:path";
 import {
   createLlmUsageRule,
   createObservedOutcomeRule,
+  createRunDepthRule,
   createRunDurationRule,
   createRunStatusRule,
+  createToolFailureRule,
   createToolUsageRule,
   runTraceChecks,
   type TraceCheckRule,
@@ -23,6 +25,17 @@ import type {
   SuiteRunResult,
 } from "./types.js";
 
+/** Selectors the suite compiler can materialize into check rules. */
+const KNOWN_SUITE_SELECT_IDS = new Set([
+  "run.status",
+  "run.duration",
+  "run.depth",
+  "outcome.status",
+  "tool.usage",
+  "tool.failures",
+  "llm.usage",
+]);
+
 function diagnostic(
   code: SuiteDiagnostic["code"],
   message: string,
@@ -32,23 +45,49 @@ function diagnostic(
   return { code, message, severity, ...(caseId !== undefined ? { caseId } : {}) };
 }
 
-function buildCaseRules(
+interface CompiledCaseAssertions {
+  rules: TraceCheckRule[];
+  select: string[];
+  observationCount: number;
+  configDiagnostics: SuiteDiagnostic[];
+}
+
+function buildCaseAssertions(
   suiteCase: SuiteCaseConfig,
   config: SuiteConfig,
-): { rules: TraceCheckRule[]; select: string[] } {
+): CompiledCaseAssertions {
   const rules: TraceCheckRule[] = [];
   const select = new Set<string>(config.checks?.select ?? []);
+  const configDiagnostics: SuiteDiagnostic[] = [];
+  const evalConfig = config.eval;
 
-  if (select.has("run.status")) {
+  const declaredSelect = [...select];
+  for (const id of declaredSelect) {
+    if (!KNOWN_SUITE_SELECT_IDS.has(id)) {
+      configDiagnostics.push(
+        diagnostic(
+          "AI_SUITE_UNKNOWN_SELECTOR",
+          `Unknown or unsupported suite check selector "${id}".`,
+          "error",
+          suiteCase.id,
+        ),
+      );
+    }
+  }
+
+  if (select.has("run.status") || evalConfig?.requireSuccess === true) {
     rules.push(createRunStatusRule());
+    select.add("run.status");
   }
 
   const requiredTools = [
     ...(config.checks?.tool?.required ?? []),
+    ...(evalConfig?.requiredTools ?? []),
     ...(suiteCase.requireTools ?? []),
   ];
   const forbiddenTools = [
     ...(config.checks?.tool?.forbidden ?? []),
+    ...(evalConfig?.forbiddenTools ?? []),
     ...(suiteCase.forbidTools ?? []),
   ];
   if (requiredTools.length > 0 || forbiddenTools.length > 0) {
@@ -64,15 +103,33 @@ function buildCaseRules(
   const maxDurationMs =
     suiteCase.maxDurationMs ??
     config.checks?.run?.maxDurationMs ??
-    config.eval?.maxDurationMs;
+    evalConfig?.maxDurationMs;
   if (maxDurationMs !== undefined) {
     rules.push(createRunDurationRule({ maxDurationMs }));
     select.add("run.duration");
   }
 
-  const llm = config.checks?.llm;
-  if (llm?.allowedModels !== undefined || llm?.maxTotalTokens !== undefined) {
-    rules.push(createLlmUsageRule(llm));
+  const maxDepth = config.checks?.run?.maxDepth ?? evalConfig?.maxDepth;
+  if (maxDepth !== undefined) {
+    rules.push(createRunDepthRule({ maxDepth }));
+    select.add("run.depth");
+  }
+
+  if (evalConfig?.maxRetries !== undefined) {
+    rules.push(createToolFailureRule({ maxRetries: evalConfig.maxRetries }));
+    select.add("tool.failures");
+  }
+
+  const allowedModels = config.checks?.llm?.allowedModels;
+  const maxTotalTokens =
+    config.checks?.llm?.maxTotalTokens ?? evalConfig?.maxTotalTokens;
+  if (allowedModels !== undefined || maxTotalTokens !== undefined) {
+    rules.push(
+      createLlmUsageRule({
+        ...(allowedModels !== undefined ? { allowedModels } : {}),
+        ...(maxTotalTokens !== undefined ? { maxTotalTokens } : {}),
+      }),
+    );
     select.add("llm.usage");
   }
 
@@ -80,7 +137,29 @@ function buildCaseRules(
     rules.push(createObservedOutcomeRule({ failOn: ["failed"] }));
   }
 
-  return { rules, select: [...select] };
+  const observationCount = suiteCase.expectedObservations?.length ?? 0;
+
+  if (
+    rules.length === 0 &&
+    observationCount === 0 &&
+    configDiagnostics.length === 0
+  ) {
+    configDiagnostics.push(
+      diagnostic(
+        "AI_SUITE_NO_ASSERTIONS",
+        `Suite case "${suiteCase.id}" declares no effective checks, eval controls, or expected observations.`,
+        "error",
+        suiteCase.id,
+      ),
+    );
+  }
+
+  return {
+    rules,
+    select: [...select],
+    observationCount,
+    configDiagnostics,
+  };
 }
 
 function outcomesFromRead(read: TraceReadResult) {
@@ -182,10 +261,23 @@ async function runSuiteCase(
     };
   }
 
-  const { rules, select } = buildCaseRules(suiteCase, config);
+  const compiled = buildCaseAssertions(suiteCase, config);
+  if (compiled.configDiagnostics.length > 0) {
+    return {
+      id: suiteCase.id,
+      status: "error",
+      tracePath: resolved.tracePath,
+      ...(resolved.runId !== undefined ? { runId: resolved.runId } : {}),
+      checkOk: false,
+      ...(config.eval?.requireSuccess === true ? { evalOk: false } : {}),
+      message: compiled.configDiagnostics.map((item) => item.message).join("; "),
+      diagnostics: compiled.configDiagnostics,
+    };
+  }
+
   const checkResult =
-    rules.length > 0
-      ? runTraceChecks({ read }, { rules, select })
+    compiled.rules.length > 0
+      ? runTraceChecks({ read }, { rules: compiled.rules, select: compiled.select })
       : {
           ok: true,
           status: "pass" as const,
@@ -221,6 +313,13 @@ async function runSuiteCase(
 
   const checkOk = checkResult.ok;
   const observationsOk = observationResult.ok;
+  const evalOk =
+    config.eval?.requireSuccess === true
+      ? checkResult.findings.every(
+          (finding) => finding.ruleId !== "run.status" || finding.status !== "fail",
+        ) &&
+        checkResult.diagnostics.every((item) => item.severity !== "error")
+      : undefined;
   const ok = checkOk && observationsOk;
   const status = ok ? "pass" : checkResult.status === "error" ? "error" : "fail";
 
@@ -230,6 +329,7 @@ async function runSuiteCase(
     tracePath: resolved.tracePath,
     ...(resolved.runId !== undefined ? { runId: resolved.runId } : {}),
     checkOk,
+    ...(evalOk !== undefined ? { evalOk } : {}),
     observationsOk,
     diagnostics,
     ...(ok
