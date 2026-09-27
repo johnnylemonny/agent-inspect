@@ -448,6 +448,20 @@ function actionForRule(rule: CompiledRule): RedactionAction {
   return rule.strategy;
 }
 
+/**
+ * True when the entire value is an approved complete redaction/hash placeholder.
+ * Marker-plus-residual content returns false so detectors still fire.
+ */
+function isCompleteRedactionMarker(value: unknown, replacement = "[REDACTED]"): boolean {
+  if (typeof value !== "string") return false;
+  const trimmed = value.trim();
+  if (trimmed.length === 0) return false;
+  if (trimmed === replacement) return true;
+  if (/^\[HASH:[A-Za-z0-9_-]+\]$/.test(trimmed)) return true;
+  if (/^\[REDACTED:[^\]]*\]$/.test(trimmed)) return true;
+  return false;
+}
+
 function applyRule(
   rule: CompiledRule,
   value: unknown,
@@ -601,6 +615,11 @@ export class Redactor {
     if (key !== undefined) {
       const rule = findCompiledKeyRule(key, this.#rules);
       if (rule) {
+        // Exact complete markers are already scrubbed — skip key-noise findings.
+        // Marker-plus-residual (`[REDACTED]canary`) still needs a source finding.
+        if (isCompleteRedactionMarker(value, this.#replacement)) {
+          return value;
+        }
         this.#recordFinding(
           state,
           makeFinding(path, `key.${rule.key}`, actionForRule(rule), "key", "warning"),

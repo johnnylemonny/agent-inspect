@@ -41,6 +41,41 @@ function asPositiveNumber(value: unknown, label: string): number | undefined {
   return value;
 }
 
+function asExpectConfig(
+  value: unknown,
+  label: string,
+): SuiteCaseConfig["expect"] | undefined {
+  if (value === undefined) return undefined;
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new Error(`${label} must be an object.`);
+  }
+  const raw = value as Record<string, unknown>;
+  const checkStatus = raw.checkStatus;
+  if (
+    checkStatus !== "pass" &&
+    checkStatus !== "fail" &&
+    checkStatus !== "error"
+  ) {
+    throw new Error(`${label}.checkStatus must be "pass", "fail", or "error".`);
+  }
+  const findingRuleIds = asStringArray(raw.findingRuleIds, `${label}.findingRuleIds`);
+  const minAssertions = asPositiveNumber(raw.minAssertions, `${label}.minAssertions`);
+  const rejectUnexpectedFindings =
+    raw.rejectUnexpectedFindings === undefined
+      ? undefined
+      : typeof raw.rejectUnexpectedFindings === "boolean"
+        ? raw.rejectUnexpectedFindings
+        : (() => {
+            throw new Error(`${label}.rejectUnexpectedFindings must be a boolean.`);
+          })();
+  return {
+    checkStatus,
+    ...(findingRuleIds !== undefined ? { findingRuleIds } : {}),
+    ...(rejectUnexpectedFindings !== undefined ? { rejectUnexpectedFindings } : {}),
+    ...(minAssertions !== undefined ? { minAssertions } : {}),
+  };
+}
+
 function validateCaseConfig(
   value: unknown,
   index: number,
@@ -97,6 +132,9 @@ function validateCaseConfig(
                 `cases[${index}].expectedObservations`,
               ),
             }
+          : {}),
+        ...(asExpectConfig(raw.expect, `cases[${index}].expect`) !== undefined
+          ? { expect: asExpectConfig(raw.expect, `cases[${index}].expect`) }
           : {}),
       },
       diagnostics,

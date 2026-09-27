@@ -77,6 +77,7 @@ pointed at something real, per NETWORK-BEHAVIOR.md.
 | [nestjs-langgraph-local](nestjs-langgraph-local) | LangGraph tracing in NestJS | `@agent-inspect/langchain`<br>`agent-inspect` | No | No network | Supported | `pnpm --filter agent-inspect-recipe-nestjs-langgraph-local start` |
 | [observed-outcome-basic](observed-outcome-basic) | Validate observed outcomes | `agent-inspect` | No | No network | Supported <sup>Workspace / bundles / observed outcomes / Evidence v2</sup> | `pnpm --filter agent-inspect-recipe-observed-outcome-basic start` |
 | [openai-agents-local-tracing](openai-agents-local-tracing) | OpenAI Agents tracing | `@agent-inspect/openai-agents`<br>`agent-inspect` | No | No network | Supported | `pnpm --filter agent-inspect-recipe-openai-agents-local-tracing start` |
+| [openai-node-chat-completions](openai-node-chat-completions) | Direct OpenAI Node `chat.completions.create` (mock) | `agent-inspect` advanced + writers | No | No network | Supported | `pnpm --filter agent-inspect-recipe-openai-node-chat-completions start` |
 | [parallel-tools](parallel-tools) | Inspect parallel tool calls | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-parallel-tools start` |
 | [phoenix-openinference-import](phoenix-openinference-import) | OpenInference interop | `agent-inspect` | No | No network | Preview <sup>Standards round-trip / Collector-Phoenix external proof</sup> | `pnpm --filter agent-inspect-recipe-phoenix-openinference-import start` |
 | [pino-json-logs](pino-json-logs) | Turn existing logs into a tree | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-pino-json-logs start` |
@@ -131,6 +132,7 @@ each package README's `**Support level:**` line, except where a recipe uses a fe
 | [ai-sdk-local-telemetry](ai-sdk-local-telemetry) | AI SDK v6 telemetry with local test mocks | `@agent-inspect/ai-sdk`, writers, `open`, metadata-only capture | yes | no |
 | [ai-sdk-next-route](ai-sdk-next-route) | AI SDK route-style telemetry factory with local test mocks | `@agent-inspect/ai-sdk`, per-request integration, metadata-only capture | yes | no |
 | [openai-agents-local-tracing](openai-agents-local-tracing) | OpenAI Agents JS tracing processor with local fixtures | `@agent-inspect/openai-agents`, writers, `open`, metadata-only capture | yes | no |
+| [openai-node-chat-completions](openai-node-chat-completions) | Direct OpenAI Node chat.completions capture with explicit usage/request metadata | `createInspector`, writers, mock SDK, metadata-only | yes | no |
 | [langgraph-callback-local](langgraph-callback-local) | LangGraph-shaped metadata through LangChain callbacks | `@agent-inspect/langchain`, callback metadata, local JSONL | yes | no |
 | [nestjs-langgraph-local](nestjs-langgraph-local) | Env-gated NestJS-style LangGraph callback wiring | lazy `@agent-inspect/langchain`, metadata-only, relative `traceDir`, `close`/`getDiagnostics` | yes | no |
 | [langgraph-swarm-local](langgraph-swarm-local) | Multi-agent handoff via callback metadata | handoffFrom correlation, tool identity, persist-by-intent | yes | no |

@@ -82,6 +82,33 @@ describe("evidence hash engine (6.10-1)", () => {
     });
   });
 
+  it("preserves additive input provenance bindings for older-reader compatibility", () => {
+    const content = '{"schemaVersion":"1.0"}\n';
+    const manifest = buildEvidenceManifest({
+      generatorVersion: "6.31.11",
+      runIds: ["run_inputs"],
+      traceSchemaVersions: ["1.0"],
+      sourceHashes: [
+        { runId: "run_inputs", algorithm: "sha256", hash: sha256Hex(content) },
+      ],
+      redactionProfile: "share",
+      assessmentStatus: "SAFE WITH WARNINGS",
+      files: [{ path: "trace.jsonl", content }],
+      createdAt: "2026-09-27T00:00:00.000Z",
+      inputs: {
+        scenarioId: "before-departure",
+        profileId: "live-profile-a",
+        lockfileSha256: "a".repeat(64),
+        appSnapshotSha256: "b".repeat(64),
+        dirtyPatchSha256: "c".repeat(64),
+        note: "Hashes bind integrity relative to this manifest only.",
+      },
+    });
+    expect(manifest.inputs?.scenarioId).toBe("before-departure");
+    const roundTrip = parseEvidenceManifestJson(serializeEvidenceManifest(manifest));
+    expect(roundTrip.inputs).toEqual(manifest.inputs);
+  });
+
   it("detects hash mismatch when packaged bytes change", () => {
     const original = "trace-body\n";
     const entry = buildEvidenceFileEntries([{ path: "trace.jsonl", content: original }])[0]!;

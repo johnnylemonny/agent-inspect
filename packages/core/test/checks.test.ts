@@ -129,6 +129,10 @@ describe("runTraceChecks", () => {
         warnings: 0,
         errors: 1,
         rulesEvaluated: 0,
+        rulesPassed: 0,
+        rulesWarning: 0,
+        rulesFailed: 0,
+        rulesError: 0,
       },
       findings: [],
       ruleExecutions: [],
@@ -196,6 +200,10 @@ describe("runTraceChecks", () => {
       warnings: 1,
       errors: 0,
       rulesEvaluated: 2,
+      rulesPassed: 0,
+      rulesWarning: 1,
+      rulesFailed: 1,
+      rulesError: 0,
     });
     expect(result.findings.map((finding) => finding.ruleId)).toEqual([
       "z.rule",

@@ -5,11 +5,11 @@ executionMode: maintainer-reviewed
 namedTrain: suite-context-trust-after-6318
 currentTrain: suite-context-trust-after-6318
 trainStatus: active
-currentChunk: "C05 published as 6.31.10; next C06 explain logical lifecycle counts"
-nextAction: "Implement C06 explain lifecycle consistency"
+currentChunk: "C06–C13 implemented locally; awaiting Changeset publish"
+nextAction: "Publish C06–C13 as patch; then demo C03–C04 / D01 separately"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
-pendingManualGate: "Elastic --live credentials; EVIDENCE_GATE not approved; external Promptfoo reproduction; C03–C04 demo; D01 docs"
+pendingManualGate: "Elastic --live credentials; EVIDENCE_GATE not approved; external Promptfoo reproduction; C03–C04 demo journal in proactive-ai-demo; D01 docs package"
 worktreeIgnoreOnly:
   - .redstamp/
   - redstamp-proposal-issue-body.md
@@ -24,17 +24,22 @@ worktreeIgnoreOnly:
 | Item | Status |
 | --- | --- |
 | 6.31.10 published | **done** |
-| C01–C02 suite + CJS context | **done** (6.31.9) |
-| C05 API misuse diagnostics | **done** |
-| C06 explain logical lifecycle counts | **next** |
-| C07–C13 / demo C03–C04 / D01 | queued |
+| C06 explain logical lifecycle counts | **implemented** (pending publish) |
+| C07 rule/outcome summary clarity | **implemented** (pending publish) |
+| C08 direct OpenAI Node recipe | **implemented** (pending publish) |
+| C09 expected semantic-failure suite asserts | **implemented** (pending publish) |
+| C10 Nest Evidence v2 path | **implemented** (pending publish) |
+| C11 safety precision | **implemented** (pending publish) |
+| C12 input provenance extensions | **implemented** (pending publish) |
+| C13 bounded consumer smoke | **implemented** (pending publish) |
+| Demo C03–C04 / D01 | queued separately |
 
 ## Stop marker
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.10
 ACTIVE: suite-context-trust-after-6318
-NEXT: C06 explain logical lifecycle counts
+NEXT: publish C06–C13 → demo C03–C04 / D01
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded

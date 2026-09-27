@@ -1,0 +1,6 @@
+OpenAI Node chat.completions recipe: pass
+LLM spans: 3
+Request ids: chatcmpl-recipe-001, chatcmpl-recipe-002, chatcmpl-recipe-003
+Tool-call link: call_lookup_1
+Trace: .agent-inspect-runs/openai-node-chat-completions-recipe.jsonl
+Note: explain/what are local-only; this recipe performs no provider calls.

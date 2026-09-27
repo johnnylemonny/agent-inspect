@@ -1,7 +1,9 @@
+import { projectLogicalEvents } from "./checks/logical-events.js";
 import { Redactor } from "./logs/redactor.js";
 import { resolveRedactionProfile } from "./redaction-profiles.js";
 import type { RedactionProfile } from "./types.js";
 import type { InspectNode, InspectRunTree } from "./types/inspect-event.js";
+import type { PersistedInspectEvent } from "./types/persisted-inspect-event.js";
 
 export type ExplainMode = "dry-run" | "local";
 
@@ -35,6 +37,11 @@ export interface ExplainResult {
 export interface ExplainOptions {
   mode?: ExplainMode;
   redactionProfile?: RedactionProfile;
+  /**
+   * Optional raw persisted events for the selected run (or full read).
+   * When provided, explain adds lifecycle-projected counts and slowest logical step.
+   */
+  events?: readonly PersistedInspectEvent[];
 }
 
 interface FlatNode {
@@ -135,7 +142,11 @@ function attributeFacts(nodes: FlatNode[], redactor: Redactor): ExplainFact[] {
   return facts;
 }
 
-function buildFacts(run: InspectRunTree, redactor: Redactor): ExplainFact[] {
+function buildFacts(
+  run: InspectRunTree,
+  redactor: Redactor,
+  events?: readonly PersistedInspectEvent[],
+): ExplainFact[] {
   const nodes = flatten(run.children);
   const facts = [
     fact("run.id", "Run id", run.runId, redactor),
@@ -160,6 +171,43 @@ function buildFacts(run: InspectRunTree, redactor: Redactor): ExplainFact[] {
       }, redactor),
     );
   }
+
+  if (events !== undefined) {
+    const scoped = events.filter((event) => event.runId === run.runId);
+    const { logicalEvents: logical } = projectLogicalEvents(scoped);
+    const logicalSteps = logical.filter((event) => event.kind !== "RUN");
+    facts.push(
+      fact("run.rawEventCount", "Raw persisted event count", scoped.length, redactor),
+      fact(
+        "run.logicalStepCount",
+        "Logical lifecycle step count",
+        logicalSteps.length,
+        redactor,
+      ),
+      fact(
+        "run.logicalEventCount",
+        "Logical lifecycle event count (including RUN)",
+        logical.length,
+        redactor,
+      ),
+    );
+    const slowestLogical = [...logicalSteps]
+      .filter((event) => typeof event.durationMs === "number")
+      .sort((a, b) => {
+        const delta = (b.durationMs ?? 0) - (a.durationMs ?? 0);
+        return delta !== 0 ? delta : a.eventId.localeCompare(b.eventId);
+      })[0];
+    if (slowestLogical !== undefined) {
+      facts.push(
+        fact("run.slowestLogicalStep", "Slowest logical lifecycle step", {
+          name: slowestLogical.name,
+          kind: slowestLogical.kind,
+          durationMs: slowestLogical.durationMs,
+        }, redactor),
+      );
+    }
+  }
+
   facts.push(...attributeFacts(nodes, redactor));
   return facts;
 }
@@ -226,7 +274,7 @@ export function buildLocalExplanation(
   const resolved = resolveRedactionProfile(redactionProfile);
   const redactor = new Redactor({ extraKeys: resolved.extraKeys });
   const mode = options.mode ?? "local";
-  const facts = buildFacts(run, redactor);
+  const facts = buildFacts(run, redactor, options.events);
   return {
     mode,
     runId: String(redactValue(redactor, "runId", run.runId)),

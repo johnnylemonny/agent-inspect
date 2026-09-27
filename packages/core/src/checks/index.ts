@@ -646,11 +646,23 @@ export interface TraceCheckRuleExecution {
  * @experimental  Available through `agent-inspect/checks`. Additive changes may ship in minor releases; breaking changes require a future major.
  */
 export interface TraceCheckSummary {
+  /** Finding count with status pass. */
   passed: number;
+  /** Finding count with status fail and severity error. */
   failed: number;
+  /** Finding count with warning status or severity. */
   warnings: number;
+  /** Diagnostic count with severity error. */
   errors: number;
   rulesEvaluated: number;
+  /**
+   * Rule-status totals from `ruleExecutions` (independent of finding counts).
+   * @experimental Additive; always populated by `runTraceChecks` / contract evaluation.
+   */
+  rulesPassed: number;
+  rulesWarning: number;
+  rulesFailed: number;
+  rulesError: number;
 }
 
 /**
@@ -799,6 +811,10 @@ function emptySummary(): TraceCheckSummary {
     warnings: 0,
     errors: 0,
     rulesEvaluated: 0,
+    rulesPassed: 0,
+    rulesWarning: 0,
+    rulesFailed: 0,
+    rulesError: 0,
   };
 }
 
@@ -817,6 +833,10 @@ function errorResult(
       ...emptySummary(),
       errors: diagnostics.filter((item) => item.severity === "error").length,
       rulesEvaluated: ruleExecutions.length,
+      rulesPassed: ruleExecutions.filter((item) => item.status === "pass").length,
+      rulesWarning: ruleExecutions.filter((item) => item.status === "warning").length,
+      rulesFailed: ruleExecutions.filter((item) => item.status === "fail").length,
+      rulesError: ruleExecutions.filter((item) => item.status === "error").length,
     },
     findings: [],
     diagnostics: [...diagnostics],
@@ -1011,7 +1031,7 @@ function normalizeFinding(rule: TraceCheckRule, finding: TraceCheckFinding): Tra
 function summarize(
   findings: readonly TraceCheckFinding[],
   diagnostics: readonly TraceCheckDiagnostic[],
-  rulesEvaluated: number,
+  ruleExecutions: readonly TraceCheckRuleExecution[],
 ): TraceCheckSummary {
   return {
     passed: findings.filter((finding) => finding.status === "pass").length,
@@ -1022,7 +1042,11 @@ function summarize(
       (finding) => finding.status === "warning" || finding.severity === "warning",
     ).length,
     errors: diagnostics.filter((item) => item.severity === "error").length,
-    rulesEvaluated,
+    rulesEvaluated: ruleExecutions.length,
+    rulesPassed: ruleExecutions.filter((item) => item.status === "pass").length,
+    rulesWarning: ruleExecutions.filter((item) => item.status === "warning").length,
+    rulesFailed: ruleExecutions.filter((item) => item.status === "fail").length,
+    rulesError: ruleExecutions.filter((item) => item.status === "error").length,
   };
 }
 
@@ -3396,7 +3420,7 @@ export function runTraceChecks(
 
   const eventById = new Map(input.read.events.map((event) => [event.eventId, event] as const));
   const sortedFindings = findings.sort(compareFindings(eventById));
-  const summary = summarize(sortedFindings, diagnostics, ruleExecutions.length);
+  const summary = summarize(sortedFindings, diagnostics, ruleExecutions);
   const status: TraceCheckStatus = summary.failed > 0 ? "fail" : "pass";
 
   return {

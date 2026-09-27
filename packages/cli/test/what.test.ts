@@ -49,7 +49,7 @@ describe("what CLI", () => {
     await whatCommand("minimal-success", { dir: tmpDir });
     const out = logSpy.mock.calls.flat().join("\n");
     expect(out).toContain("What: minimal-success");
-    expect(out).toContain("Outcome: Completed successfully.");
+    expect(out).toContain("Execution: Completed successfully.");
   });
 
   it("emits valid JSON", async () => {

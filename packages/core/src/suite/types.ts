@@ -11,6 +11,7 @@ export type SuiteDiagnosticCode =
   | "AI_SUITE_CASE_OBSERVATION_FAILED"
   | "AI_SUITE_NO_ASSERTIONS"
   | "AI_SUITE_UNKNOWN_SELECTOR"
+  | "AI_SUITE_EXPECT_MISMATCH"
   | "AI_SUITE_TRACE_UNREADABLE";
 
 export interface SuiteDiagnostic {
@@ -29,6 +30,30 @@ export interface SuiteCaseConfig {
   forbidTools?: string[];
   maxDurationMs?: number;
   expectedObservations?: string[];
+  /**
+   * Additive expected semantic-failure assertion over the raw check result.
+   * When set, the suite case can pass because the contract correctly failed.
+   * Raw `check.ok` remains false; the suite assertion matches status + findings.
+   */
+  expect?: SuiteCaseExpect;
+}
+
+/**
+ * Typed expectation that a case fails for specific semantic reasons.
+ * Does not invent captureOnly / nonGating modes.
+ */
+export interface SuiteCaseExpect {
+  /** Required check status (typically `"fail"` for semantic negatives). */
+  checkStatus: "pass" | "fail" | "error";
+  /** Finding rule ids that must appear among failed findings (order-insensitive). */
+  findingRuleIds?: string[];
+  /**
+   * When true (default), any failed finding whose ruleId is not listed in
+   * `findingRuleIds` rejects the expectation.
+   */
+  rejectUnexpectedFindings?: boolean;
+  /** Minimum effective assertion count (rules + observations). */
+  minAssertions?: number;
 }
 
 export interface SuiteChecksConfig {

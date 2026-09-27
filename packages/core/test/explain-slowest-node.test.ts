@@ -38,6 +38,42 @@ describe("explain run.slowestNode", () => {
     expect(value.durationMs).toBe(2044);
   });
 
+  it("adds logical lifecycle counts and slowest logical step when events are provided", async () => {
+    const opened = await openTrace({
+      type: "file",
+      path: path.join(fixturesDir, "llm-with-tokens.jsonl"),
+    });
+    const explained = buildLocalExplanation(opened.runs[0]!, {
+      events: opened.events,
+    });
+
+    expect(explained.facts.find((f) => f.id === "run.rawEventCount")?.value).toBe(
+      opened.events.filter((event) => event.runId === opened.runs[0]!.runId).length,
+    );
+    const logicalSteps = explained.facts.find((f) => f.id === "run.logicalStepCount");
+    expect(typeof logicalSteps?.value).toBe("number");
+    expect(logicalSteps!.value as number).toBeGreaterThan(0);
+    expect(logicalSteps!.value as number).toBeLessThan(
+      explained.facts.find((f) => f.id === "run.rawEventCount")!.value as number,
+    );
+
+    const slowestLogical = explained.facts.find((f) => f.id === "run.slowestLogicalStep");
+    expect(slowestLogical).toBeDefined();
+    const value = slowestLogical!.value as {
+      name: string;
+      kind: string;
+      durationMs: number;
+    };
+    expect(value.kind).not.toBe("RUN");
+    // Lifecycle projection keeps the start-row name (llm:generate-answer), not stepId.
+    expect(value.name).toBe("llm:generate-answer");
+    expect(value.durationMs).toBe(2044);
+
+    // Raw tree slowest remains unchanged for compatibility.
+    const slowestRaw = explained.facts.find((f) => f.id === "run.slowestNode");
+    expect((slowestRaw!.value as { name: string }).name).toBe("llm_001");
+  });
+
   it("omits run.slowestNode when a run has only boundary nodes", async () => {
     // A run with no step-level nodes has nothing to rank; falling back to the
     // run envelope would be the same bug in a different shape.

@@ -7,7 +7,17 @@ function baseResult() {
     ok: true,
     status: "pass" as const,
     format: "agent-inspect-jsonl" as const,
-    summary: { passed: 1, failed: 0, warnings: 0, errors: 0, rulesEvaluated: 1 },
+    summary: {
+      passed: 1,
+      failed: 0,
+      warnings: 0,
+      errors: 0,
+      rulesEvaluated: 1,
+      rulesPassed: 1,
+      rulesWarning: 0,
+      rulesFailed: 0,
+      rulesError: 0,
+    },
     findings: [],
     diagnostics: [],
     ruleExecutions: [

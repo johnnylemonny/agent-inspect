@@ -110,7 +110,31 @@ export interface EvidenceManifest {
    * Additive; older readers ignore unknown fields.
    */
   contract?: EvidenceContractBinding;
+  /**
+   * Optional input provenance bindings (additive).
+   * Hashes bind integrity relative to this manifest — not who executed the run
+   * or a SLSA attestation level.
+   */
+  inputs?: EvidenceInputBinding;
   files: EvidenceFileEntry[];
+}
+
+/**
+ * Additive input bindings for Evidence v2 (app/scenario/config provenance).
+ * Older readers ignore unknown fields. Does not claim trusted-build attestation.
+ */
+export interface EvidenceInputBinding {
+  scenarioId?: string;
+  profileId?: string;
+  /** SHA-256 of the lockfile bytes that materially affected the run. */
+  lockfileSha256?: string;
+  /** SHA-256 of an app snapshot / tree digest (dirty boolean alone is insufficient). */
+  appSnapshotSha256?: string;
+  /** SHA-256 of the exact dirty patch bytes when the tree was dirty. */
+  dirtyPatchSha256?: string;
+  /** SHA-256 of oracle implementation/configuration bytes when disclosed. */
+  oracleConfigSha256?: string;
+  note?: string;
 }
 
 /**

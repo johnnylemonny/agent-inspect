@@ -57,7 +57,7 @@ describe("renderRunWhat", () => {
     const text = renderRunWhat(buildRunWhatSummary(events as any));
     expect(text).toContain("What: minimal-success");
     expect(text).toContain("Status: success");
-    expect(text).toContain("Outcome: Completed successfully.");
+    expect(text).toContain("Execution: Completed successfully.");
   });
 
   it("renders token line when present", async () => {

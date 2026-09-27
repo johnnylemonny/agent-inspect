@@ -6,6 +6,7 @@ export type {
   EvidenceFileEntry,
   EvidenceFileRole,
   EvidenceFormatVersion,
+  EvidenceInputBinding,
   EvidenceManifest,
   EvidencePackagedFile,
   EvidenceRedactionProfile,

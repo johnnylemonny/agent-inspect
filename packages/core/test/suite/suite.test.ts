@@ -253,6 +253,63 @@ describe("suite assertion integrity", () => {
     }
   });
 
+  it("passes when expect matches a semantic check failure", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-expect-fail-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "expect-semantic-fail",
+        traces: tracesDir,
+        checks: { select: ["run.status"] },
+        cases: [
+          {
+            id: "error-run",
+            runId: "minimal-error",
+            expect: {
+              checkStatus: "fail",
+              findingRuleIds: ["run.status"],
+              minAssertions: 1,
+            },
+          },
+        ],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(true);
+      expect(result.cases[0]?.status).toBe("pass");
+      expect(result.cases[0]?.checkOk).toBe(false);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
+  it("rejects expect when the failing finding rule id does not match", async () => {
+    const dir = await mkdtemp(path.join(os.tmpdir(), "suite-expect-mismatch-"));
+    try {
+      const configPath = await writeSuiteConfig(dir, {
+        name: "expect-wrong-rule",
+        traces: tracesDir,
+        checks: { select: ["run.status"] },
+        cases: [
+          {
+            id: "error-run",
+            runId: "minimal-error",
+            expect: {
+              checkStatus: "fail",
+              findingRuleIds: ["tool.usage"],
+            },
+          },
+        ],
+      });
+      const result = await runSuite({ configPath });
+      expect(result.ok).toBe(false);
+      expect(result.cases[0]?.status).toBe("fail");
+      expect(
+        result.cases[0]?.diagnostics.some((d) => d.code === "AI_SUITE_EXPECT_MISMATCH"),
+      ).toBe(true);
+    } finally {
+      await rm(dir, { recursive: true, force: true });
+    }
+  });
+
   it("fails a mixed suite containing an unasserted case", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "suite-mixed-cases-"));
     try {
