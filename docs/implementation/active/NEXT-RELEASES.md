@@ -8,8 +8,8 @@
 ## Sequence
 
 1. **6.31.9** — suite assertion integrity + packed CJS context identity — **published**
-2. **C05** — API misuse diagnostics — **next**
-3. **C06–C07** — Explain logical counts; rule/outcome summaries — queued
+2. **C05** — API misuse diagnostics — **implemented (pending publish)**
+3. **C06–C07** — Explain logical counts; rule/outcome summaries — **next** after C05 publish
 4. **C08–C12** — OpenAI recipe, expected-failure asserts, Nest Evidence, safety, provenance — queued
 5. **C13** — Broader consumers — queued; split per adapter/app
 6. **Demo C03–C04** — proactive-ai-demo; pin `agent-inspect@6.31.9`

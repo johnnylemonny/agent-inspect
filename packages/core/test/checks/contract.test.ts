@@ -130,6 +130,48 @@ describe("trace contract", () => {
     expect(viaRead.findings.length).toBe(result.findings.length);
   });
 
+  describe("API misuse diagnostics", () => {
+    it("returns AI_CHECK_INVALID_ARGUMENTS when given a bare TraceReadResult", () => {
+      const read = readResult("ok", [persisted("event-a")]);
+      const contract = defineTraceContract({ run: { requireCompleted: true } });
+      const result = evaluateTraceContract(
+        read as unknown as Parameters<typeof evaluateTraceContract>[0],
+        contract,
+      );
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.diagnostics[0]?.code).toBe("AI_CHECK_INVALID_ARGUMENTS");
+      expect(result.diagnostics[0]?.message).toContain("AI_TRACE_CONTRACT_INPUT_INVALID");
+      expect(result.diagnostics[0]?.message).toContain("evaluateTraceContract");
+    });
+
+    it("returns AI_CHECK_INVALID_ARGUMENTS when arguments are reversed", () => {
+      const read = readResult("ok", [persisted("event-a")]);
+      const contract = defineTraceContract({ run: { requireCompleted: true } });
+      const result = evaluateTraceContract(
+        contract as unknown as Parameters<typeof evaluateTraceContract>[0],
+        { read } as unknown as Parameters<typeof evaluateTraceContract>[1],
+      );
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.diagnostics.some((d) => d.code === "AI_CHECK_INVALID_ARGUMENTS")).toBe(
+        true,
+      );
+    });
+
+    it("diagnose evaluateTraceContractRead with reversed arguments", () => {
+      const read = readResult("ok", [persisted("event-a")]);
+      const contract = defineTraceContract({ run: { requireCompleted: true } });
+      const result = evaluateTraceContractRead(
+        contract as unknown as Parameters<typeof evaluateTraceContractRead>[0],
+        read as unknown as Parameters<typeof evaluateTraceContractRead>[1],
+      );
+      expect(result.ok).toBe(false);
+      expect(result.status).toBe("error");
+      expect(result.diagnostics[0]?.code).toBe("AI_CHECK_INVALID_ARGUMENTS");
+    });
+  });
+
   describe("run.allowedStatuses", () => {
     it("accepts a canonical ok status without remapping it", () => {
       const read = readResult("ok", [persisted("event-a")]);

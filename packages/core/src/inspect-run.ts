@@ -1,5 +1,6 @@
 import { buildRunStartedMetadata } from "./correlation-metadata.js";
 import { runWithContext } from "./context.js";
+import { formatProgrammaticDiagnostic } from "./diagnostics/programmatic.js";
 import type { ExecutionContext, InspectRunOptions, TraceEvent } from "./types.js";
 import { initializeTraceFile, writeTraceEvent } from "./storage.js";
 import { printRunComplete, printRunStart } from "./terminal.js";
@@ -15,6 +16,22 @@ import {
   truncateName,
   warn,
 } from "./utils.js";
+
+/** Options that belong on createInspector, not inspectRun. */
+const INSPECT_RUN_UNSUPPORTED_OPTION_KEYS = ["writer"] as const;
+
+function warnUnsupportedInspectRunOptions(options: unknown): void {
+  if (typeof options !== "object" || options === null || Array.isArray(options)) {
+    return;
+  }
+  const record = options as Record<string, unknown>;
+  for (const key of INSPECT_RUN_UNSUPPORTED_OPTION_KEYS) {
+    if (Object.prototype.hasOwnProperty.call(record, key) && record[key] !== undefined) {
+      // Do not log the option value (may contain sensitive writer state).
+      warn(formatProgrammaticDiagnostic("AI_INSPECT_RUN_UNSUPPORTED_OPTION"));
+    }
+  }
+}
 
 function normalizeRunName(name: unknown): string {
   if (typeof name !== "string" || name.trim() === "") {
@@ -48,6 +65,8 @@ export async function inspectRun<T>(
   if (typeof fn !== "function") {
     throw new TypeError("inspectRun requires `fn` to be a function");
   }
+
+  warnUnsupportedInspectRunOptions(options);
 
   if (options?.enabled === false) {
     return Promise.resolve(fn());

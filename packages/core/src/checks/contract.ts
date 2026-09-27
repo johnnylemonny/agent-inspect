@@ -40,6 +40,7 @@ import {
   extractOutcomesFromPersistedEvents,
   type ObservedOutcome,
 } from "../outcomes/index.js";
+import { formatProgrammaticDiagnostic } from "../diagnostics/programmatic.js";
 import type { TraceReadResult } from "../readers/index.js";
 
 export type { TraceContractScope } from "./contract-scope.js";
@@ -1231,6 +1232,85 @@ export function defineTraceContract(input: TraceContractInput): TraceContract {
   };
 }
 
+function isTraceReadLike(value: unknown): value is TraceReadResult {
+  if (typeof value !== "object" || value === null) return false;
+  const candidate = value as Partial<TraceReadResult>;
+  return (
+    typeof candidate.format === "string" &&
+    Array.isArray(candidate.runs) &&
+    Array.isArray(candidate.events)
+  );
+}
+
+function isTraceCheckInputLike(value: unknown): value is TraceCheckInput {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  return isTraceReadLike((value as TraceCheckInput).read);
+}
+
+function looksLikeTraceContract(value: unknown): boolean {
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    return false;
+  }
+  // Reject values that are clearly a read / TraceCheckInput (common reverse misuse).
+  if (isTraceReadLike(value) || isTraceCheckInputLike(value)) {
+    return false;
+  }
+  return true;
+}
+
+function invalidContractInputResult(): TraceCheckResult {
+  return {
+    ok: false,
+    status: "error",
+    format: "unknown",
+    summary: {
+      passed: 0,
+      failed: 0,
+      warnings: 0,
+      errors: 1,
+      rulesEvaluated: 0,
+    },
+    findings: [],
+    diagnostics: [
+      {
+        code: "AI_CHECK_INVALID_ARGUMENTS",
+        message: formatProgrammaticDiagnostic("AI_TRACE_CONTRACT_INPUT_INVALID"),
+        severity: "error",
+      },
+    ],
+    ruleExecutions: [],
+  };
+}
+
+function validateEvaluateTraceContractArgs(
+  input: unknown,
+  contract: unknown,
+): TraceCheckResult | undefined {
+  if (isTraceCheckInputLike(input) && looksLikeTraceContract(contract)) {
+    return undefined;
+  }
+  // Common JS reverse: evaluateTraceContract(contract, { read }) or (contract, read).
+  if (
+    looksLikeTraceContract(input) &&
+    (isTraceCheckInputLike(contract) || isTraceReadLike(contract))
+  ) {
+    return invalidContractInputResult();
+  }
+  // Bare TraceReadResult as first arg (should use evaluateTraceContractRead).
+  if (isTraceReadLike(input)) {
+    return invalidContractInputResult();
+  }
+  if (!isTraceCheckInputLike(input)) {
+    return invalidContractInputResult();
+  }
+  if (!looksLikeTraceContract(contract)) {
+    return invalidContractInputResult();
+  }
+  return undefined;
+}
+
 /**
  * Evaluate a trace contract against an opened trace read result.
  *
@@ -1244,6 +1324,11 @@ export function evaluateTraceContract(
   contract: TraceContract,
   options: { runId?: string } = {},
 ): TraceCheckResult {
+  const inputGuard = validateEvaluateTraceContractArgs(input, contract);
+  if (inputGuard !== undefined) {
+    return inputGuard;
+  }
+
   const shapeErrors = [
     ...validateAllowedStatusesShape(contract.run?.allowedStatuses),
     ...validateAlternativesShape(contract.alternatives),
@@ -1410,6 +1495,9 @@ export function evaluateTraceContractRead(
   contract: TraceContract,
   options: { runId?: string } = {},
 ): TraceCheckResult {
+  if (!isTraceReadLike(read) || !looksLikeTraceContract(contract)) {
+    return invalidContractInputResult();
+  }
   return evaluateTraceContract({ read }, contract, options);
 }
 
