@@ -46,7 +46,11 @@
     "errors": 0,
     "failed": 0,
     "passed": 0,
+    "rulesError": 0,
     "rulesEvaluated": 5,
+    "rulesFailed": 0,
+    "rulesPassed": 5,
+    "rulesWarning": 0,
     "warnings": 0
   }
 }

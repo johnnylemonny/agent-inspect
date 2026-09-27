@@ -11,7 +11,7 @@
       ],
       "evidence": [
         {
-          "eventId": "step_fo0Q04TV8h",
+          "eventId": "step_cXJtEg6Li6",
           "kind": "OUTCOME",
           "name": "policyShown",
           "path": "outcome.policyShown",
@@ -33,7 +33,7 @@
       "actual": "search_docs",
       "evidence": [
         {
-          "eventId": "step_02pkA59Xy7_started",
+          "eventId": "step_1tNcpUD3tu_started",
           "kind": "TOOL",
           "name": "tool:search_docs",
           "runId": "demo-regression",
@@ -106,7 +106,11 @@
     "errors": 0,
     "failed": 2,
     "passed": 0,
+    "rulesError": 0,
     "rulesEvaluated": 7,
+    "rulesFailed": 2,
+    "rulesPassed": 5,
+    "rulesWarning": 0,
     "warnings": 0
   }
 }

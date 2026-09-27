@@ -60,7 +60,11 @@
     "errors": 0,
     "failed": 0,
     "passed": 0,
+    "rulesError": 0,
     "rulesEvaluated": 7,
+    "rulesFailed": 0,
+    "rulesPassed": 7,
+    "rulesWarning": 0,
     "warnings": 0
   }
 }
