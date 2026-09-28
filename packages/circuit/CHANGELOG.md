@@ -1,5 +1,11 @@
 # @agent-inspect/circuit
 
+## 6.31.12
+
+### Patch Changes
+
+- 31d187e: Stability C00–C03: reconcile release-state tables to 6.31.11; Promptfoo recipe/reviewer-kit verifier freshness and exact matrix identity; strict nested suite config (no string/typo coercion); OpenAI Node recipe runs SDK create inside inspector.llm with RequestOptions and distinct HTTP vs completion IDs.
+
 ## 6.31.11
 
 ### Patch Changes
