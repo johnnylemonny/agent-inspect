@@ -1,20 +1,20 @@
-# Active execution plan — after 6.31.11
+# Active execution plan — after 6.31.13
 
 **Authority:** [../ROADMAP.md](../ROADMAP.md)
-**Baseline:** **published** `agent-inspect@6.31.11` · Version Packages `#471` · Publish `36334392282`
+**Baseline:** **published** `agent-inspect@6.31.13`
 **Named train:** `stability-after-63111`
-**Program status:** suite-trust closures shipped through 6.31.11; stability train active (C00→C01…); **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
+**Program status:** stability train active; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
 
 ## Sequence
 
 1. **6.31.12** — C00–C03 verifiers + SDK — **published**
-2. **C04–C06** — Run duration; logical/execution counts; OTLP recursive validation — **shipping** (proposed **6.31.13**)
-3. **C07–C09** — Structured Collector/Elastic verifiers — queued (proposed **6.31.14**); **C10** actual Elastic blocked on credentials
-7. **Demo D03–D07** — journal, live profiles, failure retention, native evidence, ledger — separate repo
-8. **C11–C12** — Executable/packed matrix; docs/case studies — queued (proposed **6.31.15**)
-9. **6.32.0** — existing external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**
-10. **6.33.0** — conditional additive usability — only if justified
-11. **v7** — NO-GO
+2. **6.31.13** — C04–C06 timing + OTLP bounds — **published**
+3. **C07–C09** — Transport identity comparator; Collector/Elastic verifiers — **shipping** (proposed **6.31.14**); **C10** actual Elastic blocked
+4. **Demo D03–D07** — journal, live profiles, failure retention, native evidence, ledger — separate repo
+5. **C11–C12** — Executable/packed matrix; docs/case studies — queued (proposed **6.31.15**)
+6. **6.32.0** — existing external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**
+7. **6.33.0** — conditional additive usability — only if justified
+8. **v7** — NO-GO
 
 ## Claim discipline
 
@@ -32,9 +32,9 @@
 ## External stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.11
+LAST_PUBLISHED_RELEASE: 6.31.13
 ACTIVE: stability-after-63111
-NEXT: maintainer review of C00–C03 → proposed 6.31.12 Changeset
+NEXT: publish 6.31.14 then C11–C12; halt at 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded
