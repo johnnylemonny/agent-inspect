@@ -11,15 +11,13 @@
 2. **6.31.13** — C04–C06 timing + OTLP bounds — **published** (verified)
 3. **6.31.14** — C07–C09 transport identity — **published** (selected fields / NDJSON re-import / Elastic live path **reopened**)
 4. **6.31.15** — C11–C12 matrix + docs — **published** (CI wiring + kit provenance **reopened**)
-5. **C00** — Correct completion ledger + retarget [EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md) to 6.32 — **in progress**
-6. **6.31.16** — C01 exact Promptfoo assertions + kit lockfile/README
-7. **6.31.17** — C07–C08 selected attributes + Collector NDJSON merge
-8. **6.31.18** — C09 Elastic live-path controls (stubs); **C10** actual Elastic still credential-gated
-9. **6.31.19** — C11 CI wiring + OpenAI maintained transport tests + honest matrix/docs
-10. **Demo D03–D07** — separate repo (`proactive-ai-demo`)
-11. **6.32.0** — external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**
-12. **6.33.0** — conditional additive usability — only if justified
-13. **v7** — NO-GO
+5. **C00** — Correct completion ledger + retarget EXTERNAL-ACCEPTANCE-GATE — **done**
+6. **6.31.16** — C01 + C07–C09 + C11 reopen (exact Promptfoo, selected fields, NDJSON merge, Elastic stubs, CI) — **changeset ready**
+7. **C10** actual Elastic — credential-gated
+8. **Demo D03–D07** — separate repo (`proactive-ai-demo`)
+9. **6.32.0** — external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**
+10. **6.33.0** — conditional additive usability — only if justified
+11. **v7** — NO-GO
 
 ## Claim discipline
 

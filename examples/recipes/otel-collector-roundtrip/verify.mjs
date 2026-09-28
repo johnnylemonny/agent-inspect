@@ -22,7 +22,9 @@ import {
   buildAdapterFixtureEvents,
   collectSpans,
   compareExpectedFacts,
+  compareSelectedSpanFields,
   compareTransportSpans,
+  mergeOtlpBatchesToDocument,
   normalizeOtlpBatches,
   parseCollectorBatches,
   writeJsonlFixture,
@@ -259,20 +261,36 @@ if (!identityCheck.ok) {
   fail(`collector identity comparison: ${identityCheck.errors.join("; ")}`);
   process.exit(1);
 }
-const fieldCheck = compareExpectedFacts(allSpans, {
-  runId: RUN_ID,
-  toolName: TOOL,
+const fieldCheck = compareSelectedSpanFields(exportSpans, allSpans, {
+  requireToolName: TOOL,
   requireNumericStatus: true,
 });
 if (!fieldCheck.ok) {
-  fail(`collector field comparison: ${fieldCheck.errors.join("; ")}`);
+  fail(`collector selected-field comparison: ${fieldCheck.errors.join("; ")}`);
   process.exit(1);
+}
+
+const mergedPath = path.join(work, "merged-otlp.json");
+const mergedDoc = mergeOtlpBatchesToDocument(batches);
+writeFileSync(mergedPath, `${JSON.stringify(mergedDoc)}\n`, "utf8");
+
+// Multi-batch NDJSON control: ensure raw NDJSON is not passed to open.
+const ndjsonControlPath = path.join(work, "ndjson-control.json");
+if (batches.length >= 1) {
+  const ndjsonBody = batches.map((b) => JSON.stringify(b)).join("\n") + "\n";
+  writeFileSync(ndjsonControlPath, ndjsonBody, "utf8");
+  const ndjsonBatches = parseCollectorBatches(ndjsonControlPath);
+  const controlMerged = mergeOtlpBatchesToDocument(ndjsonBatches);
+  if (!Array.isArray(controlMerged.resourceSpans) || controlMerged.resourceSpans.length === 0) {
+    fail("NDJSON merge control produced empty resourceSpans");
+    process.exit(1);
+  }
 }
 
 const importResult = run("open otlp", cli.cmd, [
   ...cli.argsPrefix,
   "open",
-  collected,
+  mergedPath,
   "--format",
   "otlp-json",
   "--json",
@@ -286,6 +304,6 @@ if (!importedText.includes(TOOL)) {
 }
 
 console.log(
-  `[otel-collector-roundtrip] OK mode=${mode}: field compare + re-import`,
+  `[otel-collector-roundtrip] OK mode=${mode}: selected-field compare + merged re-import`,
 );
 console.log(`  spans=${allSpans.length} batches=${batches.length} numericStatus=required`);

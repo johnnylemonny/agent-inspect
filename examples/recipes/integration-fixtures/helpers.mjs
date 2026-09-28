@@ -135,6 +135,115 @@ export function collectSpans(batch) {
  * @param {Array<Record<string, unknown>>} spans
  * @param {{ runId: string; toolName: string; requireNumericStatus?: boolean }} expected
  */
+/**
+ * Read an OTLP attribute stringValue (or string) from a span.
+ * @param {Record<string, unknown>} span
+ * @param {string} key
+ */
+export function otlpAttrString(span, key) {
+  const attrs = span.attributes;
+  if (!Array.isArray(attrs)) return undefined;
+  const hit = attrs.find((a) => a && typeof a === "object" && a.key === key);
+  if (!hit || typeof hit !== "object") return undefined;
+  const value = /** @type {{ value?: { stringValue?: unknown } | string }} */ (hit).value;
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && typeof value.stringValue === "string") {
+    return value.stringValue;
+  }
+  return undefined;
+}
+
+/**
+ * Default selected semantic fields for AgentInspect OTLP transport recipes.
+ * Absent vs transformed are distinct failures.
+ */
+export const DEFAULT_SELECTED_OTLP_FIELDS = Object.freeze([
+  "agent_inspect.run_id",
+  "agent_inspect.source.type",
+  "gen_ai.request.model",
+]);
+
+/**
+ * Compare selected OTLP attributes on identity-matched spans.
+ * Distinguishes missing destination attribute from transformed value.
+ *
+ * @param {Array<Record<string, unknown>>} expectedSpans
+ * @param {Array<Record<string, unknown>>} destinationSpans
+ * @param {{ attributeKeys?: string[]; requireToolName?: string; requireNumericStatus?: boolean }} [opts]
+ */
+export function compareSelectedSpanFields(expectedSpans, destinationSpans, opts = {}) {
+  /** @type {string[]} */
+  const errors = [];
+  const keys = opts.attributeKeys ?? [...DEFAULT_SELECTED_OTLP_FIELDS];
+  const expected = new Map();
+  for (const span of expectedSpans) {
+    expected.set(spanIdentityKey(span), span);
+  }
+  const observed = new Map();
+  for (const span of destinationSpans) {
+    observed.set(spanIdentityKey(span), span);
+  }
+
+  for (const [id, exp] of expected) {
+    const got = observed.get(id);
+    if (got === undefined) {
+      errors.push(`missing destination span ${id} for selected-field compare`);
+      continue;
+    }
+    for (const key of keys) {
+      const expVal = otlpAttrString(exp, key);
+      const gotVal = otlpAttrString(got, key);
+      if (expVal !== undefined && gotVal === undefined) {
+        errors.push(`span ${id} missing attribute ${key}`);
+      } else if (expVal !== undefined && gotVal !== expVal) {
+        errors.push(
+          `span ${id} attribute ${key} transformed: expected ${expVal} got ${gotVal}`,
+        );
+      }
+    }
+    if (opts.requireNumericStatus !== false) {
+      const code = /** @type {{ code?: unknown } | undefined} */ (got.status)?.code;
+      if (typeof code !== "number" || ![0, 1, 2].includes(code)) {
+        errors.push(`span ${id} status.code must be numeric 0/1/2`);
+      }
+    }
+  }
+
+  if (opts.requireToolName) {
+    const toolOk = destinationSpans.some((s) => String(s.name ?? "") === opts.requireToolName);
+    if (!toolOk) {
+      errors.push(`missing tool span name ${opts.requireToolName}`);
+    }
+  }
+
+  return { ok: errors.length === 0, errors };
+}
+
+/**
+ * Merge OTLP batches (JSON or NDJSON parses) into a single resourceSpans document
+ * suitable for `agent-inspect open --format otlp-json`.
+ * @param {unknown[]} batches
+ */
+export function mergeOtlpBatchesToDocument(batches) {
+  /** @type {unknown[]} */
+  const resourceSpans = [];
+  for (const batch of batches) {
+    if (!batch || typeof batch !== "object") continue;
+    const rs = /** @type {{ resourceSpans?: unknown }} */ (batch).resourceSpans;
+    if (Array.isArray(rs)) {
+      for (const item of rs) resourceSpans.push(item);
+    }
+  }
+  return { resourceSpans };
+}
+
+/**
+ * Compare expected facts against exported/collector spans.
+ * Prefer {@link compareSelectedSpanFields} for transport recipes; this helper
+ * remains for coarse offline checks and still requires structured presence.
+ * @param {Array<Record<string, unknown>>} spans
+ * @param {{ runId: string; toolName: string; requireNumericStatus?: boolean }} expected
+ */
 export function compareExpectedFacts(spans, expected) {
   /** @type {string[]} */
   const errors = [];
@@ -142,11 +251,14 @@ export function compareExpectedFacts(spans, expected) {
     errors.push("no spans found");
     return { ok: false, errors };
   }
-  const serialized = JSON.stringify(spans);
-  if (!serialized.includes(expected.runId)) {
+  const runOk = spans.some((s) => otlpAttrString(s, "agent_inspect.run_id") === expected.runId);
+  if (!runOk && !JSON.stringify(spans).includes(expected.runId)) {
     errors.push(`missing runId ${expected.runId}`);
+  } else if (!runOk) {
+    // Substring-only presence is not enough for semantic runId.
+    errors.push(`missing attribute agent_inspect.run_id=${expected.runId}`);
   }
-  if (!serialized.includes(expected.toolName)) {
+  if (!spans.some((s) => String(s.name ?? "") === expected.toolName)) {
     errors.push(`missing tool ${expected.toolName}`);
   }
   if (expected.requireNumericStatus !== false) {

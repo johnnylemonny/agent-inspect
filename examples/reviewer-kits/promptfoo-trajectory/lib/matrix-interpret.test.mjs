@@ -32,10 +32,21 @@ function equals(pass) {
   };
 }
 
-function traj(pass, reason = "trajectory") {
+function traj(pass, reason = "trajectory pass for run_x") {
   return {
     pass,
     assertion: { type: "javascript", value: "file://./assert-trajectory.mjs" },
+    reason,
+  };
+}
+
+function missingMeta(pass, reason = "missing metadata.agentInspectRunName (exact run required)") {
+  return {
+    pass,
+    assertion: {
+      type: "javascript",
+      value: "file://./assert-missing-metadata.mjs",
+    },
     reason,
   };
 }
@@ -45,13 +56,13 @@ const goodMatrix = [
   row(
     CASE_SPECS.wrong.caseId,
     CASE_SPECS.wrong.description,
-    [equals(true), traj(false, "forbidden tool delete_orders")],
+    [equals(true), traj(false, "trajectory fail for run_y: forbidden tool delete_orders")],
     false,
   ),
   row(
     CASE_SPECS.missing.caseId,
     CASE_SPECS.missing.description,
-    [traj(false, "missing run metadata")],
+    [missingMeta(false)],
     false,
   ),
 ];
@@ -87,6 +98,59 @@ describe("reviewer-kit matrix-interpret", () => {
       goodMatrix[2],
     ];
     assert.equal(interpretMatrix(rows).ok, false);
+  });
+
+  it("rejects missing answer evidence and infrastructure failure causes", () => {
+    assert.equal(
+      interpretMatrix([
+        row(CASE_SPECS.correct.caseId, CASE_SPECS.correct.description, [], true),
+        goodMatrix[1],
+        goodMatrix[2],
+      ]).ok,
+      false,
+    );
+    assert.equal(
+      interpretMatrix([
+        goodMatrix[0],
+        row(
+          CASE_SPECS.wrong.caseId,
+          CASE_SPECS.wrong.description,
+          [
+            equals(true),
+            {
+              pass: false,
+              assertion: { type: "javascript", value: "env" },
+              reason: "required environment variable missing",
+            },
+          ],
+          false,
+        ),
+        goodMatrix[2],
+      ]).ok,
+      false,
+    );
+    assert.equal(
+      interpretMatrix([
+        goodMatrix[0],
+        goodMatrix[1],
+        row(
+          CASE_SPECS.missing.caseId,
+          CASE_SPECS.missing.description,
+          [
+            {
+              pass: false,
+              assertion: {
+                type: "javascript",
+                value: "file://./assert-missing-metadata.mjs",
+              },
+              reason: "SyntaxError in assertion script",
+            },
+          ],
+          false,
+        ),
+      ]).ok,
+      false,
+    );
   });
 
   it("classifies exit 100 vs other nonzero", () => {

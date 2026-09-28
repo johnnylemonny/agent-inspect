@@ -1,6 +1,6 @@
 /**
  * Shared Promptfoo matrix interpreter for recipe + standalone reviewer kit.
- * Keep both copies byte-identical (see matrix-interpret.parity.test.mjs).
+ * Keep both copies byte-identical (see matrix-interpret.test.mjs parity).
  *
  * Synthetic controls exercise this module; actual Promptfoo CLI eval is a
  * separate positive control and must not be labeled offline-success when blocked.
@@ -29,6 +29,12 @@ export const CASE_SPECS = Object.freeze({
     description: "missing run metadata must never pass trajectory",
   },
 });
+
+const ANSWER_ASSERT_VALUE = "You have 2 orders";
+const TRAJECTORY_ASSERT_MARKERS = Object.freeze([
+  "assert-trajectory.mjs",
+  "assert-missing-metadata.mjs",
+]);
 
 export function createInvocationWorkspace(parentDir, label = "pf") {
   const invocationId = `${label}-${Date.now()}-${randomBytes(4).toString("hex")}`;
@@ -143,21 +149,59 @@ function componentResults(row) {
   return Array.isArray(list) ? list : [];
 }
 
-function isAnswerComponent(c) {
-  const type = String(c?.assertion?.type ?? c?.type ?? "");
-  const reason = String(c?.reason ?? "");
-  return type === "equals" || /equals|answer/i.test(type) || /equals|answer/i.test(reason);
+function assertionType(c) {
+  return String(c?.assertion?.type ?? c?.type ?? "");
 }
 
-function isTrajectoryComponent(c) {
-  const type = String(c?.assertion?.type ?? c?.type ?? "");
-  const value = String(c?.assertion?.value ?? c?.value ?? "");
-  const reason = String(c?.reason ?? "");
+function assertionValue(c) {
+  return String(c?.assertion?.value ?? c?.value ?? "");
+}
+
+function assertionReason(c) {
+  return String(c?.reason ?? "");
+}
+
+/** Exact equals answer assertion identity (no prose keyword fallback). */
+function isAnswerComponent(c) {
+  return assertionType(c) === "equals";
+}
+
+function isInfrastructureFailureReason(reason) {
+  const text = String(reason ?? "");
   return (
-    type === "javascript" ||
-    /trajectory|tool|contract|lookup_orders|delete_orders|missing/i.test(
-      `${type} ${value} ${reason}`,
+    /SyntaxError|TypeError|ReferenceError|required environment variable|ENOENT|EACCES|spawn |timed out|assertion script/i.test(
+      text,
     )
+  );
+}
+
+function isStructuredToolContractReason(reason) {
+  const text = String(reason ?? "");
+  if (isInfrastructureFailureReason(text)) return false;
+  return (
+    /delete_orders|forbidden tool|lookup_orders|tool contract|trajectory fail|missing metadata|missing run metadata|exact run required/i.test(
+      text,
+    )
+  );
+}
+
+/**
+ * Trajectory / missing-metadata assertion identity.
+ * Requires javascript + known assert file marker, or an explicit tool-contract
+ * finding in the reason. Bare javascript / infrastructure failures do not count.
+ */
+function isTrajectoryComponent(c) {
+  const type = assertionType(c);
+  const value = assertionValue(c);
+  const reason = assertionReason(c);
+  if (type === "javascript") {
+    if (TRAJECTORY_ASSERT_MARKERS.some((m) => value.includes(m))) {
+      return true;
+    }
+    return isStructuredToolContractReason(reason);
+  }
+  return /trajectory|tool.?contract|delete_orders|lookup_orders/i.test(
+    `${type} ${value} ${reason}`,
   );
 }
 
@@ -170,35 +214,69 @@ export function overallPass(row) {
   return undefined;
 }
 
-function answerPass(row) {
+/**
+ * Require exactly one equals answer component with an explicit boolean pass.
+ * @returns {{ pass: boolean|undefined, error?: string }}
+ */
+function requireAnswerEvidence(row, label) {
   const comps = componentResults(row).filter(isAnswerComponent);
-  if (comps.length > 0) return comps.every((c) => c.pass === true);
-  const output = row?.response?.output ?? row?.output;
-  if (typeof output === "string" && output === "You have 2 orders") return true;
-  return undefined;
-}
-
-function trajectoryPass(row) {
-  const comps = componentResults(row).filter(isTrajectoryComponent);
-  if (comps.length > 0) return comps.every((c) => c.pass === true);
-  // Missing-metadata case often has only the trajectory/js assert.
-  if (componentResults(row).length === 1) {
-    return componentResults(row)[0]?.pass === true;
+  if (comps.length === 0) {
+    return {
+      pass: undefined,
+      error: `${label}: missing equals answer assertion evidence`,
+    };
   }
-  return undefined;
+  if (comps.length > 1) {
+    return {
+      pass: undefined,
+      error: `${label}: duplicate equals answer assertions (${comps.length})`,
+    };
+  }
+  const pass = comps[0]?.pass;
+  if (pass !== true && pass !== false) {
+    return {
+      pass: undefined,
+      error: `${label}: answer assertion missing explicit boolean pass`,
+    };
+  }
+  return { pass };
 }
 
-function trajectoryFailReason(row) {
-  const failed = componentResults(row).filter(
-    (c) => c.pass === false && isTrajectoryComponent(c),
-  );
-  if (failed.length === 0) return undefined;
-  return String(failed[0]?.reason ?? failed[0]?.assertion?.value ?? "trajectory-failed");
+/**
+ * Require exactly one trajectory-classified component with explicit boolean pass.
+ * @returns {{ pass: boolean|undefined, reason?: string, error?: string }}
+ */
+function requireTrajectoryEvidence(row, label) {
+  const comps = componentResults(row).filter(isTrajectoryComponent);
+  if (comps.length === 0) {
+    return {
+      pass: undefined,
+      error: `${label}: missing trajectory/tool-contract assertion evidence`,
+    };
+  }
+  if (comps.length > 1) {
+    return {
+      pass: undefined,
+      error: `${label}: duplicate trajectory assertions (${comps.length})`,
+    };
+  }
+  const pass = comps[0]?.pass;
+  if (pass !== true && pass !== false) {
+    return {
+      pass: undefined,
+      error: `${label}: trajectory assertion missing explicit boolean pass`,
+    };
+  }
+  return {
+    pass,
+    reason: assertionReason(comps[0]) || assertionValue(comps[0]) || undefined,
+  };
 }
 
 /**
  * Interpret the required three-case matrix. Order-independent.
- * Rejects answer-fail + trajectory-pass (wrong demonstration).
+ * Rejects missing assertion evidence, infrastructure failure causes, and
+ * answer-fail + trajectory-pass (wrong demonstration).
  */
 export function interpretMatrix(rows) {
   const failures = [];
@@ -222,7 +300,6 @@ export function interpretMatrix(rows) {
     return { ok: false, failures, summary: null };
   }
 
-  // Extra cases with stable ids not in the matrix are errors.
   const knownIds = new Set(Object.values(CASE_SPECS).map((s) => s.caseId));
   const knownDesc = new Set(Object.values(CASE_SPECS).map((s) => s.description));
   for (const row of rows) {
@@ -240,26 +317,36 @@ export function interpretMatrix(rows) {
   const missing = found.missing;
 
   const correctOverall = overallPass(correct);
-  const correctAnswer = answerPass(correct);
-  const correctTraj = trajectoryPass(correct);
+  const correctAnswerEv = requireAnswerEvidence(correct, "correct-tool");
+  const correctTrajEv = requireTrajectoryEvidence(correct, "correct-tool");
+  if (correctAnswerEv.error) failures.push(correctAnswerEv.error);
+  if (correctTrajEv.error) failures.push(correctTrajEv.error);
 
-  const wrongAnswer = answerPass(wrong);
-  const wrongTraj = trajectoryPass(wrong);
+  const wrongAnswerEv = requireAnswerEvidence(wrong, "wrong-tool");
+  const wrongTrajEv = requireTrajectoryEvidence(wrong, "wrong-tool");
+  if (wrongAnswerEv.error) failures.push(wrongAnswerEv.error);
+  if (wrongTrajEv.error) failures.push(wrongTrajEv.error);
+
+  const missingTrajEv = requireTrajectoryEvidence(missing, "missing-metadata");
+  if (missingTrajEv.error) failures.push(missingTrajEv.error);
+
+  const correctAnswer = correctAnswerEv.pass;
+  const correctTraj = correctTrajEv.pass;
+  const wrongAnswer = wrongAnswerEv.pass;
+  const wrongTraj = wrongTrajEv.pass;
+  const wrongReason = wrongTrajEv.reason;
   const wrongOverall = overallPass(wrong);
-  const wrongReason = trajectoryFailReason(wrong);
-
   const missingOverall = overallPass(missing);
-  const missingTraj = trajectoryPass(missing);
+  const missingTraj = missingTrajEv.pass;
 
-  // Wrong demonstration: answer fails while trajectory passes.
   for (const [label, row] of [
     ["correct", correct],
     ["wrong", wrong],
     ["missing", missing],
   ]) {
-    const a = answerPass(row);
-    const t = trajectoryPass(row);
-    if (a === false && t === true) {
+    const a = requireAnswerEvidence(row, label);
+    const t = requireTrajectoryEvidence(row, label);
+    if (a.pass === false && t.pass === true) {
       failures.push(
         `${label}: answer failed while trajectory passed (wrong demonstration; outer must fail)`,
       );
@@ -269,26 +356,34 @@ export function interpretMatrix(rows) {
   if (correctOverall !== true) {
     failures.push("correct-tool: expected overall pass");
   }
-  if (correctAnswer === false) {
-    failures.push("correct-tool: expected answer assertion to pass");
+  if (correctAnswer !== true) {
+    failures.push("correct-tool: expected answer assertion to pass (explicit true)");
   }
-  if (correctTraj === false) {
-    failures.push("correct-tool: expected trajectory assertion to pass");
+  if (correctTraj !== true) {
+    failures.push(
+      "correct-tool: expected trajectory assertion to pass (explicit true)",
+    );
   }
 
-  if (wrongAnswer === false) {
-    failures.push("wrong-tool: expected answer assertion to pass");
+  if (wrongAnswer !== true) {
+    failures.push("wrong-tool: expected answer assertion to pass (explicit true)");
   }
   if (wrongTraj !== false) {
-    failures.push("wrong-tool: expected trajectory assertion to fail");
+    failures.push(
+      "wrong-tool: expected trajectory assertion to fail (explicit false)",
+    );
   }
-  if (wrongOverall === true) {
-    failures.push("wrong-tool: expected overall fail");
+  if (wrongOverall !== false) {
+    failures.push("wrong-tool: expected overall fail (explicit false)");
   }
-  if (wrongTraj === false && wrongReason !== undefined) {
-    const okReason =
-      /tool|forbidden|delete_orders|required|contract|trajectory/i.test(wrongReason);
-    if (!okReason) {
+  if (wrongTraj === false) {
+    if (wrongReason === undefined || wrongReason.trim() === "") {
+      failures.push("wrong-tool: trajectory fail missing structured reason");
+    } else if (isInfrastructureFailureReason(wrongReason)) {
+      failures.push(
+        `wrong-tool: trajectory failed for infrastructure/unrelated reason: ${wrongReason.slice(0, 200)}`,
+      );
+    } else if (!isStructuredToolContractReason(wrongReason)) {
       failures.push(
         `wrong-tool: trajectory failed for generic/unrelated reason: ${wrongReason.slice(0, 200)}`,
       );
@@ -298,8 +393,23 @@ export function interpretMatrix(rows) {
   if (missingOverall === true || missingTraj === true) {
     failures.push("missing-metadata: trajectory/evidence must not pass");
   }
-  if (missingOverall !== false && missingTraj !== false) {
-    failures.push("missing-metadata: expected an explicit fail");
+  if (missingOverall !== false) {
+    failures.push("missing-metadata: expected overall fail (explicit false)");
+  }
+  if (missingTraj !== false) {
+    failures.push(
+      "missing-metadata: expected trajectory assertion to fail (explicit false)",
+    );
+  }
+  if (
+    missingTraj === false &&
+    missingTrajEv.reason !== undefined &&
+    isInfrastructureFailureReason(missingTrajEv.reason) &&
+    !/missing metadata|exact run required/i.test(missingTrajEv.reason)
+  ) {
+    failures.push(
+      `missing-metadata: failed for infrastructure/unrelated reason: ${missingTrajEv.reason.slice(0, 200)}`,
+    );
   }
 
   const summary = {
@@ -373,3 +483,6 @@ export function evaluatePromptfooInvocation(child, resultsJson) {
     childKind: childClass.kind,
   };
 }
+
+/** Exported for tests (exact answer value used by equals asserts). */
+export const EXPECTED_ANSWER_VALUE = ANSWER_ASSERT_VALUE;

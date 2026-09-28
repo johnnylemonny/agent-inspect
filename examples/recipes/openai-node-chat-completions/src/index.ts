@@ -4,8 +4,9 @@
  * Uses a local mock SDK client only — no OpenAI package, API keys, or network.
  * The awaited SDK call runs *inside* `inspector.llm`. SDK transport options
  * (`maxRetries`, `timeout`, `signal`) belong on the request-options argument,
- * not the chat body. HTTP request id is recorded separately from the completion
- * resource id (`chatcmpl-…`).
+ * not the chat body. Completion resource id and HTTP request id are asserted on
+ * the **caller return object** only (metadata-only capture does not persist full
+ * response bodies / usage into JSONL — deferred, not advertised as automatic).
  */
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";

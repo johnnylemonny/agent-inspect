@@ -8,14 +8,15 @@ Executable claims for AgentInspect through **6.31.15**, updated after the 2026-0
 | Tree duration from RUN end facts | Node 22.x / CI | `packages/core/test/logs/tree-builder.test.ts` | Pass |
 | Explain execution-step counts | Node 22.x / CI | `packages/core/test/explain-slowest-node.test.ts` | Pass |
 | OTLP producer recursive validation | Node 22.x / CI | `packages/core/test/exporters/validation.test.ts` | Pass |
-| Promptfoo matrix verifier (exact assertion identity) | Node 22.x local | `examples/recipes/promptfoo-use-together` | **Partial** (C01 reopened) |
-| OpenAI Node chat.completions boundary | Node 22.x | `examples/recipes/openai-node-chat-completions` | **Partial** (timing fixed; persisted response metadata deferred; maintained SDK tests pending C11) |
-| Transport identity comparator | Node 22.x | `examples/recipes/integration-fixtures/helpers.test.mjs` | **Partial** (identity Pass; selected attributes pending C07) |
-| Collector fixture-self-test | Node 22.x local | `examples/recipes/otel-collector-roundtrip` (no `--docker`) | **Partial** (NDJSON re-import / attrs pending C08) |
+| Promptfoo matrix verifier (exact assertion identity) | Node 22.x CI | `pnpm test:integration-offline` / matrix-interpret tests | Pass (C01) |
+| OpenAI Node chat.completions boundary | Node 22.x CI | `openai-boundary.test.mjs` + recipe start | Pass (boundary; persisted response metadata deferred) |
+| Transport identity + selected attributes | Node 22.x CI | `helpers.test.mjs` | Pass (C07) |
+| Collector fixture-self-test | Node 22.x CI | `otel-collector-roundtrip/verify.mjs` | Pass (C08 offline; Docker still pending) |
 | Collector Docker live | Docker + contrib image | `--docker` mode | **Pending** environment |
-| Elastic offline export-document-sim | Node 22.x local | `examples/recipes/elastic-otlp` (no `--live`) | **Partial** (live-path false-green pending C09) |
+| Elastic offline export-document-sim | Node 22.x CI | `elastic-otlp/verify.mjs` | Pass |
+| Elastic live-path stub controls | Node 22.x CI | `live-controls.test.mjs` | Pass (C09 stubs; credentialed C10 pending) |
 | Elastic live indexed readback | Credentials + managed OTLP | `--live` | **Pending** credentials (C10) |
-| Offline integration tests in ordinary CI | GitHub Actions | `node --test` examples helpers / matrix | **Open** (C11) |
+| Offline integration tests in ordinary CI | GitHub Actions | `pnpm test:integration-offline` | Pass (C11) |
 | Packed tarball smoke (18 packages) | CI `pack:smoke` | `pnpm pack:smoke` | Pass |
 | Fixed-group linked versions | CI | `pnpm linked-versions:check` | Pass |
 

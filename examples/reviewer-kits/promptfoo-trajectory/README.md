@@ -15,15 +15,15 @@ Standalone reproduction kit for the answer-vs-trajectory matrix.
 
 ## Pins
 
-- `agent-inspect@6.31.11`
+- `agent-inspect@6.31.15` (see `package.json` / `package-lock.json`)
 - `promptfoo@0.118.17`
 - Node `>=20` (verified intent: Node 22.x)
-- Lockfile: run `npm install` in this directory to materialize `package-lock.json` for standalone use
+- Lockfile: `package-lock.json` is committed for reproducible standalone installs
 
 ## Install
 
 ```bash
-npm install
+npm ci
 ```
 
 ## Verify

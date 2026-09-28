@@ -38,10 +38,21 @@ function equals(pass) {
   };
 }
 
-function traj(pass, reason = "trajectory") {
+function traj(pass, reason = "trajectory pass for run_x") {
   return {
     pass,
     assertion: { type: "javascript", value: "file://./assert-trajectory.mjs" },
+    reason,
+  };
+}
+
+function missingMeta(pass, reason = "missing metadata.agentInspectRunName (exact run required)") {
+  return {
+    pass,
+    assertion: {
+      type: "javascript",
+      value: "file://./assert-missing-metadata.mjs",
+    },
     reason,
   };
 }
@@ -51,13 +62,13 @@ const goodMatrix = [
   row(
     CASE_SPECS.wrong.caseId,
     CASE_SPECS.wrong.description,
-    [equals(true), traj(false, "forbidden tool delete_orders")],
+    [equals(true), traj(false, "trajectory fail for run_y: forbidden tool delete_orders")],
     false,
   ),
   row(
     CASE_SPECS.missing.caseId,
     CASE_SPECS.missing.description,
-    [traj(false, "missing run metadata")],
+    [missingMeta(false)],
     false,
   ),
 ];
@@ -136,13 +147,94 @@ describe("interpretMatrix", () => {
     assert.equal(result.ok, false);
   });
 
-  it("rejects wrong-path when only a generic component failed without tool contract reason", () => {
+  it("rejects correct case with success true but no component assertions", () => {
+    const rows = [
+      row(CASE_SPECS.correct.caseId, CASE_SPECS.correct.description, [], true),
+      goodMatrix[1],
+      goodMatrix[2],
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join(" "), /missing equals answer/i);
+  });
+
+  it("rejects wrong case with trajectory fail but no answer assertion", () => {
     const rows = [
       goodMatrix[0],
       row(
         CASE_SPECS.wrong.caseId,
         CASE_SPECS.wrong.description,
-        [equals(true), { pass: false, assertion: { type: "javascript" }, reason: "parse error" }],
+        [traj(false, "forbidden tool delete_orders")],
+        false,
+      ),
+      goodMatrix[2],
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join(" "), /missing equals answer/i);
+  });
+
+  it("rejects wrong-path when only an unrelated javascript assertion failed", () => {
+    const rows = [
+      goodMatrix[0],
+      row(
+        CASE_SPECS.wrong.caseId,
+        CASE_SPECS.wrong.description,
+        [
+          equals(true),
+          {
+            pass: false,
+            assertion: { type: "javascript", value: "process.env.FOO" },
+            reason: "required environment variable missing",
+          },
+        ],
+        false,
+      ),
+      goodMatrix[2],
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(
+      result.failures.join(" "),
+      /missing trajectory|infrastructure|unrelated/i,
+    );
+  });
+
+  it("rejects missing-metadata case when failure is SyntaxError infrastructure", () => {
+    const rows = [
+      goodMatrix[0],
+      goodMatrix[1],
+      row(
+        CASE_SPECS.missing.caseId,
+        CASE_SPECS.missing.description,
+        [
+          {
+            pass: false,
+            assertion: {
+              type: "javascript",
+              value: "file://./assert-missing-metadata.mjs",
+            },
+            reason: "SyntaxError in assertion script",
+          },
+        ],
+        false,
+      ),
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join(" "), /infrastructure|SyntaxError/i);
+  });
+
+  it("rejects wrong-path when trajectory reason is generic parse error", () => {
+    const rows = [
+      goodMatrix[0],
+      row(
+        CASE_SPECS.wrong.caseId,
+        CASE_SPECS.wrong.description,
+        [
+          equals(true),
+          traj(false, "parse error"),
+        ],
         false,
       ),
       goodMatrix[2],
@@ -195,5 +287,85 @@ describe("evaluatePromptfooInvocation", () => {
     );
     assert.equal(result.ok, false);
     assert.match(result.failures.join(" "), /malformed/i);
+  });
+
+  it("wrapper entry rejects the four audit false-green matrices on exit 100", () => {
+    const child = {
+      status: EXPECTED_TEST_FAILURE_EXIT,
+      error: null,
+      signal: null,
+    };
+    const controls = [
+      [
+        "no assertions",
+        [
+          row(CASE_SPECS.correct.caseId, CASE_SPECS.correct.description, [], true),
+          goodMatrix[1],
+          goodMatrix[2],
+        ],
+      ],
+      [
+        "wrong missing answer",
+        [
+          goodMatrix[0],
+          row(
+            CASE_SPECS.wrong.caseId,
+            CASE_SPECS.wrong.description,
+            [traj(false, "forbidden tool delete_orders")],
+            false,
+          ),
+          goodMatrix[2],
+        ],
+      ],
+      [
+        "env missing",
+        [
+          goodMatrix[0],
+          row(
+            CASE_SPECS.wrong.caseId,
+            CASE_SPECS.wrong.description,
+            [
+              equals(true),
+              {
+                pass: false,
+                assertion: { type: "javascript", value: "env" },
+                reason: "required environment variable missing",
+              },
+            ],
+            false,
+          ),
+          goodMatrix[2],
+        ],
+      ],
+      [
+        "syntax error",
+        [
+          goodMatrix[0],
+          goodMatrix[1],
+          row(
+            CASE_SPECS.missing.caseId,
+            CASE_SPECS.missing.description,
+            [
+              {
+                pass: false,
+                assertion: {
+                  type: "javascript",
+                  value: "file://./assert-missing-metadata.mjs",
+                },
+                reason: "SyntaxError in assertion script",
+              },
+            ],
+            false,
+          ),
+        ],
+      ],
+    ];
+    for (const [label, rows] of controls) {
+      const result = evaluatePromptfooInvocation(
+        child,
+        JSON.stringify({ results: rows }),
+      );
+      assert.equal(result.ok, false, label);
+    }
   });
 });

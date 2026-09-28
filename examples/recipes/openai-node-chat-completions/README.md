@@ -14,8 +14,10 @@ dependency to AgentInspect core.
 - Pins `maxRetries: 0` so HTTP attempt detail stays `attemptDetail: "unknown"`
 - Caller return objects and errors preserved; bodies stay opt-in (metadata-only capture)
 
-`step.llm` / `inspector.llm` do **not** auto-extract OpenAI usage — usage remains
-on the returned completion object (and optional `outputSummary` under metadata-only capture).
+`step.llm` / `inspector.llm` do **not** auto-extract OpenAI usage into persisted
+JSONL — usage and response/request ids remain on the returned completion object
+(boundary capture). Maintained local transport controls live in
+`openai-boundary.test.mjs` (delay / error / timeout / cancel).
 
 ## How to run
 

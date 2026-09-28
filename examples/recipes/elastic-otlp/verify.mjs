@@ -2,12 +2,14 @@
 /**
  * Elastic indexed readback verifier.
  *
- * Offline (default): export OTLP → field compare → offline-sim labeled explicitly
- *   (not "indexed"). Sim hits must come from the export document only.
+ * Offline (default): export OTLP → selected-field compare → offline-sim labeled
+ *   explicitly (not "indexed"). Sim hits must come from the export document only.
  *
- * --live: requires ELASTIC_URL (+ optional ELASTIC_API_KEY). Sends the export to
- *   the managed OTLP endpoint when ELASTIC_OTLP_URL is set, then queries by the
- *   exact exported hex trace.id. Missing config, zero hits, or unrelated hits fail.
+ * --live: requires ELASTIC_URL + ELASTIC_API_KEY and ELASTIC_OTLP_URL (fresh send).
+ *   Parses OTLP partialSuccess; polls until all export span ids appear; compares
+ *   identities + selected fields; computes retained/lost from indexed documents.
+ *
+ * Controlled stub mode: AGENT_INSPECT_ELASTIC_STUB=1 with injects for false-green tests.
  */
 import { spawnSync } from "node:child_process";
 import {
@@ -22,14 +24,16 @@ import { fileURLToPath } from "node:url";
 import {
   buildAdapterFixtureEvents,
   collectSpans,
-  compareExpectedFacts,
+  compareSelectedSpanFields,
   compareTransportSpans,
+  otlpAttrString,
   writeJsonlFixture,
 } from "../integration-fixtures/helpers.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const live = process.argv.includes("--live");
-const RUN_ID = "elastic_otlp_fixture";
+const stubMode = process.env.AGENT_INSPECT_ELASTIC_STUB === "1";
+const RUN_ID = `elastic_otlp_fixture_${process.pid}_${Date.now().toString(36)}`;
 const TOOL = "lookup_orders";
 const work = path.join(__dirname, `.recipe-work-${process.pid}`);
 const traceDir = path.join(work, "traces");
@@ -55,9 +59,93 @@ function resolveCli() {
   return { cmd: "npx", argsPrefix: ["agent-inspect"] };
 }
 
-function attrString(span, key) {
-  const hit = (span.attributes ?? []).find((a) => a.key === key);
-  return hit?.value?.stringValue;
+function retentionFromSpans(spans, runId) {
+  return {
+    runId: spans.some((s) => otlpAttrString(s, "agent_inspect.run_id") === runId),
+    toolName: spans.some((s) => s.name === TOOL),
+    sourceType: spans.some((s) =>
+      ["ai-sdk", "adapter"].includes(otlpAttrString(s, "agent_inspect.source.type") ?? ""),
+    ),
+    numericStatus: spans.every(
+      (s) => s.status?.code === 0 || s.status?.code === 1 || s.status?.code === 2,
+    ),
+    model: spans.some((s) => otlpAttrString(s, "gen_ai.request.model") !== undefined),
+    promptBody: false,
+  };
+}
+
+function fieldReport(observed) {
+  const fieldMap = [
+    { fact: "runId", retained: observed.runId },
+    { fact: "tool name", retained: observed.toolName },
+    { fact: "source type", retained: observed.sourceType },
+    { fact: "numeric status", retained: observed.numericStatus },
+    { fact: "model", retained: observed.model },
+    { fact: "prompt/body", retained: observed.promptBody },
+  ];
+  return {
+    fieldMap,
+    retained: fieldMap.filter((r) => r.retained).map((r) => r.fact),
+    lost: fieldMap.filter((r) => !r.retained).map((r) => r.fact),
+  };
+}
+
+/**
+ * Map Elastic _source documents into OTLP-like spans for compareTransportSpans.
+ * Supports AgentInspect export fields when stubbed, and common APM shapes when present.
+ */
+function spansFromElasticHits(hits) {
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (const hit of hits) {
+    const src = hit?._source ?? {};
+    if (src.traceId && src.spanId) {
+      out.push(src);
+      continue;
+    }
+    const traceId = src.trace?.id ?? src["trace.id"];
+    const spanId = src.span?.id ?? src["span.id"];
+    if (!traceId || !spanId) continue;
+    out.push({
+      traceId,
+      spanId,
+      parentSpanId: src.parent?.id ?? src["parent.id"] ?? "",
+      name: src.span?.name ?? src["span.name"] ?? src.name ?? "",
+      startTimeUnixNano: src.startTimeUnixNano,
+      endTimeUnixNano: src.endTimeUnixNano,
+      status: src.status,
+      attributes: src.attributes ?? [],
+    });
+  }
+  return out;
+}
+
+function parseOtlpSendBody(text) {
+  if (!text || !String(text).trim()) {
+    return { rejectedSpans: 0 };
+  }
+  try {
+    const parsed = JSON.parse(text);
+    const rejected =
+      parsed?.partialSuccess?.rejectedSpans ?? parsed?.rejectedSpans ?? 0;
+    return { rejectedSpans: Number(rejected) || 0, body: parsed };
+  } catch {
+    if (/partialSuccess|rejectedSpans/i.test(text)) {
+      return { rejectedSpans: -1, raw: text };
+    }
+    return { rejectedSpans: 0 };
+  }
+}
+
+async function httpFetch(url, init) {
+  if (stubMode) {
+    const stub = globalThis.__agentInspectElasticStub;
+    if (typeof stub === "function") {
+      return stub(url, init);
+    }
+    throw new Error("AGENT_INSPECT_ELASTIC_STUB=1 requires globalThis.__agentInspectElasticStub");
+  }
+  return fetch(url, init);
 }
 
 rmSync(work, { recursive: true, force: true });
@@ -93,13 +181,12 @@ if (exportTraceIds.length === 0) {
   process.exit(1);
 }
 
-const check = compareExpectedFacts(spans, {
-  runId: RUN_ID,
-  toolName: TOOL,
+const selectedCheck = compareSelectedSpanFields(spans, spans, {
+  requireToolName: TOOL,
   requireNumericStatus: true,
 });
-if (!check.ok) {
-  fail(`field comparison: ${check.errors.join("; ")}`);
+if (!selectedCheck.ok) {
+  fail(`export selected-field comparison: ${selectedCheck.errors.join("; ")}`);
   process.exit(1);
 }
 
@@ -112,18 +199,7 @@ if (!identitySelf.ok) {
   process.exit(1);
 }
 
-/** Offline / stub controls: never label as indexed Elastic success. */
-function assertRejectedSendControl() {
-  // Synthetic control: a send that rejects must not green the verifier.
-  const rejected = { ok: false, status: 403, rejectedSpans: 3 };
-  if (rejected.ok || rejected.status < 400) {
-    fail("reject-send control unexpectedly passed");
-    process.exit(1);
-  }
-}
-
 function assertIncompleteReadbackControl() {
-  // ID-only / incomplete destination must fail identity compare.
   const incomplete = spans.map((s) => ({
     ...s,
     spanId: undefined,
@@ -138,10 +214,8 @@ function assertIncompleteReadbackControl() {
   }
 }
 
-assertRejectedSendControl();
 assertIncompleteReadbackControl();
 
-/** Offline sim: only IDs actually present in the export document. */
 function queryExportDocument(queryIds) {
   const haystack = JSON.stringify(spans);
   const hits = queryIds.filter((id) => haystack.includes(id));
@@ -154,36 +228,18 @@ if (offlineQuery.total === 0) {
   process.exit(1);
 }
 
-const observed = {
-  runId: spans.some((s) => attrString(s, "agent_inspect.run_id") === RUN_ID),
-  toolName: spans.some((s) => s.name === TOOL),
-  sourceType: spans.some((s) =>
-    ["ai-sdk", "adapter"].includes(attrString(s, "agent_inspect.source.type") ?? ""),
-  ),
-  numericStatus: spans.every(
-    (s) => s.status?.code === 0 || s.status?.code === 1 || s.status?.code === 2,
-  ),
-  model: spans.some((s) =>
-    (s.attributes ?? []).some((a) => a.key === "gen_ai.request.model"),
-  ),
-  promptBody: false,
-};
-
-const fieldMap = [
-  { fact: "runId", retained: observed.runId },
-  { fact: "tool name", retained: observed.toolName },
-  { fact: "source type", retained: observed.sourceType },
-  { fact: "numeric status", retained: observed.numericStatus },
-  { fact: "model", retained: observed.model },
-  { fact: "prompt/body", retained: observed.promptBody },
-];
+const observedExport = retentionFromSpans(spans, RUN_ID);
+const exportFields = fieldReport(observedExport);
 
 const report = {
   deploymentRoute:
     "agent-inspect export → Elastic managed OTLP (ApiKey) → indexed traces-* query by export hex trace.id",
-  fieldMap,
-  retained: fieldMap.filter((r) => r.retained).map((r) => r.fact),
-  lost: fieldMap.filter((r) => !r.retained).map((r) => r.fact),
+  runId: RUN_ID,
+  fieldMap: exportFields.fieldMap,
+  retained: exportFields.retained,
+  lost: exportFields.lost,
+  observedExport,
+  observedIndexed: null,
   offlineSim: {
     label: "export-document-sim (not indexed)",
     fixtureIds: [RUN_ID, TOOL, ...exportTraceIds],
@@ -201,9 +257,14 @@ if (live) {
     fail("--live requires ELASTIC_URL and ELASTIC_API_KEY");
     process.exit(1);
   }
+  if (!otlpUrl && !stubMode) {
+    fail("--live requires ELASTIC_OTLP_URL for a fresh send (acceptance mode)");
+    process.exit(1);
+  }
 
-  if (otlpUrl) {
-    const send = await fetch(`${otlpUrl.replace(/\/$/, "")}/v1/traces`, {
+  if (otlpUrl || stubMode) {
+    const sendUrl = `${String(otlpUrl || "http://stub.invalid").replace(/\/$/, "")}/v1/traces`;
+    const send = await httpFetch(sendUrl, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -215,10 +276,12 @@ if (live) {
       fail(`OTLP send failed: HTTP ${send.status}`);
       process.exit(1);
     }
-  } else {
-    console.error(
-      "[elastic-otlp] note: ELASTIC_OTLP_URL unset — assuming prior ingestion; still requiring exact-trace indexed readback",
-    );
+    const sendText = typeof send.text === "function" ? await send.text() : "";
+    const parsed = parseOtlpSendBody(sendText);
+    if (parsed.rejectedSpans < 0 || parsed.rejectedSpans > 0) {
+      fail(`OTLP send partial rejection: rejectedSpans=${parsed.rejectedSpans}`);
+      process.exit(1);
+    }
   }
 
   const deadline = Date.now() + 30_000;
@@ -226,7 +289,7 @@ if (live) {
   let lastStatus = 0;
   while (Date.now() < deadline) {
     const endpoint = new URL("/_search", url).toString();
-    const res = await fetch(endpoint, {
+    const res = await httpFetch(endpoint, {
       method: "POST",
       headers: {
         "content-type": "application/json",
@@ -254,37 +317,75 @@ if (live) {
     }
     const body = await res.json();
     hits = body?.hits?.hits ?? [];
-    if (hits.length > 0) break;
-    await new Promise((r) => setTimeout(r, 1000));
+    const indexed = spansFromElasticHits(hits);
+    const indexedIds = new Set(indexed.map((s) => String(s.spanId ?? "")));
+    const complete = exportSpanIds.every((id) => indexedIds.has(String(id)));
+    if (complete && indexed.length >= exportSpanIds.length) {
+      hits = hits;
+      break;
+    }
+    hits = hits;
+    if (stubMode && hits.length > 0 && !complete) {
+      // Stub returned incomplete on purpose — do not keep polling forever.
+      break;
+    }
+    await new Promise((r) => setTimeout(r, stubMode ? 0 : 1000));
+    if (stubMode) break;
   }
 
-  const hitTraceIds = hits
-    .map((h) => h?._source?.trace?.id ?? h?._source?.["trace.id"])
-    .filter(Boolean);
-  const exact = hitTraceIds.filter((id) => exportTraceIds.includes(id));
-  if (exact.length === 0) {
+  const indexedSpans = spansFromElasticHits(hits);
+  const indexedIds = new Set(indexedSpans.map((s) => String(s.spanId ?? "")));
+  const missingSpanIds = exportSpanIds.filter((id) => !indexedIds.has(String(id)));
+  if (missingSpanIds.length > 0) {
     fail(
-      `live indexed readback found no exact export trace.id (http=${lastStatus}, hits=${hits.length})`,
+      `live indexed readback incomplete (http=${lastStatus}, hits=${hits.length}, missingSpanIds=${missingSpanIds.join(",")})`,
     );
     process.exit(1);
   }
+
+  const identityLive = compareTransportSpans(spans, indexedSpans, {
+    selectedTraceId: exportTraceIds[0],
+    invocationId: `${RUN_ID}:${process.pid}:live`,
+  });
+  if (!identityLive.ok) {
+    fail(`live identity comparison: ${identityLive.errors.join("; ")}`);
+    process.exit(1);
+  }
+  const fieldsLive = compareSelectedSpanFields(spans, indexedSpans, {
+    requireToolName: TOOL,
+    requireNumericStatus: true,
+  });
+  if (!fieldsLive.ok) {
+    fail(`live selected-field comparison: ${fieldsLive.errors.join("; ")}`);
+    process.exit(1);
+  }
+
+  const observedIndexed = retentionFromSpans(indexedSpans, RUN_ID);
+  const indexedFields = fieldReport(observedIndexed);
+  report.observedIndexed = observedIndexed;
+  report.fieldMap = indexedFields.fieldMap;
+  report.retained = indexedFields.retained;
+  report.lost = indexedFields.lost;
   report.live = {
-    status: "indexed_exact_trace",
+    status: "indexed_exact_spans",
     httpStatus: lastStatus,
     hitCount: hits.length,
     exportTraceIds,
-    matchedTraceIds: exact,
     exportSpanIds,
+    matchedSpanIds: [...indexedIds],
   };
 }
 
 writeFileSync(path.join(work, "field-report.json"), `${JSON.stringify(report, null, 2)}\n`);
 console.log(
-  `[elastic-otlp] OK: export validated; ${live ? "live exact-trace indexed" : "offline export-document-sim"}`,
+  `[elastic-otlp] OK: export validated; ${live ? "live exact-span indexed" : "offline export-document-sim"}`,
 );
+console.log(`  runId=${RUN_ID}`);
 console.log(`  retained=${report.retained.join(",")} lost=${report.lost.join(",")}`);
 if (live) {
-  console.log(`  liveHits=${report.live.hitCount} traces=${report.live.matchedTraceIds.join(",")}`);
+  console.log(
+    `  liveHits=${report.live.hitCount} spans=${report.live.matchedSpanIds.length}/${exportSpanIds.length}`,
+  );
 } else {
   console.log(`  offlineSimHits=${offlineQuery.total} (not indexed)`);
 }
