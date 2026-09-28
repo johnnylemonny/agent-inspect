@@ -1,5 +1,14 @@
 # @agent-inspect/mcp-server
 
+## 6.31.13
+
+### Patch Changes
+
+- be67c1b: Stability C04–C06: prefer explicit RUN start/end/duration in tree summaries; exclude OUTCOME from execution-step counts and slowest ranking; bounded recursive OTLP AnyValue/int64/uint64 producer validation.
+- Updated dependencies [be67c1b]
+  - agent-inspect@6.31.13
+  - @agent-inspect/redact@6.31.13
+
 ## 6.31.12
 
 ### Patch Changes
