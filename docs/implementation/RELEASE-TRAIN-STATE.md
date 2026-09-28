@@ -5,8 +5,8 @@
 > **Canonical roadmap:** [ROADMAP.md](./ROADMAP.md)
 
 ```yaml
-baselineVersion: "6.31.11"
-publishedVersion: "6.31.11"
+baselineVersion: "6.31.12"
+publishedVersion: "6.31.12"
 pendingPublishVersion: "6.31.12"
 currentTrain: "stability-after-63111"
 trainStatus: "active"
