@@ -7,14 +7,15 @@ path using `createInspector` + `inspector.llm`, without adding an OpenAI SDK
 dependency to AgentInspect core.
 
 - Mock OpenAI Node client (no network, no API key)
-- One logical SDK operation → one LLM span
-- Explicit metadata: requested/resolved model, `requestId`, finish reason,
-  usage, tool-call ids
+- **Awaited SDK call runs inside** `inspector.llm` (one logical operation = one span)
+- SDK transport options (`maxRetries`, `timeout`, `signal`) on the **RequestOptions**
+  argument (2nd parameter), not the chat body
+- HTTP request id (`_request_id`) kept distinct from completion resource id (`chatcmpl-…`)
 - Pins `maxRetries: 0` so HTTP attempt detail stays `attemptDetail: "unknown"`
-- Caller return objects are preserved; bodies stay opt-in (metadata-only)
+- Caller return objects and errors preserved; bodies stay opt-in (metadata-only capture)
 
-`step.llm` / `inspector.llm` do **not** auto-extract OpenAI usage — this recipe
-maps fields after the mock response is known.
+`step.llm` / `inspector.llm` do **not** auto-extract OpenAI usage — usage remains
+on the returned completion object (and optional `outputSummary` under metadata-only capture).
 
 ## How to run
 

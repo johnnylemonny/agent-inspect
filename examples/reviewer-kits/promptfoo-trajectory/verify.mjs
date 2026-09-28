@@ -1,38 +1,58 @@
 #!/usr/bin/env node
 /**
- * Standalone reviewer verify — runs Promptfoo and writes matrix-summary.json.
+ * Standalone reviewer verify — fresh invocation dir + shared matrix interpreter.
+ * Never reuses results/ after a failed or unexpected child exit.
  */
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
+import {
+  PINNED_PROMPTFOO_VERSION,
+  createInvocationWorkspace,
+  evaluatePromptfooInvocation,
+} from "./lib/matrix-interpret.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACE_DIR = path.join(__dirname, ".agent-inspect-runs");
-const RESULTS_DIR = path.join(__dirname, "results");
-const OUT_JSON = path.join(RESULTS_DIR, "promptfoo-results.json");
-const SUMMARY = path.join(RESULTS_DIR, "matrix-summary.json");
+const RESULTS_ROOT = path.join(__dirname, "results");
 
 function fail(msg) {
   console.error(`[reviewer-kit] FAIL: ${msg}`);
   process.exitCode = 1;
 }
 
+function resolvePromptfooBin() {
+  const local = path.join(__dirname, "node_modules", ".bin", "promptfoo");
+  if (existsSync(local)) return { command: local, prefixArgs: [] };
+  return {
+    command: "npx",
+    prefixArgs: ["--yes", `promptfoo@${PINNED_PROMPTFOO_VERSION}`],
+  };
+}
+
 rmSync(TRACE_DIR, { recursive: true, force: true });
 mkdirSync(TRACE_DIR, { recursive: true });
-mkdirSync(RESULTS_DIR, { recursive: true });
+mkdirSync(RESULTS_ROOT, { recursive: true });
 
+const invocation = createInvocationWorkspace(RESULTS_ROOT, "kit");
+const bin = resolvePromptfooBin();
 const pf = spawnSync(
-  "npx",
+  bin.command,
   [
-    "--yes",
-    "promptfoo@0.118.17",
+    ...bin.prefixArgs,
     "eval",
     "-c",
     "promptfooconfig.yaml",
     "--no-cache",
     "-o",
-    OUT_JSON,
+    invocation.resultsPath,
   ],
   {
     cwd: __dirname,
@@ -42,58 +62,78 @@ const pf = spawnSync(
   },
 );
 
-if (!existsSync(OUT_JSON)) {
-  fail(`promptfoo produced no results: ${(pf.stderr || pf.stdout || "").slice(0, 600)}`);
-  process.exit(1);
-}
-
-const results = JSON.parse(readFileSync(OUT_JSON, "utf8"));
-const rows = Array.isArray(results.results)
-  ? results.results
-  : results?.results?.results ?? results?.results?.table ?? results?.table ?? [];
-
-if (!Array.isArray(rows) || rows.length < 3) {
-  fail(`expected >=3 result rows, got ${Array.isArray(rows) ? rows.length : 0}`);
-  process.exit(1);
-}
-
-function casePass(row) {
-  if (typeof row.success === "boolean") return row.success;
-  if (typeof row.pass === "boolean") return row.pass;
-  if (row.gradingResult && typeof row.gradingResult.pass === "boolean") {
-    return row.gradingResult.pass;
-  }
-  if (Array.isArray(row.gradingResult?.componentResults)) {
-    return row.gradingResult.componentResults.every((c) => c.pass === true);
-  }
-  return undefined;
-}
-
-const [correct, wrong, missing] = rows;
-const summary = {
-  correct: { pass: casePass(correct) === true },
-  wrong: {
-    overallPass: casePass(wrong),
-    trajectoryComponentFailed: Array.isArray(wrong?.gradingResult?.componentResults)
-      ? wrong.gradingResult.componentResults.some((c) => c.pass === false)
-      : casePass(wrong) === false,
-  },
-  missing: { pass: casePass(missing) === false },
+const timedOut = pf.error?.code === "ETIMEDOUT" || pf.signal === "SIGTERM";
+const child = {
+  status: pf.status,
+  error: pf.error ?? null,
+  signal: pf.signal ?? null,
+  timedOut,
 };
 
-writeFileSync(SUMMARY, `${JSON.stringify(summary, null, 2)}\n`);
-
-if (!summary.correct.pass) {
-  fail("correct case must pass");
-  process.exit(1);
-}
-if (!summary.wrong.trajectoryComponentFailed && summary.wrong.overallPass !== false) {
-  fail("wrong-path trajectory must fail");
-  process.exit(1);
-}
-if (!summary.missing.pass) {
-  fail("missing-metadata case must fail");
-  process.exit(1);
+let resultsJson;
+if (existsSync(invocation.resultsPath)) {
+  try {
+    resultsJson = readFileSync(invocation.resultsPath, "utf8");
+  } catch (error) {
+    fail(
+      `unreadable invocation results: ${error instanceof Error ? error.message : String(error)}`,
+    );
+    process.exit(1);
+  }
 }
 
-console.log("[reviewer-kit] OK — see results/matrix-summary.json");
+const evaluated = evaluatePromptfooInvocation(child, resultsJson);
+const latestSummary = path.join(RESULTS_ROOT, "matrix-summary.json");
+writeFileSync(
+  invocation.summaryPath,
+  `${JSON.stringify(
+    {
+      invocationId: invocation.invocationId,
+      childKind: evaluated.childKind,
+      ok: evaluated.ok,
+      failures: evaluated.failures,
+      summary: evaluated.summary,
+      promptfooVersion: PINNED_PROMPTFOO_VERSION,
+      agentInspectPin: "6.31.11",
+      testedNode: ">=20 (kit verified intent: Node 22.x)",
+    },
+    null,
+    2,
+  )}\n`,
+);
+// Pointer only — never the sole source of truth after a failed invocation.
+if (evaluated.ok) {
+  writeFileSync(latestSummary, readFileSync(invocation.summaryPath));
+} else if (existsSync(latestSummary)) {
+  // Do not leave a prior success looking current after this failure.
+  writeFileSync(
+    latestSummary,
+    `${JSON.stringify(
+      {
+        ok: false,
+        stale: false,
+        incomplete: true,
+        invocationId: invocation.invocationId,
+        failures: evaluated.failures,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+if (!evaluated.ok) {
+  for (const message of evaluated.failures) {
+    fail(message);
+  }
+  if (!existsSync(invocation.resultsPath)) {
+    fail(
+      `promptfoo produced no results for ${invocation.invocationId}: ${(pf.stderr || pf.stdout || "").slice(0, 600)}`,
+    );
+  }
+  process.exit(1);
+}
+
+console.log(
+  `[reviewer-kit] OK — invocation ${invocation.invocationId}; see ${invocation.summaryPath}`,
+);

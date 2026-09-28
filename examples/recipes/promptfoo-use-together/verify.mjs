@@ -1,11 +1,18 @@
 #!/usr/bin/env node
 /**
  * Outer verifier for Promptfoo + AgentInspect matrix.
- * Default path runs Promptfoo 0.118.17 and checks the per-case result matrix.
- * Crash / provider load failure / all-failed eval ≠ success.
+ * Offline AgentInspect trajectory checks always run.
+ * Promptfoo CLI path uses a fresh per-invocation directory and the shared
+ * matrix interpreter (no stale JSON, no positional case matching).
  */
 import { spawnSync } from "node:child_process";
-import { mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { inspectRun, step } from "agent-inspect";
@@ -15,11 +22,16 @@ import {
 } from "agent-inspect/checks";
 import { openTrace } from "agent-inspect/readers";
 import { selectRunIdByName } from "../integration-fixtures/helpers.mjs";
+import {
+  PINNED_PROMPTFOO_VERSION,
+  createInvocationWorkspace,
+  evaluatePromptfooInvocation,
+} from "./lib/matrix-interpret.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACE_DIR = path.join(__dirname, ".agent-inspect-runs");
+const WORK_ROOT = path.join(__dirname, ".recipe-work");
 const ANSWER = "You have 2 orders";
-const OUT_JSON = path.join(__dirname, ".recipe-work", "promptfoo-results.json");
 const offlineOnly = process.argv.includes("--offline-only");
 
 function fail(msg) {
@@ -64,9 +76,18 @@ async function trajectoryPass(runName, expectPass) {
   return true;
 }
 
+function resolvePromptfooBin() {
+  const local = path.join(__dirname, "node_modules", ".bin", "promptfoo");
+  if (existsSync(local)) return { command: local, prefixArgs: [] };
+  return {
+    command: "npx",
+    prefixArgs: ["--yes", `promptfoo@${PINNED_PROMPTFOO_VERSION}`],
+  };
+}
+
 rmSync(TRACE_DIR, { recursive: true, force: true });
 mkdirSync(TRACE_DIR, { recursive: true });
-mkdirSync(path.dirname(OUT_JSON), { recursive: true });
+mkdirSync(WORK_ROOT, { recursive: true });
 
 await capture("promptfoo-correct-path", "lookup_orders");
 await capture("promptfoo-wrong-path", "delete_orders");
@@ -105,17 +126,18 @@ if (offlineOnly) {
   process.exit(0);
 }
 
+const invocation = createInvocationWorkspace(WORK_ROOT, "recipe");
+const bin = resolvePromptfooBin();
 const pf = spawnSync(
-  "npx",
+  bin.command,
   [
-    "--yes",
-    "promptfoo@0.118.17",
+    ...bin.prefixArgs,
     "eval",
     "-c",
     "promptfooconfig.yaml",
     "--no-cache",
     "-o",
-    OUT_JSON,
+    invocation.resultsPath,
   ],
   {
     cwd: __dirname,
@@ -125,117 +147,57 @@ const pf = spawnSync(
   },
 );
 
-if (pf.status !== 0 && !existsSync(OUT_JSON)) {
-  fail(
-    `promptfoo eval failed to produce results: ${(pf.stderr || pf.stdout || "").slice(0, 600)}`,
-  );
-  process.exit(1);
-}
+const timedOut = pf.error?.code === "ETIMEDOUT" || pf.signal === "SIGTERM";
+const child = {
+  status: pf.status,
+  error: pf.error ?? null,
+  signal: pf.signal ?? null,
+  timedOut,
+};
 
-let results;
-try {
-  results = JSON.parse(readFileSync(OUT_JSON, "utf8"));
-} catch (error) {
-  fail(`unreadable promptfoo results: ${error instanceof Error ? error.message : String(error)}`);
-  process.exit(1);
-}
-
-const rows = Array.isArray(results.results)
-  ? results.results
-  : Array.isArray(results)
-    ? results
-    : results.results?.results ?? [];
-
-if (!Array.isArray(rows) || rows.length < 3) {
-  // promptfoo JSON shapes vary; also accept table under results.table / results.results
-  const alt =
-    results?.results?.table ??
-    results?.table ??
-    results?.results ??
-    [];
-  const flat = Array.isArray(alt) ? alt : [];
-  if (flat.length < 3) {
+let resultsJson;
+if (existsSync(invocation.resultsPath)) {
+  try {
+    resultsJson = readFileSync(invocation.resultsPath, "utf8");
+  } catch (error) {
     fail(
-      `promptfoo results missing expected cases (got ${flat.length || rows.length}); raw keys=${Object.keys(results).join(",")}`,
+      `unreadable invocation results: ${error instanceof Error ? error.message : String(error)}`,
     );
     process.exit(1);
   }
 }
 
-function casePass(row) {
-  if (typeof row.success === "boolean") return row.success;
-  if (typeof row.pass === "boolean") return row.pass;
-  if (Array.isArray(row.gradingResult?.componentResults)) {
-    return row.gradingResult.componentResults.every((c) => c.pass === true);
-  }
-  if (row.gradingResult && typeof row.gradingResult.pass === "boolean") {
-    return row.gradingResult.pass;
-  }
-  return undefined;
-}
-
-function describeRow(row, index) {
-  return (
-    row.description ??
-    row.testCase?.description ??
-    row.vars?.path ??
-    `case-${index}`
-  );
-}
-
-const normalized = (Array.isArray(rows) && rows.length >= 3
-  ? rows
-  : results?.results?.table ?? results?.table ?? []
-).slice(0, 3);
-
-const correct = normalized[0];
-const wrong = normalized[1];
-const missing = normalized[2];
-
-const correctOk = casePass(correct) === true;
-const wrongAnswerPass =
-  Array.isArray(wrong?.gradingResult?.componentResults)
-    ? wrong.gradingResult.componentResults.some(
-        (c) => c.pass === true && /equals|answer/i.test(String(c.assertion?.type ?? c.reason ?? "")),
-      ) || wrong?.response?.output === ANSWER
-    : wrong?.response?.output === ANSWER || wrong?.output === ANSWER;
-const wrongTrajFail =
-  Array.isArray(wrong?.gradingResult?.componentResults)
-    ? wrong.gradingResult.componentResults.some((c) => c.pass === false)
-    : casePass(wrong) === false;
-const missingFail = casePass(missing) === false;
-
+const evaluated = evaluatePromptfooInvocation(child, resultsJson);
 writeFileSync(
-  path.join(path.dirname(OUT_JSON), "matrix-summary.json"),
+  invocation.summaryPath,
   `${JSON.stringify(
     {
-      correct: { description: describeRow(correct, 0), pass: correctOk },
-      wrong: {
-        description: describeRow(wrong, 1),
-        answerLikelyPass: wrongAnswerPass,
-        trajectoryFailed: wrongTrajFail,
-        overallPass: casePass(wrong),
-      },
-      missing: { description: describeRow(missing, 2), pass: casePass(missing) },
+      invocationId: invocation.invocationId,
+      childKind: evaluated.childKind,
+      ok: evaluated.ok,
+      failures: evaluated.failures,
+      summary: evaluated.summary,
+      promptfooVersion: PINNED_PROMPTFOO_VERSION,
+      note: "Actual Promptfoo CLI completion is distinct from synthetic matrix-interpret controls.",
     },
     null,
     2,
   )}\n`,
 );
 
-if (!correctOk) {
-  fail(`expected correct case to pass (got ${describeRow(correct, 0)})`);
-  process.exit(1);
-}
-if (!wrongTrajFail) {
-  fail(`expected wrong-path trajectory assertion to fail`);
-  process.exit(1);
-}
-if (!missingFail) {
-  fail(`expected missing-metadata case to fail`);
+if (!evaluated.ok) {
+  for (const message of evaluated.failures) {
+    fail(message);
+  }
+  if (child.status !== 0 && !existsSync(invocation.resultsPath)) {
+    fail(
+      `promptfoo eval failed to produce results for ${invocation.invocationId}: ${(pf.stderr || pf.stdout || "").slice(0, 600)}`,
+    );
+  }
   process.exit(1);
 }
 
 console.log(
-  "[promptfoo-use-together] Promptfoo matrix OK: correct=pass, wrong=traj-fail, missing=fail",
+  `[promptfoo-use-together] Promptfoo matrix OK (invocation ${invocation.invocationId}): correct=pass, wrong=traj-fail, missing=fail`,
 );
+console.log(`[promptfoo-use-together] summary: ${invocation.summaryPath}`);

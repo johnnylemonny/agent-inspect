@@ -12,22 +12,26 @@ This public roadmap describes direction — not a delivery guarantee. See [docs/
 
 ## Current — published `6.31.11`
 
-**Current release line:** **6.31.6** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
+**Current release line:** **6.31.11** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
 
 Core boundary frozen; evidence-backed **security, correctness, compatibility, interoperability, and public-truth patches** remain active. Retained-use / conformance claims stay gated on accepted external evidence. **v7 is NO-GO**.
 
 | Release | Theme | Status |
 | ------- | ----- | ------ |
-| **6.19.0**–**6.31.6** | Adoption through MCP trust + false-SAFE security patches | Published |
-| **6.31.7** | Correctness: timeline identity + false-pass checks | Next patch |
-| **6.31.8** | Export fidelity + OTLP encoding/validator | Planned patch |
+| **6.19.0**–**6.31.11** | Adoption through suite/capture trust follow-through | Published |
+| **6.31.12** | Verifiers + SDK boundary (Promptfoo, suite config, OpenAI) | **Proposed** patch slot |
+| **6.31.13** | Timing + wire validity (duration, logical counts, OTLP) | **Proposed** patch slot |
+| **6.31.14** | Transport verification (Collector/Elastic verifiers) | **Proposed** patch slot |
+| **6.31.15** | Executable/packed matrix + docs consolidation | **Proposed** patch slot |
 | **6.32.0** | Conditional external conformance + compact review | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
-| **6.33.0** | Runnable integrations when additive | Planned minor |
+| **6.33.0** | Runnable integrations when additive | Conditional minor |
 | **7.0.0** | Major | Assessment only / **NO-GO** |
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.11
+ACTIVE: stability-after-63111
 V7_DECISION: NO-GO
+EVIDENCE_GATE: not approved
 ```
 
 Train state: [docs/implementation/RELEASE-TRAIN-STATE.md](docs/implementation/RELEASE-TRAIN-STATE.md).  

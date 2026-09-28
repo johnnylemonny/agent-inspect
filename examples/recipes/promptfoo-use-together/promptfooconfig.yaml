@@ -11,6 +11,7 @@ tests:
   - description: correct path — answer pass, trajectory pass
     vars:
       path: correct
+      caseId: correct-tool
     assert:
       - type: equals
         value: "You have 2 orders"
@@ -20,6 +21,7 @@ tests:
   - description: wrong path — answer pass, trajectory fail
     vars:
       path: wrong
+      caseId: wrong-tool
     assert:
       - type: equals
         value: "You have 2 orders"
@@ -29,6 +31,7 @@ tests:
   - description: missing run metadata must never pass trajectory
     vars:
       path: correct
+      caseId: missing-metadata
     assert:
       - type: javascript
         value: file://./assert-missing-metadata.mjs

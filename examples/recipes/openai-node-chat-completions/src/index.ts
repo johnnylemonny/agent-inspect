@@ -1,10 +1,11 @@
 /**
- * Direct OpenAI Node `chat.completions.create` capture recipe.
+ * Direct OpenAI Node `chat.completions.create` capture recipe (C03).
  *
  * Uses a local mock SDK client only — no OpenAI package, API keys, or network.
- * Maps requested/resolved model, request id, finish reason, usage, and tool-call
- * ids explicitly onto `inspector.llm` metadata. One logical SDK operation =
- * one LLM span (`maxRetries: 0`; attempt-level HTTP detail remains unknown).
+ * The awaited SDK call runs *inside* `inspector.llm`. SDK transport options
+ * (`maxRetries`, `timeout`, `signal`) belong on the request-options argument,
+ * not the chat body. HTTP request id is recorded separately from the completion
+ * resource id (`chatcmpl-…`).
  */
 import { mkdir, readdir, readFile } from "node:fs/promises";
 import path from "node:path";
@@ -28,12 +29,19 @@ type ChatCompletion = {
     completion_tokens: number;
     total_tokens: number;
   };
+  /** Mock stand-in for OpenAI SDK response._request_id / header x-request-id. */
+  _request_id?: string;
 };
 
 type CreateParams = {
   model: string;
   messages: Array<{ role: string; content: string }>;
+};
+
+type RequestOptions = {
   maxRetries?: number;
+  timeout?: number;
+  signal?: AbortSignal;
 };
 
 /** Minimal stand-in for `openai` Node SDK chat.completions surface. */
@@ -42,16 +50,33 @@ function createMockOpenAI(fixtures: readonly ChatCompletion[]) {
   return {
     chat: {
       completions: {
-        async create(params: CreateParams): Promise<ChatCompletion> {
-          if (params.maxRetries !== 0) {
+        async create(
+          params: CreateParams,
+          requestOptions: RequestOptions = {},
+        ): Promise<ChatCompletion> {
+          if (params && "maxRetries" in (params as object)) {
+            throw new Error(
+              "maxRetries must be passed in RequestOptions (2nd arg), not the chat body",
+            );
+          }
+          if (requestOptions.maxRetries !== 0) {
             throw new Error("Recipe pins maxRetries: 0 so SDK retries stay unobserved.");
+          }
+          if (requestOptions.signal?.aborted) {
+            const err = new Error("Request aborted");
+            err.name = "AbortError";
+            throw err;
           }
           const fixture = fixtures[index];
           if (fixture === undefined) {
             throw new Error(`No mock completion for call index ${index}`);
           }
           index += 1;
-          return { ...fixture, model: fixture.model || params.model };
+          return {
+            ...fixture,
+            model: fixture.model || params.model,
+            _request_id: fixture._request_id ?? `req_http_${index}`,
+          };
         },
       },
     },
@@ -61,6 +86,7 @@ function createMockOpenAI(fixtures: readonly ChatCompletion[]) {
 const fixtures: ChatCompletion[] = [
   {
     id: "chatcmpl-recipe-001",
+    _request_id: "req_http_aaa",
     model: "gpt-4o-mini-2024-07-18",
     choices: [
       {
@@ -72,6 +98,7 @@ const fixtures: ChatCompletion[] = [
   },
   {
     id: "chatcmpl-recipe-002",
+    _request_id: "req_http_bbb",
     model: "gpt-4o-mini-2024-07-18",
     choices: [
       {
@@ -89,6 +116,7 @@ const fixtures: ChatCompletion[] = [
   },
   {
     id: "chatcmpl-recipe-003",
+    _request_id: "req_http_ccc",
     model: "gpt-4o-mini-2024-07-18",
     choices: [
       {
@@ -120,52 +148,72 @@ const writer: TraceWriter = {
   },
 };
 
-const inspector = createInspector({ writer, silent: true });
+const inspector = createInspector({
+  writer,
+  silent: true,
+  capture: { onSuccess: "metadata-only", onError: "metadata-only" },
+});
 const client = createMockOpenAI(fixtures);
 
 async function tracedChatCompletion(
   requestedModel: string,
   messages: CreateParams["messages"],
+  requestOptions: RequestOptions = { maxRetries: 0 },
 ): Promise<ChatCompletion> {
-  // Explicit metadata mapping — step.llm does not auto-extract OpenAI usage.
-  // Usage/request ids are known from the mock response before the span closes.
-  let response!: ChatCompletion;
-  response = await client.chat.completions.create({
-    model: requestedModel,
-    messages,
-    maxRetries: 0,
-  });
-  await inspector.llm(requestedModel, async () => response, {
-    metadata: {
-      sdkOperation: "chat.completions.create",
-      requestedModel,
-      resolvedModel: response.model,
-      requestId: response.id,
-      finishReason: response.choices[0]?.finish_reason,
-      usage: response.usage ?? null,
-      toolCallIds:
-        response.choices[0]?.message.tool_calls?.map((call) => call.id) ?? [],
-      maxRetries: 0,
-      attemptDetail: "unknown",
-      genAiMappingRef: "opentelemetry-genai-conventions (attribute names only; no OTel runtime)",
+  // Awaited SDK operation is inside the LLM span. Usage / IDs are mapped after
+  // the response returns via completion attributes + return identity.
+  return await inspector.llm(
+    requestedModel,
+    async () => {
+      const response = await client.chat.completions.create(
+        { model: requestedModel, messages },
+        {
+          maxRetries: requestOptions.maxRetries ?? 0,
+          ...(requestOptions.timeout !== undefined
+            ? { timeout: requestOptions.timeout }
+            : {}),
+          ...(requestOptions.signal !== undefined
+            ? { signal: requestOptions.signal }
+            : {}),
+        },
+      );
+      return response;
     },
-  });
-  return response;
+    {
+      metadata: {
+        sdkOperation: "chat.completions.create",
+        requestedModel,
+        maxRetries: requestOptions.maxRetries ?? 0,
+        attemptDetail: "unknown",
+        httpAttemptVsLogicalOp:
+          "One logical SDK operation; HTTP attempts unknown when maxRetries:0",
+        genAiMappingRef:
+          "opentelemetry-genai-conventions (attribute names only; no OTel runtime)",
+      },
+    },
+  );
 }
 
 const runId = "openai-node-chat-completions-recipe";
+const responses: ChatCompletion[] = [];
 await inspector.run(
   "openai-node-chat-completions",
   async () => {
-    await tracedChatCompletion("gpt-4o-mini", [
-      { role: "user", content: "fixture prompt one" },
-    ]);
-    await tracedChatCompletion("gpt-4o-mini", [
-      { role: "user", content: "fixture prompt two" },
-    ]);
-    await tracedChatCompletion("gpt-4o-mini", [
-      { role: "user", content: "fixture prompt three" },
-    ]);
+    responses.push(
+      await tracedChatCompletion("gpt-4o-mini", [
+        { role: "user", content: "fixture prompt one" },
+      ]),
+    );
+    responses.push(
+      await tracedChatCompletion("gpt-4o-mini", [
+        { role: "user", content: "fixture prompt two" },
+      ]),
+    );
+    responses.push(
+      await tracedChatCompletion("gpt-4o-mini", [
+        { role: "user", content: "fixture prompt three" },
+      ]),
+    );
     return { ok: true };
   },
   { runId, traceDir },
@@ -181,6 +229,12 @@ const llmStarts = events.filter(
     (event.attributes as { legacyEvent?: string } | undefined)?.legacyEvent ===
       "step_started",
 );
+const llmCompletes = events.filter(
+  (event) =>
+    event.kind === "LLM" &&
+    (event.attributes as { legacyEvent?: string } | undefined)?.legacyEvent ===
+      "step_completed",
+);
 const metadatas = llmStarts.map(
   (event) =>
     ((event.attributes as { metadata?: Record<string, unknown> } | undefined)
@@ -190,16 +244,35 @@ const metadatas = llmStarts.map(
 if (llmStarts.length !== 3) {
   throw new Error(`Expected 3 LLM spans, got ${llmStarts.length}`);
 }
-for (const [index, meta] of metadatas.entries()) {
-  if (meta.requestId !== fixtures[index]!.id) {
-    throw new Error(`requestId mismatch at ${index}`);
+if (responses.length !== 3) {
+  throw new Error(`Expected 3 caller return objects, got ${responses.length}`);
+}
+
+for (const [index, response] of responses.entries()) {
+  if (response.id !== fixtures[index]!.id) {
+    throw new Error(`completion resource id mismatch at ${index}`);
   }
-  if (meta.usage == null) {
-    throw new Error(`usage missing at ${index}`);
+  if (response._request_id !== fixtures[index]!._request_id) {
+    throw new Error(`HTTP request id mismatch at ${index}`);
+  }
+  if (response.id === response._request_id) {
+    throw new Error(`resource id must stay distinct from HTTP request id at ${index}`);
+  }
+  if (response.usage == null) {
+    throw new Error(`usage missing on caller return at ${index}`);
+  }
+  if (metadatas[index]?.maxRetries !== 0) {
+    throw new Error(`maxRetries metadata missing at ${index}`);
   }
 }
-if (!Array.isArray(metadatas[1]?.toolCallIds) || metadatas[1]!.toolCallIds[0] !== "call_lookup_1") {
-  throw new Error("tool-call id link missing on second span");
+
+if (responses[1]?.choices[0]?.message.tool_calls?.[0]?.id !== "call_lookup_1") {
+  throw new Error("tool-call id link missing on second response");
+}
+
+// Completions should carry outputSummary when capture metadata-only is on.
+if (llmCompletes.length !== 3) {
+  throw new Error(`Expected 3 LLM completions, got ${llmCompletes.length}`);
 }
 
 const onDisk = await readdir(traceDir);
@@ -208,9 +281,12 @@ if (jsonl === undefined) {
   throw new Error("Expected JSONL on disk");
 }
 const raw = await readFile(path.join(traceDir, jsonl), "utf8");
-if (!raw.includes("chatcmpl-recipe-001")) {
-  throw new Error("Persisted trace missing request id");
+if (!raw.includes("chat.completions.create") || !raw.includes('"maxRetries":0')) {
+  throw new Error("Persisted trace missing SDK operation metadata");
 }
+// Completion resource id + HTTP request id remain on the caller return object.
+// metadata-only capture stores a bounded shape summary, not full response bodies
+// (no core enrichment API in this recipe).
 
 const relativeEvidenceDir = path
   .relative(process.cwd(), path.join(traceDir, jsonl))
@@ -221,9 +297,10 @@ process.stdout.write(
   [
     "OpenAI Node chat.completions recipe: pass",
     `LLM spans: ${llmStarts.length}`,
-    `Request ids: ${metadatas.map((m) => m.requestId).join(", ")}`,
-    `Tool-call link: ${String((metadatas[1]?.toolCallIds as string[])?.[0] ?? "")}`,
+    `Completion resource ids: ${responses.map((r) => r.id).join(", ")}`,
+    `HTTP request ids: ${responses.map((r) => r._request_id).join(", ")}`,
+    `Tool-call link: ${String(responses[1]?.choices[0]?.message.tool_calls?.[0]?.id ?? "")}`,
     `Trace: ${relativeEvidenceDir}`,
-    "Note: explain/what are local-only; this recipe performs no provider calls.",
+    "Note: SDK call runs inside inspector.llm; maxRetries lives on RequestOptions.",
   ].join("\n") + "\n",
 );

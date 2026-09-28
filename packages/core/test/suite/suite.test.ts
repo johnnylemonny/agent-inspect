@@ -36,6 +36,53 @@ describe("trace suite config", () => {
     ).toThrow(/Duplicate case id/);
   });
 
+  it("rejects string/unknown nested executable controls without coercion", () => {
+    expect(() =>
+      normalizeSuiteConfig({
+        name: "demo",
+        traces: "./traces",
+        cases: [{ id: "obs", expectedObservations: ["policyShown"] }],
+        eval: { requireSuccess: "true" },
+      }),
+    ).toThrow(/eval\.requireSuccess must be a boolean/);
+
+    expect(() =>
+      normalizeSuiteConfig({
+        name: "demo",
+        traces: "./traces",
+        cases: [{ id: "obs", expectedObservations: ["policyShown"] }],
+        eval: { requireSucces: true },
+      }),
+    ).toThrow(/eval has unknown key "requireSucces"/);
+
+    expect(() =>
+      normalizeSuiteConfig({
+        name: "demo",
+        traces: "./traces",
+        cases: [{ id: "a", runId: "x" }],
+        checks: { select: ["run.status"], run: { maxDurationMs: Number.NaN } },
+      }),
+    ).toThrow(/maxDurationMs must be a non-negative finite number/);
+
+    expect(() =>
+      normalizeSuiteConfig({
+        name: "demo",
+        traces: "./traces",
+        cases: [{ id: "a", runId: "x", captureOnly: true }],
+      }),
+    ).toThrow(/cases\[0\] has unknown key "captureOnly"/);
+  });
+
+  it("accepts typed requireSuccess boolean under strict validation", () => {
+    const config = normalizeSuiteConfig({
+      name: "demo",
+      traces: "./traces",
+      cases: [{ id: "basic", runId: "basic-run" }],
+      eval: { requireSuccess: true },
+    });
+    expect(config.eval?.requireSuccess).toBe(true);
+  });
+
   it("loads JSON config from disk", async () => {
     const dir = await mkdtemp(path.join(os.tmpdir(), "suite-load-"));
     try {

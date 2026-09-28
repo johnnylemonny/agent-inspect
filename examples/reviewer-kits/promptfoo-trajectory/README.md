@@ -6,35 +6,44 @@ Standalone reproduction kit for the answer-vs-trajectory matrix.
 
 ## Expected matrix
 
-| Scenario | Answer assertion | Trajectory assertion |
-| --- | --- | --- |
-| Correct tool path | Pass | Pass |
-| Wrong tool path, same answer | Pass | Fail |
-| Missing metadata | May N/A | Must not pass |
+| `caseId` | Answer assertion | Trajectory assertion | Outer |
+| --- | --- | --- | --- |
+| `correct-tool` | Pass | Pass | Pass |
+| `wrong-tool` | Pass | Fail (tool contract) | Fail |
+| `missing-metadata` | May N/A | Must not pass | Fail |
+| Answer fail + trajectory pass | — | — | Outer **must fail** |
 
-## Install (one command)
+## Pins
+
+- `agent-inspect@6.31.11`
+- `promptfoo@0.118.17`
+- Node `>=20` (verified intent: Node 22.x)
+- Lockfile: run `npm install` in this directory to materialize `package-lock.json` for standalone use
+
+## Install
 
 ```bash
 npm install
 ```
 
-Pin the AgentInspect release that includes the honesty fixes (post-6.31.7 patch). Until that patch is on npm, link a packed tarball from a green local build.
-
-## Verify (one command)
+## Verify
 
 ```bash
-npm run verify
+npm run test:matrix   # synthetic interpreter controls (no Promptfoo CLI)
+npm run verify        # Promptfoo eval into a fresh results/<invocation>/ directory
 ```
 
-Writes machine-readable `results/matrix-summary.json`.
+Each verify run writes `results/<invocationId>/promptfoo-results.json` and `matrix-summary.json`. A prior success summary is never treated as current after an infrastructure failure (unexpected exit, spawn error, timeout, malformed JSON).
+
+Shared matrix logic lives in `lib/matrix-interpret.mjs` and must stay byte-identical to `examples/recipes/promptfoo-use-together/lib/matrix-interpret.mjs`.
 
 ## Limitations
 
 - Uses keyless mock tools via AgentInspect `inspectRun` / `step.tool` (not a live LLM provider).
-- Requires network once to fetch `promptfoo@0.118.17` via `npx` unless cached.
+- Prefers the locally installed `promptfoo` binary; falls back to `npx promptfoo@0.118.17` only if missing.
 - Does not prove Elastic/Collector destination ingestion.
-- Trajectory contract requires `lookup_orders` and forbids `delete_orders`.
+- Actual CLI completion can still be blocked by upstream remote-generation controls; report that honestly.
 
 ## What to report
 
-Environment (Node version, OS), actual `matrix-summary.json`, setup friction, and any limitation or defect you find.
+Environment (Node version, OS), invocation id, `matrix-summary.json`, setup friction, and any limitation or defect you find.

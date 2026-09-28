@@ -1,14 +1,14 @@
 # AgentInspect Canonical Roadmap (permanent)
 
-**Baseline:** `agent-inspect@6.31.6` (published)
-**Roadmap horizon:** correctness **6.31.7** → export/OTLP **6.31.8** → recipes; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
-**Status:** **6.31.6 published**; website headers (#458) done; BigInt OTLP timestamps done; next = P06 AI SDK docs + 6.31.7 correctness; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
-**Primary objective:** Close remaining correctness defects and make export→OTLP→destination evidence trustworthy—without schema 1.1, hosted SaaS, or fabricated external evidence
+**Baseline:** `agent-inspect@6.31.11` (published)
+**Roadmap horizon:** stability **6.31.12** (proposed) → timing/OTLP **6.31.13** (proposed) → transport **6.31.14** (proposed) → matrix/docs **6.31.15** (proposed); **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Status:** **6.31.11 published**; named train `stability-after-63111`; next = C00 reconcile + C01 Promptfoo verifiers; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
+**Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
 **Package policy:** no new public packages before the conditional v7 decision
 **Network policy:** no new default network behavior
 **Product boundary:** local-first and customer-owned; no maintainer-hosted SaaS
-**Named train:** `correctness-after-6316`
+**Named train:** `stability-after-63111`
 **Active plan:** [active/NEXT-RELEASES.md](./active/NEXT-RELEASES.md)
 
 ---
@@ -80,14 +80,23 @@ The canonical release sequence is:
 6.31.0  Scoped typed cross-kind ordering  (amends prior failure-first review-UX allocation)  (published)
 6.31.1–6.31.5  Status/publish/parentage, integrations, OTLP BigInt timestamps, URL/FS, URI userinfo  (published)
 6.31.6  false-SAFE marker-slash + multihost MongoDB residuals  (published)
-6.31.7  Timeline identity (#454) + P03 false-pass checks; P06 AI SDK docs ready in parallel
-6.31.8  P07 export fidelity + P20 OTLP numeric enums / nested validation
+6.31.7  Timeline identity (#454) + P03 false-pass checks; P06 AI SDK docs  (published)
+6.31.8  P07 export fidelity + P20 OTLP + integration honesty  (published)
+6.31.9  Suite assertion integrity + packed CJS context identity  (published)
+6.31.10 API misuse diagnostics  (published)
+6.31.11 Suite/capture trust follow-through (explain, rules, expect, OpenAI recipe, safety, provenance, smoke)  (published)
+
+6.31.12 Proposed: Promptfoo verifiers, strict suite config, OpenAI SDK boundary  (slot)
+6.31.13 Proposed: run duration, logical execution-step counts, OTLP recursive validation  (slot)
+6.31.14 Proposed: Collector/Elastic structured verifiers  (slot; actual Elastic = C10 gate)
+6.31.15 Proposed: executable/packed matrix + docs consolidation  (slot)
+
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
 website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 
 6.32.0  Conditional external conformance + compact failure review — BLOCKED_ON_EXTERNAL_EVIDENCE
-6.33.0  Runnable integrations when additive
+6.33.0  Conditional additive usability when consumer evidence justifies an API
 
 7.0.0   Assessment only — V7_DECISION: NO-GO
 ```
@@ -96,7 +105,9 @@ website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 
 **Amendment (2026-09-19):** Post-6.31.0 train was **website-first** (`website-correctness-post-6310`). Do **not** invent or consume **6.32.0** for website/routine patches.
 
-**Amendment (2026-09-22):** After **6.31.6**, named train is `correctness-after-6316`. Website headers (#458) and OTLP BigInt timestamps are done. Next: P06 AI SDK docs + **6.31.7** correctness, then **6.31.8** export/OTLP.
+**Amendment (2026-09-22):** After **6.31.6**, named train was `correctness-after-6316`. Website headers (#458) and OTLP BigInt timestamps are done. **6.31.7–6.31.11** subsequently shipped (see sequence).
+
+**Amendment (2026-09-28):** After **6.31.11**, named train is `stability-after-63111`. Proposed patch slots **6.31.12–6.31.15** are planning slots, not scheduled releases. Stability package chunk IDs (C00–C12) are a new numbering; prior suite-trust C01–C13 are historical closures.
 
 No major version is required. No new trace schema. No TrueForge-specific package. No full-content capture mode. No general temporal/workflow DSL.
 
@@ -194,11 +205,13 @@ Fail-closed deterministic gate hardening:
 | **6.28.0** | Reviewer-reproducible Evidence | resolved contract binding | Published |
 | **6.29.0**–**6.29.6** | Usage fidelity through safe sharing | published line | Published |
 | **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | Published |
-| **6.31.0**–**6.31.6** | Typed ordering through false-SAFE security | published line | Published |
-| **6.31.7** | Timeline + false-pass checks | #454 / P03 | Next patch |
-| **6.31.8** | Export fidelity + OTLP encoding | P07 / P20 | Planned patch |
+| **6.31.0**–**6.31.11** | Typed ordering through suite/capture trust | published line | Published |
+| **6.31.12** | Verifiers + SDK boundary | Promptfoo / suite / OpenAI | **Proposed** patch slot |
+| **6.31.13** | Timing + wire validity | duration / logical counts / OTLP | **Proposed** patch slot |
+| **6.31.14** | Transport verification | Collector / Elastic verifiers | **Proposed** patch slot |
+| **6.31.15** | Matrix + docs consolidation | packed CI / case studies | **Proposed** patch slot |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
-| **6.33.0** | Runnable integrations when additive | recipes | Planned minor |
+| **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 
 ### 3.1 v6.18.0 — adapter capture parity (#311)
 
