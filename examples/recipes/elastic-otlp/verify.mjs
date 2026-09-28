@@ -23,6 +23,7 @@ import {
   buildAdapterFixtureEvents,
   collectSpans,
   compareExpectedFacts,
+  compareTransportSpans,
   writeJsonlFixture,
 } from "../integration-fixtures/helpers.mjs";
 
@@ -101,6 +102,44 @@ if (!check.ok) {
   fail(`field comparison: ${check.errors.join("; ")}`);
   process.exit(1);
 }
+
+const identitySelf = compareTransportSpans(spans, spans, {
+  selectedTraceId: exportTraceIds[0],
+  invocationId: `${RUN_ID}:${process.pid}`,
+});
+if (!identitySelf.ok) {
+  fail(`export identity self-compare: ${identitySelf.errors.join("; ")}`);
+  process.exit(1);
+}
+
+/** Offline / stub controls: never label as indexed Elastic success. */
+function assertRejectedSendControl() {
+  // Synthetic control: a send that rejects must not green the verifier.
+  const rejected = { ok: false, status: 403, rejectedSpans: 3 };
+  if (rejected.ok || rejected.status < 400) {
+    fail("reject-send control unexpectedly passed");
+    process.exit(1);
+  }
+}
+
+function assertIncompleteReadbackControl() {
+  // ID-only / incomplete destination must fail identity compare.
+  const incomplete = spans.map((s) => ({
+    ...s,
+    spanId: undefined,
+    name: s.name,
+  }));
+  const result = compareTransportSpans(spans, incomplete, {
+    selectedTraceId: exportTraceIds[0],
+  });
+  if (result.ok) {
+    fail("incomplete-readback control unexpectedly passed");
+    process.exit(1);
+  }
+}
+
+assertRejectedSendControl();
+assertIncompleteReadbackControl();
 
 /** Offline sim: only IDs actually present in the export document. */
 function queryExportDocument(queryIds) {

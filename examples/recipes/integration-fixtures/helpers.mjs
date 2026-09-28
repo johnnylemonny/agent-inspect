@@ -188,3 +188,170 @@ export function selectRunIdByName(traceDir, runName) {
   }
   return matches[0];
 }
+
+/**
+ * Flatten OTLP resourceSpans documents into span records with resource/scope context.
+ * @param {unknown[]} batches
+ */
+export function normalizeOtlpBatches(batches) {
+  /** @type {Array<Record<string, unknown>>} */
+  const out = [];
+  for (const batch of batches) {
+    if (!batch || typeof batch !== "object") continue;
+    const resourceSpans = /** @type {{ resourceSpans?: unknown }} */ (batch).resourceSpans;
+    if (!Array.isArray(resourceSpans)) continue;
+    for (const rs of resourceSpans) {
+      if (!rs || typeof rs !== "object") continue;
+      const resource = /** @type {{ resource?: unknown }} */ (rs).resource;
+      const scopeSpans = /** @type {{ scopeSpans?: unknown }} */ (rs).scopeSpans;
+      if (!Array.isArray(scopeSpans)) continue;
+      for (const ss of scopeSpans) {
+        if (!ss || typeof ss !== "object") continue;
+        const scope = /** @type {{ scope?: unknown }} */ (ss).scope;
+        const list = /** @type {{ spans?: unknown }} */ (ss).spans;
+        if (!Array.isArray(list)) continue;
+        for (const span of list) {
+          if (!span || typeof span !== "object") continue;
+          out.push({
+            .../** @type {Record<string, unknown>} */ (span),
+            __resource: resource ?? null,
+            __scope: scope ?? null,
+          });
+        }
+      }
+    }
+  }
+  return out;
+}
+
+/**
+ * @param {Record<string, unknown>} span
+ */
+export function spanIdentityKey(span) {
+  return `${String(span.traceId ?? "")}:${String(span.spanId ?? "")}`;
+}
+
+/**
+ * Digest of expected span identities for an invocation (stable sort).
+ * @param {Array<Record<string, unknown>>} spans
+ */
+export function expectedSpanDigest(spans) {
+  const keys = spans.map(spanIdentityKey).sort();
+  return keys.join("|");
+}
+
+/**
+ * Exact transport comparator keyed by (traceId, spanId).
+ * Does not treat word overlap as identity. Does not substitute expected for missing destination.
+ *
+ * @param {Array<Record<string, unknown>>} expectedSpans
+ * @param {Array<Record<string, unknown>>} destinationSpans
+ * @param {{ selectedTraceId?: string; invocationId?: string }} [opts]
+ */
+export function compareTransportSpans(expectedSpans, destinationSpans, opts = {}) {
+  /** @type {string[]} */
+  const errors = [];
+  /** @type {string[]} */
+  const warnings = [];
+  const selectedTraceId = opts.selectedTraceId;
+
+  const expected = new Map();
+  for (const span of expectedSpans) {
+    const key = spanIdentityKey(span);
+    if (expected.has(key)) {
+      errors.push(`duplicate expected identity ${key}`);
+    }
+    expected.set(key, span);
+  }
+
+  /** @type {Map<string, Record<string, unknown>>} */
+  const observed = new Map();
+  /** @type {Array<Record<string, unknown>>} */
+  const outsideSelected = [];
+  for (const span of destinationSpans) {
+    const key = spanIdentityKey(span);
+    if (
+      selectedTraceId !== undefined &&
+      String(span.traceId ?? "") !== selectedTraceId
+    ) {
+      outsideSelected.push(span);
+      continue;
+    }
+    if (observed.has(key)) {
+      errors.push(`duplicate destination identity ${key}`);
+    }
+    observed.set(key, span);
+  }
+
+  for (const [key, exp] of expected) {
+    const got = observed.get(key);
+    if (got === undefined) {
+      errors.push(`missing destination span ${key}`);
+      continue;
+    }
+    if (String(got.name ?? "") !== String(exp.name ?? "")) {
+      errors.push(`span ${key} name mismatch: expected ${String(exp.name)} got ${String(got.name)}`);
+    }
+    const expParent = exp.parentSpanId === undefined || exp.parentSpanId === ""
+      ? ""
+      : String(exp.parentSpanId);
+    const gotParent = got.parentSpanId === undefined || got.parentSpanId === ""
+      ? ""
+      : String(got.parentSpanId);
+    if (expParent !== gotParent) {
+      errors.push(`span ${key} parent mismatch`);
+    }
+    if (String(exp.startTimeUnixNano ?? "") !== String(got.startTimeUnixNano ?? "")) {
+      // Exact integer string compare via BigInt when both decimal.
+      const a = String(exp.startTimeUnixNano ?? "");
+      const b = String(got.startTimeUnixNano ?? "");
+      if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+        if (BigInt(a) !== BigInt(b)) {
+          errors.push(`span ${key} startTimeUnixNano mismatch`);
+        }
+      } else if (a !== b) {
+        errors.push(`span ${key} startTimeUnixNano mismatch`);
+      }
+    }
+    if (
+      exp.endTimeUnixNano !== undefined &&
+      String(exp.endTimeUnixNano) !== String(got.endTimeUnixNano ?? "")
+    ) {
+      const a = String(exp.endTimeUnixNano);
+      const b = String(got.endTimeUnixNano ?? "");
+      if (/^\d+$/.test(a) && /^\d+$/.test(b)) {
+        if (BigInt(a) !== BigInt(b)) {
+          errors.push(`span ${key} endTimeUnixNano mismatch`);
+        }
+      } else {
+        errors.push(`span ${key} endTimeUnixNano mismatch`);
+      }
+    }
+    const expStatus = /** @type {{ code?: unknown } | undefined} */ (exp.status)?.code;
+    const gotStatus = /** @type {{ code?: unknown } | undefined} */ (got.status)?.code;
+    if (expStatus !== undefined && expStatus !== gotStatus) {
+      errors.push(`span ${key} status.code mismatch`);
+    }
+  }
+
+  for (const key of observed.keys()) {
+    if (!expected.has(key)) {
+      errors.push(`unexpected destination span ${key}`);
+    }
+  }
+
+  if (outsideSelected.length > 0) {
+    warnings.push(
+      `${outsideSelected.length} span(s) outside selected trace ${selectedTraceId ?? "(none)"} — reported, not compared as children`,
+    );
+  }
+
+  return {
+    ok: errors.length === 0,
+    errors,
+    warnings,
+    expectedDigest: expectedSpanDigest(expectedSpans),
+    invocationId: opts.invocationId ?? null,
+    outsideSelectedCount: outsideSelected.length,
+  };
+}
