@@ -1,5 +1,15 @@
 # @agent-inspect/eval
 
+## 6.31.15
+
+### Patch Changes
+
+- 428f4c9: Stability C11–C12: tested support matrix with pending Docker/Elastic labeled honestly; public and canonical ROADMAP tables reconciled through 6.31.14.
+- Updated dependencies [428f4c9]
+  - agent-inspect@6.31.15
+  - @agent-inspect/guardrails@6.31.15
+  - @agent-inspect/circuit@6.31.15
+
 ## 6.31.14
 
 ### Patch Changes

@@ -10,9 +10,9 @@ This public roadmap describes direction — not a delivery guarantee. See [docs/
 
 ---
 
-## Current — published `6.31.14`
+## Current — published `6.31.15`
 
-**Current release line:** **6.31.14** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
+**Current release line:** **6.31.15** (eighteen fixed-group public packages). Persisted schema **1.0**. Node.js **≥ 20**. **MIT**. Actively maintained.
 
 Core boundary frozen; evidence-backed **security, correctness, compatibility, interoperability, and public-truth patches** remain active. Retained-use / conformance claims stay gated on accepted external evidence. **v7 is NO-GO**.
 
@@ -25,7 +25,7 @@ Core boundary frozen; evidence-backed **security, correctness, compatibility, in
 | **7.0.0** | Major | Assessment only / **NO-GO** |
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.14
+LAST_PUBLISHED_RELEASE: 6.31.15
 ACTIVE: stability-after-63111
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
