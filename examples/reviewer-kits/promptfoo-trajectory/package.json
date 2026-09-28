@@ -7,7 +7,7 @@
     "test:matrix": "node --test lib/matrix-interpret.test.mjs"
   },
   "dependencies": {
-    "agent-inspect": "6.31.13",
+    "agent-inspect": "6.31.14",
     "promptfoo": "0.118.17"
   },
   "engines": {

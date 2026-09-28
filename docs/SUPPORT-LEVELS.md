@@ -81,3 +81,5 @@ See [INSTALL-KITS.md](./INSTALL-KITS.md).
 ## Promotion criteria
 
 A surface moves up only with tests, docs, packed smoke where relevant, real-project or external retained use where required for Supported/Stable, and honest limitation disclosure — not changelog marketing alone.
+
+Executable integration claims for the current stability train (including pending Docker/Elastic rows) live in [implementation/TESTED-SUPPORT-MATRIX.md](./implementation/TESTED-SUPPORT-MATRIX.md).

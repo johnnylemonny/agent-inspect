@@ -18,10 +18,7 @@ Core boundary frozen; evidence-backed **security, correctness, compatibility, in
 
 | Release | Theme | Status |
 | ------- | ----- | ------ |
-| **6.19.0**–**6.31.11** | Adoption through suite/capture trust follow-through | Published |
-| **6.31.12** | Verifiers + SDK boundary (Promptfoo, suite config, OpenAI) | **Proposed** patch slot |
-| **6.31.13** | Timing + wire validity (duration, logical counts, OTLP) | **Proposed** patch slot |
-| **6.31.14** | Transport verification (Collector/Elastic verifiers) | **Proposed** patch slot |
+| **6.19.0**–**6.31.14** | Adoption through transport identity verifiers | Published |
 | **6.31.15** | Executable/packed matrix + docs consolidation | **Proposed** patch slot |
 | **6.32.0** | Conditional external conformance + compact review | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Runnable integrations when additive | Conditional minor |
