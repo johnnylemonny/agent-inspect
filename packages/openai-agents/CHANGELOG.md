@@ -1,5 +1,13 @@
 # @agent-inspect/openai-agents
 
+## 6.31.16
+
+### Patch Changes
+
+- 7613622: Close 6.31.15 verifier acceptance gaps (C01, C07–C09, C11): exact Promptfoo assertion identity, selected OTLP field compare, Collector NDJSON merge re-import, Elastic live-path rejection/readback stubs, offline integration CI gate, and OpenAI boundary transport controls.
+- Updated dependencies [7613622]
+  - agent-inspect@6.31.16
+
 ## 6.31.15
 
 ### Patch Changes
