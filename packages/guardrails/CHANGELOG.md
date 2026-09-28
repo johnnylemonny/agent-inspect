@@ -1,5 +1,13 @@
 # @agent-inspect/guardrails
 
+## 6.31.14
+
+### Patch Changes
+
+- 2bb5c1d: Stability C07–C09: exact OTLP transport identity comparator; Collector and Elastic verifiers use structured span identity checks and honest offline/stub controls (actual Docker/Elastic remain pending where not executed).
+- Updated dependencies [2bb5c1d]
+  - @agent-inspect/redact@6.31.14
+
 ## 6.31.13
 
 ### Patch Changes
