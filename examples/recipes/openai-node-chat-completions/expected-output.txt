@@ -1,6 +1,7 @@
 OpenAI Node chat.completions recipe: pass
 LLM spans: 3
-Request ids: chatcmpl-recipe-001, chatcmpl-recipe-002, chatcmpl-recipe-003
+Completion resource ids: chatcmpl-recipe-001, chatcmpl-recipe-002, chatcmpl-recipe-003
+HTTP request ids: req_http_aaa, req_http_bbb, req_http_ccc
 Tool-call link: call_lookup_1
 Trace: .agent-inspect-runs/openai-node-chat-completions-recipe.jsonl
-Note: explain/what are local-only; this recipe performs no provider calls.
+Note: SDK call runs inside inspector.llm; maxRetries lives on RequestOptions.

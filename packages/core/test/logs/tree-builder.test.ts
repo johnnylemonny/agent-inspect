@@ -113,5 +113,55 @@ describe("TreeBuilder", () => {
     expect([...ids].sort()).toEqual(["a", "b", "c"]);
     expect(trees[0]!.metadata.relationshipSummary?.cycleCount).toBeGreaterThan(0);
   });
+
+  it("prefers explicit RUN start/end/duration facts over event-timestamp span", () => {
+    const b = new TreeBuilder();
+    const start = e({
+      eventId: "run_start",
+      runId: "r",
+      name: "demo",
+      kind: "RUN",
+      timestamp: 1_000,
+      status: "running",
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: { startedAtMs: 1_000 },
+    });
+    const done = e({
+      eventId: "run_done",
+      runId: "r",
+      name: "demo",
+      kind: "RUN",
+      timestamp: 1_000,
+      status: "ok",
+      durationMs: 1_000,
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: { startedAtMs: 1_000, endedAtMs: 2_000 },
+    });
+    const trees = b.build([start, done]);
+    expect(trees[0]!.startedAt).toBe(1_000);
+    expect(trees[0]!.endedAt).toBe(2_000);
+    expect(trees[0]!.durationMs).toBe(1_000);
+  });
+
+  it("recovers duration from RUN durationMs when end timestamp equals start", () => {
+    const b = new TreeBuilder();
+    const done = e({
+      eventId: "run_done",
+      runId: "r",
+      name: "solo",
+      kind: "RUN",
+      timestamp: 5_000,
+      status: "ok",
+      durationMs: 1_000,
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: { startedAtMs: 5_000 },
+    });
+    const trees = b.build([done]);
+    expect(trees[0]!.durationMs).toBe(1_000);
+    expect(trees[0]!.endedAt).toBe(6_000);
+  });
 });
 

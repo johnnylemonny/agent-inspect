@@ -22,6 +22,8 @@ import {
   buildAdapterFixtureEvents,
   collectSpans,
   compareExpectedFacts,
+  compareTransportSpans,
+  normalizeOtlpBatches,
   parseCollectorBatches,
   writeJsonlFixture,
 } from "../integration-fixtures/helpers.mjs";
@@ -244,9 +246,17 @@ if (!batches || batches.length === 0) {
   process.exit(1);
 }
 
-const allSpans = batches.flatMap((b) => collectSpans(b));
+const allSpans = normalizeOtlpBatches(batches);
 if (exportTraceId && !allSpans.some((s) => s.traceId === exportTraceId)) {
   fail(`collector output missing exact export traceId ${exportTraceId}`);
+  process.exit(1);
+}
+const identityCheck = compareTransportSpans(exportSpans, allSpans, {
+  selectedTraceId: exportTraceId,
+  invocationId: `${RUN_ID}:${process.pid}`,
+});
+if (!identityCheck.ok) {
+  fail(`collector identity comparison: ${identityCheck.errors.join("; ")}`);
   process.exit(1);
 }
 const fieldCheck = compareExpectedFacts(allSpans, {

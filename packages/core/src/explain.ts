@@ -2,7 +2,7 @@ import { projectLogicalEvents } from "./checks/logical-events.js";
 import { Redactor } from "./logs/redactor.js";
 import { resolveRedactionProfile } from "./redaction-profiles.js";
 import type { RedactionProfile } from "./types.js";
-import type { InspectNode, InspectRunTree } from "./types/inspect-event.js";
+import type { InspectKind, InspectNode, InspectRunTree } from "./types/inspect-event.js";
 import type { PersistedInspectEvent } from "./types/persisted-inspect-event.js";
 
 export type ExplainMode = "dry-run" | "local";
@@ -107,15 +107,18 @@ function countErrorNodes(nodes: FlatNode[]): number {
   return nodes.filter((entry) => entry.node.event.status === "error").length;
 }
 
+function isExecutionStepKind(kind: InspectKind): boolean {
+  return kind !== "RUN" && kind !== "OUTCOME";
+}
+
 function slowestNode(nodes: FlatNode[]): FlatNode | undefined {
   return nodes
     .filter(
       (entry) =>
         entry.node.event.durationMs !== undefined &&
         // The RUN boundary spans the whole run, so its duration always dominates
-        // and shadows every real step. Rank actual work nodes only, matching the
-        // stats slowest-step ranking, which never counts the run envelope.
-        entry.node.event.kind !== "RUN",
+        // and shadows every real step. OUTCOME is a linked result, not execution.
+        isExecutionStepKind(entry.node.event.kind),
     )
     .sort((a, b) => {
       const delta = (b.node.event.durationMs ?? 0) - (a.node.event.durationMs ?? 0);
@@ -176,6 +179,12 @@ function buildFacts(
     const scoped = events.filter((event) => event.runId === run.runId);
     const { logicalEvents: logical } = projectLogicalEvents(scoped);
     const logicalSteps = logical.filter((event) => event.kind !== "RUN");
+    const executionSteps = logical.filter((event) => isExecutionStepKind(event.kind));
+    const executionByKind = {
+      LLM: executionSteps.filter((event) => event.kind === "LLM").length,
+      TOOL: executionSteps.filter((event) => event.kind === "TOOL").length,
+      LOGIC: executionSteps.filter((event) => event.kind === "LOGIC").length,
+    };
     facts.push(
       fact("run.rawEventCount", "Raw persisted event count", scoped.length, redactor),
       fact(
@@ -190,8 +199,20 @@ function buildFacts(
         logical.length,
         redactor,
       ),
+      fact(
+        "run.executionStepCount",
+        "Execution step count (excludes RUN and OUTCOME)",
+        executionSteps.length,
+        redactor,
+      ),
+      fact(
+        "run.executionStepKinds",
+        "Execution step kind counts",
+        executionByKind,
+        redactor,
+      ),
     );
-    const slowestLogical = [...logicalSteps]
+    const slowestLogical = [...executionSteps]
       .filter((event) => typeof event.durationMs === "number")
       .sort((a, b) => {
         const delta = (b.durationMs ?? 0) - (a.durationMs ?? 0);

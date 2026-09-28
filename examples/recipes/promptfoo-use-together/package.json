@@ -6,9 +6,14 @@
     "start": "node verify.mjs",
     "verify": "node verify.mjs",
     "verify:offline": "node verify.mjs --offline-only",
-    "promptfoo": "PROMPTFOO_DISABLE_REMOTE_GENERATION=true npx --yes promptfoo@0.118.17 eval -c promptfooconfig.yaml --no-cache"
+    "test:matrix": "node --test lib/matrix-interpret.test.mjs",
+    "promptfoo": "PROMPTFOO_DISABLE_REMOTE_GENERATION=true node ./node_modules/promptfoo/dist/src/main.js eval -c promptfooconfig.yaml --no-cache"
   },
   "dependencies": {
-    "agent-inspect": "workspace:*"
+    "agent-inspect": "workspace:*",
+    "promptfoo": "0.118.17"
+  },
+  "engines": {
+    "node": ">=20"
   }
 }

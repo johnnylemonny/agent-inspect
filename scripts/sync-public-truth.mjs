@@ -216,6 +216,10 @@ for (const rel of ["apps/website/public/llms.txt", "apps/website/public/llms-ful
   }
   text = text.replace(currentRe, `## Current — published \`${version}\``);
   text = text.replace(
+    /\*\*Current release line:\*\* \*\*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?\*\*/,
+    `**Current release line:** **${version}**`,
+  );
+  text = text.replace(
     /^LAST_PUBLISHED_RELEASE:\s*\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$/m,
     `LAST_PUBLISHED_RELEASE: ${version}`,
   );

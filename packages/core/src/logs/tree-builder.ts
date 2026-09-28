@@ -195,28 +195,17 @@ export class TreeBuilder {
         (kinds as any)[e.kind] = ((kinds as any)[e.kind] ?? 0) + 1;
       }
 
-      const startedAt = sorted.length > 0 ? sorted[0]!.timestamp : undefined;
-      const endedAt = sorted.length > 0 ? sorted[sorted.length - 1]!.timestamp : undefined;
-      const status = computeRunStatus(sorted);
-      const durationMs =
-        startedAt !== undefined &&
-        endedAt !== undefined &&
-        Number.isFinite(startedAt) &&
-        Number.isFinite(endedAt) &&
-        endedAt >= startedAt &&
-        status !== "running"
-          ? endedAt - startedAt
-          : undefined;
-
       const name = sorted.find((e) => e.kind === "RUN")?.name;
+      const status = computeRunStatus(sorted);
+      const timing = resolveRunTiming(sorted, status);
 
       out.push({
         runId,
         name,
         status,
-        startedAt,
-        endedAt: status === "running" ? undefined : endedAt,
-        durationMs,
+        startedAt: timing.startedAt,
+        endedAt: timing.endedAt,
+        durationMs: timing.durationMs,
         children: roots,
         metadata: {
           totalEvents: sorted.length,
@@ -231,4 +220,113 @@ export class TreeBuilder {
     out.sort((a, b) => (b.startedAt ?? 0) - (a.startedAt ?? 0));
     return out;
   }
+}
+
+/**
+ * Prefer explicit RUN start/end/duration facts when consistent; otherwise use a
+ * conservative observed interval from event timestamps. Never invent wall-clock ends.
+ */
+export function resolveRunTiming(
+  sorted: readonly InspectEvent[],
+  status: InspectRunTree["status"],
+): { startedAt?: number; endedAt?: number; durationMs?: number } {
+  let startedAtMs: number | undefined;
+  let endedAtMs: number | undefined;
+  let explicitDurationMs: number | undefined;
+
+  for (const event of sorted) {
+    if (event.kind !== "RUN") continue;
+    const attrs = event.attributes ?? {};
+    if (
+      typeof attrs.startedAtMs === "number" &&
+      Number.isFinite(attrs.startedAtMs)
+    ) {
+      startedAtMs =
+        startedAtMs === undefined
+          ? attrs.startedAtMs
+          : Math.min(startedAtMs, attrs.startedAtMs);
+    }
+    if (
+      typeof attrs.endedAtMs === "number" &&
+      Number.isFinite(attrs.endedAtMs)
+    ) {
+      endedAtMs =
+        endedAtMs === undefined
+          ? attrs.endedAtMs
+          : Math.max(endedAtMs, attrs.endedAtMs);
+    }
+    if (
+      (event.status === "ok" || event.status === "error") &&
+      typeof event.durationMs === "number" &&
+      Number.isFinite(event.durationMs) &&
+      event.durationMs >= 0
+    ) {
+      explicitDurationMs = event.durationMs;
+      // Completion rows often keep the start timestamp; recover end from duration.
+      if (endedAtMs === undefined && startedAtMs !== undefined) {
+        endedAtMs = startedAtMs + event.durationMs;
+      } else if (
+        endedAtMs === undefined &&
+        Number.isFinite(event.timestamp)
+      ) {
+        endedAtMs = event.timestamp + event.durationMs;
+        if (startedAtMs === undefined) {
+          startedAtMs = event.timestamp;
+        }
+      }
+    }
+    if (
+      startedAtMs === undefined &&
+      event.status === "running" &&
+      Number.isFinite(event.timestamp)
+    ) {
+      startedAtMs = event.timestamp;
+    }
+  }
+
+  if (
+    startedAtMs !== undefined &&
+    endedAtMs !== undefined &&
+    Number.isFinite(startedAtMs) &&
+    Number.isFinite(endedAtMs) &&
+    endedAtMs >= startedAtMs &&
+    status !== "running"
+  ) {
+    return {
+      startedAt: startedAtMs,
+      endedAt: endedAtMs,
+      durationMs: endedAtMs - startedAtMs,
+    };
+  }
+
+  if (
+    startedAtMs !== undefined &&
+    explicitDurationMs !== undefined &&
+    status !== "running"
+  ) {
+    return {
+      startedAt: startedAtMs,
+      endedAt: startedAtMs + explicitDurationMs,
+      durationMs: explicitDurationMs,
+    };
+  }
+
+  // Conservative observed interval from event timestamps (no wall-clock invention).
+  const startedAt = sorted.length > 0 ? sorted[0]!.timestamp : undefined;
+  const endedAt = sorted.length > 0 ? sorted[sorted.length - 1]!.timestamp : undefined;
+  const durationMs =
+    startedAt !== undefined &&
+    endedAt !== undefined &&
+    Number.isFinite(startedAt) &&
+    Number.isFinite(endedAt) &&
+    endedAt >= startedAt &&
+    status !== "running"
+      ? endedAt - startedAt
+      : undefined;
+
+  return {
+    startedAt,
+    endedAt: status === "running" ? undefined : endedAt,
+    durationMs,
+  };
 }

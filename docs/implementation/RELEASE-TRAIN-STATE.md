@@ -5,37 +5,47 @@
 > **Canonical roadmap:** [ROADMAP.md](./ROADMAP.md)
 
 ```yaml
-baselineVersion: "6.31.11"
-publishedVersion: "6.31.11"
-pendingPublishVersion: null
-currentTrain: "suite-context-trust-after-6318"
+baselineVersion: "6.31.14"
+publishedVersion: "6.31.14"
+pendingPublishVersion: "6.31.14"
+currentTrain: "stability-after-63111"
 trainStatus: "active"
-executionMode: "maintainer-reviewed"
-namedTrain: "suite-context-trust-after-6318"
+executionMode: "autonomous-release-train"
+namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "Demo C03–C04 / D01 (next; separate)"
-lastConfirmedCommit: "fdfd1fe8"
-lastValidationLevel: "publish 36334392282 success; npm 6.31.11"
-nextAction: "Demo C03–C04 in proactive-ai-demo; D01 docs package separately"
-pendingManualGate: "Elastic --live credentials; external Promptfoo reproduction; EVIDENCE_GATE not approved; proactive-ai-demo C03–C04; D01 docs"
+currentChunk: "C07–C09 transport verifiers for 6.31.14"
+lastConfirmedCommit: "dc00cc29"
+lastValidationLevel: "npm 6.31.13 all 18 packages confirmed"
+nextAction: "Push C07–C09 + changeset; Version Packages; Trusted Publish 6.31.14"
+pendingManualGate: "Elastic --live credentials; EVIDENCE_GATE not approved; demo D03–D07; 6.32 external acceptance"
+githubIssues:
+  "450": "open — permission granted; private v3 qualified; partner Revera pending"
+  "437": "open — receipt/idempotency; later evidence train"
+  "209": "open — packed OS/Node matrix"
 canonicalRoadmap: "docs/implementation/ROADMAP.md"
 activePlan: "docs/implementation/active/NEXT-RELEASES.md"
 completedChunks:
-  - "6.31.11 C06–C13 suite/capture trust follow-through (#470/#471)"
-  - "6.31.10 API misuse diagnostics (#467/#468)"
-  - "6.31.9 suite assertion integrity + CJS context (#464/#465)"
-  - "6.31.8 integration honesty (#462/#463)"
+  - "6.31.13 C04–C06 (#476)"
+  - "6.31.12 C00–C03 (#474 + republish)"
 queuedChunks:
-  - "Demo C03–C04 (proactive-ai-demo)"
-  - "D01 docs/examples capture package"
+  - "C07–C09 (shipping as 6.31.14); C10 Elastic blocked"
+  - "C11–C12 (proposed 6.31.15)"
+  - "6.32.0 external-evidence gate"
 blockedTrains:
   - "v7.0.0 (assessment only — V7_DECISION: NO-GO)"
+  - "6.32.0 until EVIDENCE_GATE approved"
+amendments:
+  - "Adoption freeze excluded"
+  - "Publish if tightened to avoid false-positive on commits mentioning Version Packages"
+worktreeIgnoreOnly:
+  - ".redstamp/"
+  - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.11
-  ACTIVE: suite-context-trust-after-6318
-  NEXT: demo C03–C04 / D01
+  LAST_PUBLISHED_RELEASE: 6.31.13
+  ACTIVE: stability-after-63111
+  NEXT: publish 6.31.14 then C11–C12
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-09-27"
+updatedAt: "2026-09-28"
 ```

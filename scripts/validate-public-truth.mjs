@@ -129,6 +129,16 @@ if (!readme.includes(`**${version}**`) && !readme.includes(`Current release:** *
         `ROADMAP.md: Current published ${currentMarkers[0][1]} must match root ${version}`,
       );
     }
+    const releaseLine = roadmap.match(
+      /\*\*Current release line:\*\* \*\*(\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?)\*\*/,
+    );
+    if (!releaseLine) {
+      failures.push("ROADMAP.md: missing **Current release line:** **x.y.z**");
+    } else if (releaseLine[1] !== version) {
+      failures.push(
+        `ROADMAP.md: Current release line ${releaseLine[1]} must match root ${version}`,
+      );
+    }
   }
 }
 
