@@ -1,8 +1,8 @@
 # AgentInspect Canonical Roadmap (permanent)
 
-**Baseline:** `agent-inspect@6.31.11` (published)
-**Roadmap horizon:** stability through **6.31.15** published; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
-**Status:** **6.31.11 published**; named train `stability-after-63111`; next = C00 reconcile + C01 Promptfoo verifiers; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
+**Baseline:** `agent-inspect@6.31.15` (published)
+**Roadmap horizon:** stability through **6.31.15** published with incomplete acceptance reopened (**C01, C07–C09, C11** → **6.31.16+**); **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Status:** **6.31.15 published**; named train `stability-after-63111`; next = C01 Promptfoo exact assertions; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
 **Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
 **Package policy:** no new public packages before the conditional v7 decision
@@ -86,10 +86,14 @@ The canonical release sequence is:
 6.31.10 API misuse diagnostics  (published)
 6.31.11 Suite/capture trust follow-through (explain, rules, expect, OpenAI recipe, safety, provenance, smoke)  (published)
 
-6.31.12 Promptfoo verifiers, strict suite config, OpenAI SDK boundary  (published)
+6.31.12 Promptfoo verifiers, strict suite config, OpenAI SDK boundary  (published; Promptfoo assertion identity reopened)
 6.31.13 Run duration, logical execution-step counts, OTLP recursive validation  (published)
-6.31.14 Collector/Elastic structured identity verifiers  (published; actual Elastic = C10 gate)
-6.31.15 Executable/packed matrix + docs consolidation  (published)
+6.31.14 Collector/Elastic structured identity verifiers  (published; selected fields / live path reopened; actual Elastic = C10)
+6.31.15 Executable/packed matrix + docs consolidation  (published; CI wiring / kit provenance reopened)
+6.31.16 Proposed: C01 exact Promptfoo assertion identity  (slot)
+6.31.17 Proposed: C07–C08 selected attributes + Collector NDJSON merge  (slot)
+6.31.18 Proposed: C09 Elastic live-path controls  (slot)
+6.31.19 Proposed: C11 CI wiring + OpenAI maintained transport tests  (slot)
 
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
@@ -107,7 +111,7 @@ website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 
 **Amendment (2026-09-22):** After **6.31.6**, named train was `correctness-after-6316`. Website headers (#458) and OTLP BigInt timestamps are done. **6.31.7–6.31.11** subsequently shipped (see sequence).
 
-**Amendment (2026-09-28):** After **6.31.11**, named train is `stability-after-63111`. Proposed patch slots **6.31.12–6.31.15** are planning slots, not scheduled releases. Stability package chunk IDs (C00–C12) are a new numbering; prior suite-trust C01–C13 are historical closures.
+**Amendment (2026-09-28):** After **6.31.11**, named train is `stability-after-63111`. Slots **6.31.12–6.31.15** published. Closure audit same day **reopens C01, C07–C09, C11** for **6.31.16+**. Stability package chunk IDs (C00–C12) are a new numbering; prior suite-trust C01–C13 are historical closures.
 
 No major version is required. No new trace schema. No TrueForge-specific package. No full-content capture mode. No general temporal/workflow DSL.
 
@@ -205,7 +209,8 @@ Fail-closed deterministic gate hardening:
 | **6.28.0** | Reviewer-reproducible Evidence | resolved contract binding | Published |
 | **6.29.0**–**6.29.6** | Usage fidelity through safe sharing | published line | Published |
 | **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | Published |
-| **6.31.0**–**6.31.15** | Typed ordering through matrix/docs consolidation | published line | Published |
+| **6.31.0**–**6.31.15** | Typed ordering through matrix/docs consolidation | published line | Published (partial acceptance; C01/C07–C09/C11 reopened) |
+| **6.31.16**–**6.31.19** | Reopen verifier/CI acceptance patches | proposed slots | Queued |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 
