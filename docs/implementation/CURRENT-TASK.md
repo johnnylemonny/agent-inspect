@@ -5,11 +5,11 @@ executionMode: autonomous-release-train
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
 trainStatus: active
-currentChunk: "Ship 6.31.12 (C00–C03) via Changeset → Version Packages → Trusted Publish"
-nextAction: "Push C00–C03 + changeset; merge Version Packages; publish 6.31.12; then C04–C06 → 6.31.13 … toward 6.32 external gate"
+currentChunk: "Post-6.31.12: complete partial npm (studio) then C04–C06 → 6.31.13"
+nextAction: "Confirm full 6.31.12 on npm; land C04–C06; Changeset → publish 6.31.13"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
-pendingManualGate: "Elastic --live credentials; EVIDENCE_GATE not approved; demo D03–D07; D01 docs package; 6.32 requires explicit external acceptance"
+pendingManualGate: "Elastic --live credentials; EVIDENCE_GATE not approved; demo D03–D07; 6.32 requires explicit external acceptance"
 worktreeIgnoreOnly:
   - .redstamp/
   - redstamp-proposal-issue-body.md
@@ -17,24 +17,23 @@ worktreeIgnoreOnly:
 
 ## Published baseline
 
-**6.31.11** on npm. Local C00–C03 ready for **6.31.12**.
+**6.31.12** Version Packages `#474` · Publish `36456951418` (partial registry lag; republish `36459509241`).
 
 ## Sequenced status
 
 | Item | Status |
 | --- | --- |
-| C00–C03 | **ready to ship** as 6.31.12 |
-| C04–C06 | queued → proposed 6.31.13 |
-| C07–C09 | queued → proposed 6.31.14; C10 Elastic blocked |
-| C11–C12 | queued → proposed 6.31.15 |
-| 6.32.0 | **BLOCKED_ON_EXTERNAL_EVIDENCE** until EVIDENCE_GATE approved |
+| C00–C03 / 6.31.12 | **shipping** (verify full fixed-group on npm) |
+| C04–C06 | **in progress locally** → proposed 6.31.13 |
+| C07–C09 / C11–C12 | queued |
+| 6.32.0 | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 
 ## Stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.11
+LAST_PUBLISHED_RELEASE: 6.31.12
 ACTIVE: stability-after-63111
-NEXT: publish 6.31.12 then C04–C06
+NEXT: C04–C06 → 6.31.13
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded

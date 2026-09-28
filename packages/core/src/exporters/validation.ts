@@ -3,11 +3,22 @@ import type { ExportFormat, ExportValidationResult } from "./types.js";
 const EXPERIMENTAL =
   "Experimental compatibility export — verify against your target tooling before relying on it.";
 
+/** OTLP fixed64 / Unix nano unsigned bound (inclusive). */
+const UINT64_MAX = 18446744073709551615n;
+/** OTLP int64 signed bounds (inclusive). */
+const INT64_MIN = -9223372036854775808n;
+const INT64_MAX = 9223372036854775807n;
+
+const MAX_ANYVALUE_DEPTH = 8;
+const MAX_ANYVALUE_ELEMENTS = 256;
+const MAX_DIAGNOSTIC_ERRORS = 64;
+
 function pushPath(
   errors: string[],
   path: string,
   message: string,
 ): void {
+  if (errors.length >= MAX_DIAGNOSTIC_ERRORS) return;
   errors.push(`${path}: ${message}`);
 }
 
@@ -19,11 +30,80 @@ function isHexId(value: unknown, byteLen: number): boolean {
   return typeof value === "string" && new RegExp(`^[0-9a-fA-F]{${byteLen * 2}}$`).test(value);
 }
 
-function validateAnyValue(
+function parseDecimalIntegerString(
+  value: unknown,
+): { ok: true; n: bigint } | { ok: false; reason: string } {
+  if (typeof value !== "string" || !/^-?\d+$/.test(value)) {
+    return { ok: false, reason: "must be a decimal integer string" };
+  }
+  try {
+    return { ok: true, n: BigInt(value) };
+  } catch {
+    return { ok: false, reason: "out of integer range" };
+  }
+}
+
+function validateUint64String(
+  errors: string[],
+  path: string,
+  value: unknown,
+  label: string,
+): void {
+  const parsed = parseDecimalIntegerString(value);
+  if (!parsed.ok) {
+    pushPath(errors, path, `${label} ${parsed.reason}`);
+    return;
+  }
+  if (parsed.n < 0n || parsed.n > UINT64_MAX) {
+    pushPath(
+      errors,
+      path,
+      `${label} must be an unsigned 64-bit integer (0..${UINT64_MAX.toString()})`,
+    );
+  }
+}
+
+function validateInt64String(
   errors: string[],
   path: string,
   value: unknown,
 ): void {
+  const parsed = parseDecimalIntegerString(value);
+  if (!parsed.ok) {
+    pushPath(errors, path, parsed.reason);
+    return;
+  }
+  if (parsed.n < INT64_MIN || parsed.n > INT64_MAX) {
+    pushPath(
+      errors,
+      path,
+      `must be a signed 64-bit integer (${INT64_MIN.toString()}..${INT64_MAX.toString()})`,
+    );
+  }
+}
+
+function validateAnyValue(
+  errors: string[],
+  path: string,
+  value: unknown,
+  depth = 0,
+  counters = { elements: 0 },
+): void {
+  if (errors.length >= MAX_DIAGNOSTIC_ERRORS) return;
+  if (depth > MAX_ANYVALUE_DEPTH) {
+    pushPath(errors, path, `AnyValue nesting exceeds depth ${MAX_ANYVALUE_DEPTH}`);
+    return;
+  }
+  counters.elements += 1;
+  if (counters.elements > MAX_ANYVALUE_ELEMENTS) {
+    pushPath(
+      errors,
+      path,
+      `AnyValue element count exceeds ${MAX_ANYVALUE_ELEMENTS}`,
+    );
+    return;
+  }
+
   if (!isRecord(value)) {
     pushPath(errors, path, "must be an AnyValue object");
     return;
@@ -43,12 +123,106 @@ function validateAnyValue(
       path,
       `AnyValue must set exactly one variant (found ${variants.length}: ${variants.join(",")})`,
     );
+    return;
   }
-  if (value.intValue !== undefined) {
-    if (typeof value.intValue !== "string" || !/^-?\d+$/.test(value.intValue)) {
-      pushPath(errors, `${path}.intValue`, "must be a decimal integer string");
+
+  const arm = variants[0]!;
+  switch (arm) {
+    case "stringValue":
+      if (typeof value.stringValue !== "string") {
+        pushPath(errors, `${path}.stringValue`, "must be a string");
+      }
+      break;
+    case "boolValue":
+      if (typeof value.boolValue !== "boolean") {
+        pushPath(errors, `${path}.boolValue`, "must be a boolean");
+      }
+      break;
+    case "intValue":
+      validateInt64String(errors, `${path}.intValue`, value.intValue);
+      break;
+    case "doubleValue":
+      if (typeof value.doubleValue !== "number" || !Number.isFinite(value.doubleValue)) {
+        pushPath(errors, `${path}.doubleValue`, "must be a finite number");
+      }
+      break;
+    case "bytesValue":
+      if (typeof value.bytesValue !== "string") {
+        pushPath(errors, `${path}.bytesValue`, "must be a base64 string");
+      }
+      break;
+    case "arrayValue": {
+      if (!isRecord(value.arrayValue)) {
+        pushPath(errors, `${path}.arrayValue`, "must be an object");
+        break;
+      }
+      const values = value.arrayValue.values;
+      if (values === undefined) break;
+      if (!Array.isArray(values)) {
+        pushPath(errors, `${path}.arrayValue.values`, "must be an array");
+        break;
+      }
+      values.forEach((item, i) => {
+        validateAnyValue(
+          errors,
+          `${path}.arrayValue.values[${i}]`,
+          item,
+          depth + 1,
+          counters,
+        );
+      });
+      break;
     }
+    case "kvlistValue": {
+      if (!isRecord(value.kvlistValue)) {
+        pushPath(errors, `${path}.kvlistValue`, "must be an object");
+        break;
+      }
+      const values = value.kvlistValue.values;
+      if (values === undefined) break;
+      if (!Array.isArray(values)) {
+        pushPath(errors, `${path}.kvlistValue.values`, "must be an array");
+        break;
+      }
+      values.forEach((item, i) => {
+        const itemPath = `${path}.kvlistValue.values[${i}]`;
+        if (!isRecord(item)) {
+          pushPath(errors, itemPath, "must be a KeyValue object");
+          return;
+        }
+        if (typeof item.key !== "string") {
+          pushPath(errors, `${itemPath}.key`, "must be a string");
+        }
+        validateAnyValue(errors, `${itemPath}.value`, item.value, depth + 1, counters);
+      });
+      break;
+    }
+    default:
+      break;
   }
+}
+
+function validateKeyValueList(
+  errors: string[],
+  path: string,
+  attrs: unknown,
+): void {
+  if (attrs === undefined) return;
+  if (!Array.isArray(attrs)) {
+    pushPath(errors, path, "must be an array");
+    return;
+  }
+  attrs.forEach((attr, ai) => {
+    const attrPath = `${path}[${ai}]`;
+    if (!isRecord(attr)) {
+      pushPath(errors, attrPath, "must be an object");
+      return;
+    }
+    if (typeof attr.key !== "string") {
+      pushPath(errors, `${attrPath}.key`, "must be a string");
+    }
+    validateAnyValue(errors, `${attrPath}.value`, attr.value);
+  });
 }
 
 function validateOtlpJson(content: string): ExportValidationResult {
@@ -83,6 +257,13 @@ function validateOtlpJson(content: string): ExportValidationResult {
       pushPath(errors, rsPath, "must be an object");
       return;
     }
+    if (isRecord(resourceSpan.resource)) {
+      validateKeyValueList(
+        errors,
+        `${rsPath}.resource.attributes`,
+        resourceSpan.resource.attributes,
+      );
+    }
     if (!Array.isArray(resourceSpan.scopeSpans)) {
       pushPath(errors, `${rsPath}.scopeSpans`, "must be an array");
       return;
@@ -92,6 +273,13 @@ function validateOtlpJson(content: string): ExportValidationResult {
       if (!isRecord(scopeSpan)) {
         pushPath(errors, ssPath, "must be an object");
         return;
+      }
+      if (isRecord(scopeSpan.scope)) {
+        validateKeyValueList(
+          errors,
+          `${ssPath}.scope.attributes`,
+          scopeSpan.scope.attributes,
+        );
       }
       if (!Array.isArray(scopeSpan.spans)) {
         pushPath(errors, `${ssPath}.spans`, "must be an array");
@@ -130,57 +318,65 @@ function validateOtlpJson(content: string): ExportValidationResult {
         if (typeof span.name !== "string") {
           pushPath(errors, `${spanPath}.name`, "must be a string");
         }
-        if (
-          typeof span.startTimeUnixNano !== "string" ||
-          !/^\d+$/.test(span.startTimeUnixNano)
-        ) {
-          pushPath(
-            errors,
-            `${spanPath}.startTimeUnixNano`,
-            "must be a decimal-string 64-bit integer",
-          );
-        }
-        if (
-          span.endTimeUnixNano !== undefined &&
-          (typeof span.endTimeUnixNano !== "string" ||
-            !/^\d+$/.test(span.endTimeUnixNano))
-        ) {
-          pushPath(
+
+        validateUint64String(
+          errors,
+          `${spanPath}.startTimeUnixNano`,
+          span.startTimeUnixNano,
+          "startTimeUnixNano",
+        );
+        if (span.endTimeUnixNano !== undefined) {
+          validateUint64String(
             errors,
             `${spanPath}.endTimeUnixNano`,
-            "must be a decimal-string 64-bit integer when present",
+            span.endTimeUnixNano,
+            "endTimeUnixNano",
           );
         }
         if (
           typeof span.startTimeUnixNano === "string" &&
-          /^\d+$/.test(span.startTimeUnixNano) &&
-          typeof span.endTimeUnixNano === "string" &&
-          /^\d+$/.test(span.endTimeUnixNano)
+          typeof span.endTimeUnixNano === "string"
         ) {
-          try {
-            if (BigInt(span.endTimeUnixNano) < BigInt(span.startTimeUnixNano)) {
-              pushPath(
-                errors,
-                `${spanPath}.endTimeUnixNano`,
-                "must be >= startTimeUnixNano",
-              );
-            }
-          } catch {
-            pushPath(errors, `${spanPath}.endTimeUnixNano`, "out of integer range");
+          const start = parseDecimalIntegerString(span.startTimeUnixNano);
+          const end = parseDecimalIntegerString(span.endTimeUnixNano);
+          if (start.ok && end.ok && end.n < start.n) {
+            pushPath(
+              errors,
+              `${spanPath}.endTimeUnixNano`,
+              "must be >= startTimeUnixNano",
+            );
           }
         }
 
-        if (Array.isArray(span.attributes)) {
-          span.attributes.forEach((attr, ai) => {
-            const attrPath = `${spanPath}.attributes[${ai}]`;
-            if (!isRecord(attr)) {
-              pushPath(errors, attrPath, "must be an object");
+        validateKeyValueList(errors, `${spanPath}.attributes`, span.attributes);
+
+        if (Array.isArray(span.events)) {
+          span.events.forEach((event, ei) => {
+            const eventPath = `${spanPath}.events[${ei}]`;
+            if (!isRecord(event)) {
+              pushPath(errors, eventPath, "must be an object");
               return;
             }
-            if (typeof attr.key !== "string") {
-              pushPath(errors, `${attrPath}.key`, "must be a string");
+            if (event.timeUnixNano !== undefined) {
+              validateUint64String(
+                errors,
+                `${eventPath}.timeUnixNano`,
+                event.timeUnixNano,
+                "timeUnixNano",
+              );
             }
-            validateAnyValue(errors, `${attrPath}.value`, attr.value);
+            validateKeyValueList(errors, `${eventPath}.attributes`, event.attributes);
+          });
+        }
+
+        if (Array.isArray(span.links)) {
+          span.links.forEach((link, li) => {
+            const linkPath = `${spanPath}.links[${li}]`;
+            if (!isRecord(link)) {
+              pushPath(errors, linkPath, "must be an object");
+              return;
+            }
+            validateKeyValueList(errors, `${linkPath}.attributes`, link.attributes);
           });
         }
 

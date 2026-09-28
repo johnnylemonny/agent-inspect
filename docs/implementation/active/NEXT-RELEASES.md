@@ -7,12 +7,9 @@
 
 ## Sequence
 
-1. **6.31.11** — suite/capture trust follow-through — **published**
-2. **C00** — Reconcile current-state ROADMAP/state tables to 6.31.11 — **implemented**
-3. **C01** — Promptfoo recipe + reviewer-kit verifier integrity — **implemented** (proposed **6.31.12**)
-4. **C02–C03** — Strict nested suite config; OpenAI SDK boundary/IDs/retries — **implemented** (proposed **6.31.12**)
-5. **C04–C06** — Run duration; logical execution-step counts; OTLP recursive validation — **next** (proposed **6.31.13**)
-6. **C07–C09** — Structured Collector/Elastic verifiers — queued (proposed **6.31.14**); **C10** actual Elastic blocked on credentials
+1. **6.31.12** — C00–C03 verifiers + SDK — **published**
+2. **C04–C06** — Run duration; logical/execution counts; OTLP recursive validation — **shipping** (proposed **6.31.13**)
+3. **C07–C09** — Structured Collector/Elastic verifiers — queued (proposed **6.31.14**); **C10** actual Elastic blocked on credentials
 7. **Demo D03–D07** — journal, live profiles, failure retention, native evidence, ledger — separate repo
 8. **C11–C12** — Executable/packed matrix; docs/case studies — queued (proposed **6.31.15**)
 9. **6.32.0** — existing external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**

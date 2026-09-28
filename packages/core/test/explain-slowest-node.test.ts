@@ -69,6 +69,13 @@ describe("explain run.slowestNode", () => {
     expect(value.name).toBe("llm:generate-answer");
     expect(value.durationMs).toBe(2044);
 
+    const executionCount = explained.facts.find((f) => f.id === "run.executionStepCount");
+    expect(typeof executionCount?.value).toBe("number");
+    expect(executionCount!.value as number).toBeLessThanOrEqual(
+      logicalSteps!.value as number,
+    );
+    expect(value.kind).not.toBe("OUTCOME");
+
     // Raw tree slowest remains unchanged for compatibility.
     const slowestRaw = explained.facts.find((f) => f.id === "run.slowestNode");
     expect((slowestRaw!.value as { name: string }).name).toBe("llm_001");
