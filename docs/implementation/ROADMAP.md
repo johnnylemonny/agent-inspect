@@ -1,7 +1,7 @@
 # AgentInspect Canonical Roadmap (permanent)
 
 **Baseline:** `agent-inspect@6.31.11` (published)
-**Roadmap horizon:** stability through **6.31.14** published; matrix/docs **6.31.15** (proposed); **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Roadmap horizon:** stability through **6.31.15** published; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
 **Status:** **6.31.11 published**; named train `stability-after-63111`; next = C00 reconcile + C01 Promptfoo verifiers; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
 **Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
@@ -89,7 +89,7 @@ The canonical release sequence is:
 6.31.12 Promptfoo verifiers, strict suite config, OpenAI SDK boundary  (published)
 6.31.13 Run duration, logical execution-step counts, OTLP recursive validation  (published)
 6.31.14 Collector/Elastic structured identity verifiers  (published; actual Elastic = C10 gate)
-6.31.15 Proposed: executable/packed matrix + docs consolidation  (slot)
+6.31.15 Executable/packed matrix + docs consolidation  (published)
 
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
@@ -205,8 +205,7 @@ Fail-closed deterministic gate hardening:
 | **6.28.0** | Reviewer-reproducible Evidence | resolved contract binding | Published |
 | **6.29.0**–**6.29.6** | Usage fidelity through safe sharing | published line | Published |
 | **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | Published |
-| **6.31.0**–**6.31.14** | Typed ordering through transport identity verifiers | published line | Published |
-| **6.31.15** | Matrix + docs consolidation | packed CI / case studies | **Proposed** patch slot |
+| **6.31.0**–**6.31.15** | Typed ordering through matrix/docs consolidation | published line | Published |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 

@@ -18,8 +18,7 @@ Core boundary frozen; evidence-backed **security, correctness, compatibility, in
 
 | Release | Theme | Status |
 | ------- | ----- | ------ |
-| **6.19.0**–**6.31.14** | Adoption through transport identity verifiers | Published |
-| **6.31.15** | Executable/packed matrix + docs consolidation | **Proposed** patch slot |
+| **6.19.0**–**6.31.15** | Adoption through matrix/docs consolidation | Published |
 | **6.32.0** | Conditional external conformance + compact review | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Runnable integrations when additive | Conditional minor |
 | **7.0.0** | Major | Assessment only / **NO-GO** |
