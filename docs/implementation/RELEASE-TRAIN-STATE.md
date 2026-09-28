@@ -9,15 +9,15 @@ baselineVersion: "6.31.16"
 publishedVersion: "6.31.16"
 pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "reopen-patches-ready-for-publish"
+trainStatus: "halted-at-external-gate"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "C01+C07–C09+C11 reopen implemented; await 6.31.16 publish"
-lastConfirmedCommit: "58b1f20d"
-lastValidationLevel: "pnpm test:integration-offline green (matrix, helpers, elastic stubs, openai boundary, collector/elastic offline)"
-nextAction: "Push + Version Packages → Trusted Publish 6.31.16; then demo D03–D07; no 6.32 without EVIDENCE_GATE"
-pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); demo D03–D07"
+currentChunk: "6.31.16 reopen published; 6.32 blocked"
+lastConfirmedCommit: "77961887"
+lastValidationLevel: "6.31.16 Version Packages #479; publish 36484978078 + republish 36486443360; ALL 18 OK on npm; test:integration-offline in CI"
+nextAction: "STOP — no 6.32 Changeset without EVIDENCE_GATE; optional C10 Elastic --live when credentials available"
+pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10)"
 githubIssues:
   "450": "open — permission granted; private v3 qualified; partner Revera pending"
   "437": "open — receipt/idempotency; later evidence train"
@@ -25,33 +25,28 @@ githubIssues:
 canonicalRoadmap: "docs/implementation/ROADMAP.md"
 activePlan: "docs/implementation/active/NEXT-RELEASES.md"
 completedChunks:
-  - "6.31.15 C11–C12 matrix docs published (#478) — acceptance incomplete per audit"
-  - "6.31.14 C07–C09 identity published (#477) — selected fields / live path incomplete"
-  - "6.31.13 C04–C06 (#476) — verified"
-  - "6.31.12 C00–C03 (#474) — suite/OpenAI boundary verified; Promptfoo assertions incomplete"
+  - "6.31.16 C01+C07–C09+C11 reopen (#479)"
+  - "6.31.15 C11–C12 matrix docs (#478) — acceptance completed in 6.31.16"
+  - "6.31.14 C07–C09 identity (#477) — selected fields/live path completed in 6.31.16"
+  - "6.31.13 C04–C06 (#476)"
+  - "6.31.12 C00–C03 (#474)"
 queuedChunks:
-  - "C00 ledger reopen (this)"
-  - "C01 Promptfoo exact assertions (6.31.16)"
-  - "C07 selected-field comparator"
-  - "C08 Collector attrs + NDJSON merge (6.31.17)"
-  - "C09 Elastic live-path controls (6.31.18)"
-  - "C11 CI wiring + OpenAI maintained tests + docs (6.31.19)"
-  - "C10 actual Elastic when credentials available"
-  - "Demo D03–D07 (separate repo)"
   - "6.32.0 external-evidence gate (BLOCKED)"
+  - "C10 actual Elastic when credentials available"
+  - "Demo D03–D07 (proactive-ai-demo)"
 blockedTrains:
   - "v7.0.0 (assessment only — V7_DECISION: NO-GO)"
   - "6.32.0 until EVIDENCE_GATE approved"
 amendments:
   - "Adoption freeze excluded"
-  - "2026-09-28 closure audit: reopen C01, C07–C09, C11; keep verified core fixes"
+  - "2026-09-28 closure audit reopen shipped as 6.31.16"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.15
-  ACTIVE: stability-after-63111 (reopened incomplete acceptance)
-  NEXT: C01 → 6.31.16; EVIDENCE_GATE required before any 6.32 Changeset
+  LAST_PUBLISHED_RELEASE: 6.31.16
+  ACTIVE: stability-after-63111 (halted at external gate)
+  NEXT: EVIDENCE_GATE worksheet required before any 6.32 Changeset
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded

@@ -1,29 +1,25 @@
-# Active execution plan — after 6.31.15 closure audit
+# Active execution plan — after 6.31.16
 
 **Authority:** [../ROADMAP.md](../ROADMAP.md)
-**Baseline:** **published** `agent-inspect@6.31.15`
+**Baseline:** **published** `agent-inspect@6.31.16`
 **Named train:** `stability-after-63111`
-**Program status:** patch slots **published but incomplete** per 2026-09-28 closure audit; **reopen C01, C07–C09, C11**; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
+**Program status:** reopen patches **published**; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
 
 ## Sequence
 
-1. **6.31.12** — C00–C03 suite + OpenAI boundary — **published** (Promptfoo assertion identity **reopened**)
-2. **6.31.13** — C04–C06 timing + OTLP bounds — **published** (verified)
-3. **6.31.14** — C07–C09 transport identity — **published** (selected fields / NDJSON re-import / Elastic live path **reopened**)
-4. **6.31.15** — C11–C12 matrix + docs — **published** (CI wiring + kit provenance **reopened**)
-5. **C00** — Correct completion ledger + retarget EXTERNAL-ACCEPTANCE-GATE — **done**
-6. **6.31.16** — C01 + C07–C09 + C11 reopen (exact Promptfoo, selected fields, NDJSON merge, Elastic stubs, CI) — **changeset ready**
-7. **C10** actual Elastic — credential-gated
-8. **Demo D03–D07** — separate repo (`proactive-ai-demo`)
-9. **6.32.0** — external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE**
-10. **6.33.0** — conditional additive usability — only if justified
-11. **v7** — NO-GO
+1. **6.31.12**–**6.31.15** — stability train — **published**
+2. **6.31.16** — C01 + C07–C09 + C11 reopen — **published** (all 18 packages)
+3. **C10** actual Elastic — credential-gated
+4. **Demo D03–D07** — `proactive-ai-demo` (PR #1)
+5. **6.32.0** — external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
+6. **6.33.0** — conditional additive usability — only if justified
+7. **v7** — NO-GO
 
 ## Claim discipline
 
-- Synthetic verifier controls ≠ actual Promptfoo/Collector/Elastic execution
-- Offline Pass rows that the audit reproduced as false-green are labeled **Partial** in [TESTED-SUPPORT-MATRIX.md](../TESTED-SUPPORT-MATRIX.md)
-- Do not open a Changeset for **6.32.0** without an approved worksheet ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
+- Synthetic verifier / stub controls ≠ actual Docker Collector or credentialed Elastic execution
+- Pending Docker/Elastic live rows stay labeled pending in [TESTED-SUPPORT-MATRIX.md](../TESTED-SUPPORT-MATRIX.md)
+- Do not open a Changeset for **6.32.0** without an approved worksheet
 
 ## Stop rules
 
@@ -34,9 +30,9 @@
 ## External stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.15
-ACTIVE: stability-after-63111 (reopened incomplete acceptance)
-NEXT: C01 Promptfoo exact assertions (6.31.16)
+LAST_PUBLISHED_RELEASE: 6.31.16
+ACTIVE: stability-after-63111 (halted at external gate)
+NEXT: EVIDENCE_GATE worksheet required before any 6.32 Changeset
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded

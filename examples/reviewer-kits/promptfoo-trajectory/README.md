@@ -15,7 +15,7 @@ Standalone reproduction kit for the answer-vs-trajectory matrix.
 
 ## Pins
 
-- `agent-inspect@6.31.15` (see `package.json` / `package-lock.json`)
+- `agent-inspect@6.31.16` (see `package.json` / `package-lock.json`)
 - `promptfoo@0.118.17`
 - Node `>=20` (verified intent: Node 22.x)
 - Lockfile: `package-lock.json` is committed for reproducible standalone installs
