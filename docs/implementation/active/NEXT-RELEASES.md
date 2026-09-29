@@ -10,7 +10,7 @@
 1. **6.31.12**–**6.31.15** — stability train — **published**
 2. **6.31.16** — C01 + C07–C09 + C11 reopen — **published** (all 18 packages)
 3. **C10** actual Elastic — credential-gated
-4. **Demo D03–D07** — `proactive-ai-demo` (PR #1)
+4. **Demo D03–D07** — `proactive-ai-demo` #1 **merged**; pin **6.31.16** via #2 **merged**
 5. **6.32.0** — external-evidence gate — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
 6. **6.33.0** — conditional additive usability — only if justified
 7. **v7** — NO-GO

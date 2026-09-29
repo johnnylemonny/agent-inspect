@@ -5,11 +5,11 @@ executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
 trainStatus: "halted-at-external-gate"
-currentChunk: "6.31.16 reopen published; 6.32 blocked"
-nextAction: "Do not open 6.32 Changeset until EVIDENCE_GATE approved; C10 Elastic --live when credentials; demo D03–D07 PR merged or follow-up"
+currentChunk: "6.31.16 published; demo pin 6.31.16 merged; 6.32 blocked"
+nextAction: "Do not open 6.32 Changeset until EVIDENCE_GATE approved; C10 Elastic --live when credentials; Collector Docker when environment available"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
-pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live"
+pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live; Collector Docker"
 worktreeIgnoreOnly:
   - .redstamp/
   - redstamp-proposal-issue-body.md
@@ -24,8 +24,10 @@ worktreeIgnoreOnly:
 | Item | Status |
 | --- | --- |
 | 6.31.12–6.31.16 | **published** |
+| Demo D03–D07 | **merged** (proactive-ai-demo #1) |
+| Demo pin → 6.31.16 | **merged** (proactive-ai-demo #2) |
 | C10 actual Elastic | **pending** credentials |
-| Demo D03–D07 | proactive-ai-demo PR #1 |
+| Collector Docker live | **pending** environment |
 | 6.32.0 | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 
 ## Stop marker
