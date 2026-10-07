@@ -449,16 +449,20 @@ function actionForRule(rule: CompiledRule): RedactionAction {
 }
 
 /**
- * True when the entire value is an approved complete redaction/hash placeholder.
+ * True when the entire value is a library-emitted complete redaction/hash placeholder.
  * Marker-plus-residual content returns false so detectors still fire.
+ *
+ * Do not trust arbitrary `[REDACTED:…]` / `[HASH:…]` payloads — those can smuggle
+ * canaries past sensitive-key rules. Accept only the configured replacement,
+ * `[HASH:<8 lowercase hex>]` from `stableHash`, and `[HASH:unknown]`.
  */
 function isCompleteRedactionMarker(value: unknown, replacement = "[REDACTED]"): boolean {
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (trimmed.length === 0) return false;
   if (trimmed === replacement) return true;
-  if (/^\[HASH:[A-Za-z0-9_-]+\]$/.test(trimmed)) return true;
-  if (/^\[REDACTED:[^\]]*\]$/.test(trimmed)) return true;
+  if (trimmed === "[HASH:unknown]") return true;
+  if (/^\[HASH:[0-9a-f]{8}\]$/.test(trimmed)) return true;
   return false;
 }
 

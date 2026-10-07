@@ -1081,7 +1081,7 @@ describe("built-in structure and safety checks", () => {
         task: "[REDACTED]",
         userId: "[REDACTED]",
         sessionId: "[REDACTED]",
-        prompt: "[REDACTED:prompt]",
+        prompt: "[HASH:abcdef12]",
       },
     });
     const scrubbedResult = runTraceChecks(
@@ -1090,6 +1090,23 @@ describe("built-in structure and safety checks", () => {
     );
     expect(scrubbedResult.status).toBe("pass");
     expect(scrubbedResult.findings.filter((f) => f.ruleId === "safety.rawPrompt")).toEqual([]);
+
+    const forged = persisted("event-forged-marker", {
+      attributes: {
+        prompt: "[REDACTED:canary_ZX936_UserSecret]",
+        currentTask: "[HASH:canary]",
+      },
+    });
+    const forgedResult = runTraceChecks(
+      { read: readResult([forged]) },
+      { rules: [createSafetyRawContentRule()] },
+    );
+    const forgedPaths = forgedResult.findings
+      .filter((finding) => finding.ruleId === "safety.rawPrompt")
+      .map((finding) => finding.evidence[0]?.path ?? "");
+    expect(forgedPaths).toEqual(
+      expect.arrayContaining(["attributes.prompt", "attributes.currentTask"]),
+    );
 
     const residual = persisted("event-residual", {
       attributes: {

@@ -4,9 +4,9 @@
 executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
-trainStatus: "oct7-w00-reconciled; next W26 → 6.31.17"
-currentChunk: "W00 reconciled at 09da2a3d; published npm 6.31.16; merged-unreleased #473+#480"
-nextAction: "W26 sensitive-key marker fix → Changeset 6.31.17 (W26 + Windows #473) → Version Packages → Trusted Publish; then W01 residual verifiers"
+trainStatus: "compose 6.31.17 (W26 + Windows #473); awaiting Version Packages / publish"
+currentChunk: "W26 marker fix + Changeset + matrix honesty staged for 6.31.17"
+nextAction: "Push → CI green → Version Packages → Trusted Publish; verify all 18 == 6.31.17; then W01"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
 pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live; Collector Docker"

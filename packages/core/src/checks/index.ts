@@ -776,7 +776,7 @@ const DEFAULT_SECRET_PATTERNS: readonly SafetySecretPattern[] = [
   {
     id: "key-value-secret",
     pattern:
-      /\b(?:api[_-]?key|internal[_-]?token|access[_-]?token|auth[_-]?token|password|secret|token)=(?!\[(?:REDACTED(?::[^\]]*)?|HASH:[0-9a-f]{8})\](?![^\s"'\\&#?]))([^\s"'\\]{8,})/i,
+      /\b(?:api[_-]?key|internal[_-]?token|access[_-]?token|auth[_-]?token|password|secret|token)=(?!\[(?:REDACTED|HASH:(?:[0-9a-f]{8}|unknown))\](?![^\s"'\\&#?]))([^\s"'\\]{8,})/i,
   },
 ];
 
@@ -1389,8 +1389,9 @@ function limitFindings(
 }
 
 /**
- * True when the entire string is a redaction/hash placeholder — not merely
- * contains a marker beside residual sensitive text.
+ * True when the entire string is a library-emitted redaction/hash placeholder —
+ * not merely contains a marker beside residual sensitive text, and not an
+ * arbitrary `[REDACTED:…]` / `[HASH:…]` payload that can smuggle canaries.
  */
 function isFullyRedactedValue(
   value: unknown,
@@ -1399,9 +1400,10 @@ function isFullyRedactedValue(
   if (typeof value !== "string") return false;
   const trimmed = value.trim();
   if (trimmed.length === 0) return false;
-  if (/^\[HASH:[A-Za-z0-9_-]+\]$/.test(trimmed)) return true;
-  if (/^\[REDACTED:[^\]]*\]$/.test(trimmed)) return true;
+  if (trimmed === "[HASH:unknown]") return true;
+  if (/^\[HASH:[0-9a-f]{8}\]$/.test(trimmed)) return true;
   for (const marker of markers) {
+    // Colon-suffix forms in options are legacy prefix hints, not wildcards.
     if (marker.endsWith(":")) continue;
     if (trimmed === marker) return true;
   }

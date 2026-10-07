@@ -15,16 +15,40 @@ describe("@agent-inspect/redact", () => {
     const result = redact({
       apiKey: "[REDACTED]",
       token: "[HASH:abcdef12]",
-      password: "[REDACTED:share]",
+      password: "[HASH:unknown]",
       stillSecret: "live-secret-value",
     });
     expect(result.value).toEqual({
       apiKey: "[REDACTED]",
       token: "[HASH:abcdef12]",
-      password: "[REDACTED:share]",
+      password: "[HASH:unknown]",
       stillSecret: "[REDACTED]",
     });
     expect(result.findings.map((f) => f.path)).toEqual(["stillSecret"]);
+  });
+
+  it("reapplies sensitive-key rules for forged complete-marker payloads", () => {
+    const result = redact(
+      {
+        apiKey: "[REDACTED:canary_ZX936_UserSecret]",
+        token: "[HASH:canary]",
+        password: "[REDACTED:share]",
+      },
+      { profile: "share" },
+    );
+    expect(result.value).toEqual({
+      apiKey: "[REDACTED]",
+      token: "[REDACTED]",
+      password: "[REDACTED]",
+    });
+    expect(result.findings.map((f) => f.path).sort()).toEqual([
+      "apiKey",
+      "password",
+      "token",
+    ]);
+    expect(JSON.stringify(result)).not.toContain("canary_ZX936_UserSecret");
+    expect(JSON.stringify(result)).not.toContain("[HASH:canary]");
+    expect(JSON.stringify(result)).not.toContain("[REDACTED:share]");
   });
 
   it("still finds residual secrets after an incomplete marker prefix", () => {

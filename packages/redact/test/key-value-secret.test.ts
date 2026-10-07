@@ -50,7 +50,7 @@ describe("value.keyValueSecret (#327)", () => {
     "duration=500ms",
     "token=[REDACTED]",
     "api_key=[HASH:abcdef12]",
-    "password=[REDACTED:full]",
+    "password=[HASH:unknown]",
   ])("does not redact lookalike %s", (value) => {
     expect(valueContainsKeyValueSecret(value)).toBe(false);
     const result = redact({ value }, { profile: "share" });
@@ -67,6 +67,9 @@ describe("value.keyValueSecret (#327)", () => {
     "token=[REDACTED]/synthetic_ZX936_Secret_Only",
     "detail=\"token=[REDACTED]/synthetic_ZX936_Secret_Only\"",
     "token=[REDACTED];synthetic_ZX936_Secret_Only",
+    "password=[REDACTED:full]",
+    "token=[REDACTED:canary_ZX936_UserSecret]",
+    "api_key=[HASH:canary_payload]",
   ])("still redacts incomplete-marker residual %s", (value) => {
     expect(valueContainsKeyValueSecret(value)).toBe(true);
     const result = redact({ value }, { profile: "share" });

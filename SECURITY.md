@@ -62,6 +62,7 @@ AgentInspect aims to be safe-by-default for **log-derived attributes** and **exp
 
 - Log ingestion applies redaction to parsed attributes using configured rules (with conservative defaults).
 - Exporters default to redacted output and bounded attribute previews.
+- Sensitive-key complete-marker bypass trusts only library-emitted placeholders (`[REDACTED]`, `[HASH:<8 hex>]`, `[HASH:unknown]`). Arbitrary `[REDACTED:…]` / `[HASH:…]` strings are re-scrubbed. Report residual marker-grammar gaps via a private advisory when possible.
 
 Important limitations:
 
