@@ -8,6 +8,7 @@ import {
   mergeOtlpBatchesToDocument,
   normalizeOtlpBatches,
   otlpAttrString,
+  readOtlpAnyValue,
   spanIdentityKey,
 } from "./helpers.mjs";
 
@@ -159,6 +160,70 @@ describe("compareSelectedSpanFields", () => {
       requireToolName: "lookup_orders",
     });
     assert.equal(result.ok, true, result.errors.join("; "));
+    assert.deepEqual(result.comparedKeys, [
+      "agent_inspect.run_id",
+      "agent_inspect.source.type",
+      "gen_ai.request.model",
+    ]);
+  });
+
+  it("fails when selected intValue is missing or changed", () => {
+    const tokenKey = "gen_ai.usage.input_tokens";
+    const expected = [
+      span({
+        spanId: "1".repeat(16),
+        attributes: [
+          { key: "agent_inspect.run_id", value: { stringValue: "run_x" } },
+          { key: "agent_inspect.source.type", value: { stringValue: "ai-sdk" } },
+          { key: "gen_ai.request.model", value: { stringValue: "fixture-generate" } },
+          { key: tokenKey, value: { intValue: 4 } },
+        ],
+      }),
+    ];
+    const missing = compareSelectedSpanFields(expected, [span({ spanId: "1".repeat(16) })], {
+      attributeKeys: [tokenKey],
+      requireToolName: undefined,
+    });
+    assert.equal(missing.ok, false);
+    assert.ok(missing.errors.some((e) => /missing attribute gen_ai.usage.input_tokens/.test(e)));
+
+    const changed = compareSelectedSpanFields(
+      expected,
+      [
+        span({
+          spanId: "1".repeat(16),
+          attributes: [
+            { key: tokenKey, value: { intValue: 999 } },
+          ],
+        }),
+      ],
+      { attributeKeys: [tokenKey], requireToolName: undefined },
+    );
+    assert.equal(changed.ok, false);
+    assert.ok(changed.errors.some((e) => /transformed: expected 4 got 999/.test(e)));
+
+    const same = compareSelectedSpanFields(expected, expected, {
+      attributeKeys: [tokenKey],
+      requireToolName: undefined,
+    });
+    assert.equal(same.ok, true, same.errors.join("; "));
+  });
+
+  it("preserves intValue precision above MAX_SAFE_INTEGER", () => {
+    const key = "custom.big_int";
+    const big = "9007199254740993";
+    const expected = [
+      span({
+        spanId: "1".repeat(16),
+        attributes: [{ key, value: { intValue: big } }],
+      }),
+    ];
+    const ok = compareSelectedSpanFields(expected, expected, {
+      attributeKeys: [key],
+      requireToolName: undefined,
+    });
+    assert.equal(ok.ok, true, ok.errors.join("; "));
+    assert.equal(readOtlpAnyValue(expected[0], key).value, big);
   });
 });
 

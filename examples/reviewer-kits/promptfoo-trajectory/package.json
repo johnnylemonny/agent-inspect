@@ -4,10 +4,10 @@
   "type": "module",
   "scripts": {
     "verify": "node verify.mjs",
-    "test:matrix": "node --test lib/matrix-interpret.test.mjs"
+    "test:matrix": "node --test lib/matrix-interpret.test.mjs lib/resolve-agent-inspect-version.test.mjs"
   },
   "dependencies": {
-    "agent-inspect": "6.31.16",
+    "agent-inspect": "^6.31.17",
     "promptfoo": "0.118.17"
   },
   "engines": {

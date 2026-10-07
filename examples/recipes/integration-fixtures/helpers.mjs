@@ -136,21 +136,94 @@ export function collectSpans(batch) {
  * @param {{ runId: string; toolName: string; requireNumericStatus?: boolean }} expected
  */
 /**
+ * Read a typed OTLP AnyValue for an attribute key.
+ * Integer precision is preserved as a decimal string (supports values above
+ * Number.MAX_SAFE_INTEGER when the wire form is a string/bigint).
+ *
+ * @param {Record<string, unknown>} span
+ * @param {string} key
+ * @returns {{ present: false } | { present: true, kind: string, value?: string|boolean|number, detail?: string }}
+ */
+export function readOtlpAnyValue(span, key) {
+  const attrs = span.attributes;
+  if (!Array.isArray(attrs)) return { present: false };
+  const matches = attrs.filter((a) => a && typeof a === "object" && a.key === key);
+  if (matches.length === 0) return { present: false };
+  if (matches.length > 1) {
+    return {
+      present: true,
+      kind: "unsupported",
+      detail: `duplicate attribute key (${matches.length})`,
+    };
+  }
+  const hit = matches[0];
+  const value = /** @type {{ value?: unknown }} */ (hit).value;
+  if (value === undefined || value === null) {
+    return { present: true, kind: "empty" };
+  }
+  if (typeof value === "string") {
+    return { present: true, kind: "string", value };
+  }
+  if (typeof value !== "object") {
+    return { present: true, kind: "unsupported", detail: typeof value };
+  }
+  const v = /** @type {Record<string, unknown>} */ (value);
+  if (typeof v.stringValue === "string") {
+    return { present: true, kind: "string", value: v.stringValue };
+  }
+  if ("intValue" in v) {
+    const raw = v.intValue;
+    if (typeof raw === "bigint") {
+      return { present: true, kind: "int", value: raw.toString() };
+    }
+    if (typeof raw === "number" && Number.isInteger(raw)) {
+      return { present: true, kind: "int", value: String(raw) };
+    }
+    if (typeof raw === "string" && /^-?\d+$/.test(raw)) {
+      return { present: true, kind: "int", value: raw };
+    }
+    return { present: true, kind: "unsupported", detail: "intValue" };
+  }
+  if ("boolValue" in v) {
+    return { present: true, kind: "bool", value: Boolean(v.boolValue) };
+  }
+  if (typeof v.doubleValue === "number") {
+    return { present: true, kind: "double", value: v.doubleValue };
+  }
+  if (typeof v.bytesValue === "string") {
+    return { present: true, kind: "bytes", value: v.bytesValue };
+  }
+  if (v.arrayValue && typeof v.arrayValue === "object") {
+    return {
+      present: true,
+      kind: "array",
+      value: JSON.stringify(v.arrayValue),
+    };
+  }
+  if (v.kvlistValue && typeof v.kvlistValue === "object") {
+    return {
+      present: true,
+      kind: "kvlist",
+      value: JSON.stringify(v.kvlistValue),
+    };
+  }
+  return {
+    present: true,
+    kind: "unsupported",
+    detail: Object.keys(v).sort().join(",") || "empty-object",
+  };
+}
+
+/**
  * Read an OTLP attribute stringValue (or string) from a span.
+ * Prefer {@link readOtlpAnyValue} when comparing selected typed fields.
  * @param {Record<string, unknown>} span
  * @param {string} key
  */
 export function otlpAttrString(span, key) {
-  const attrs = span.attributes;
-  if (!Array.isArray(attrs)) return undefined;
-  const hit = attrs.find((a) => a && typeof a === "object" && a.key === key);
-  if (!hit || typeof hit !== "object") return undefined;
-  const value = /** @type {{ value?: { stringValue?: unknown } | string }} */ (hit).value;
-  if (typeof value === "string") return value;
-  if (value && typeof value === "object" && typeof value.stringValue === "string") {
-    return value.stringValue;
-  }
-  return undefined;
+  const typed = readOtlpAnyValue(span, key);
+  if (!typed.present || typed.kind !== "string") return undefined;
+  return /** @type {string} */ (typed.value);
 }
 
 /**
@@ -191,13 +264,34 @@ export function compareSelectedSpanFields(expectedSpans, destinationSpans, opts 
       continue;
     }
     for (const key of keys) {
-      const expVal = otlpAttrString(exp, key);
-      const gotVal = otlpAttrString(got, key);
-      if (expVal !== undefined && gotVal === undefined) {
-        errors.push(`span ${id} missing attribute ${key}`);
-      } else if (expVal !== undefined && gotVal !== expVal) {
+      const expVal = readOtlpAnyValue(exp, key);
+      // Policy: compare a selected key only when the expected span emits it.
+      // Missing-on-source is not a destination retention claim for that span.
+      if (!expVal.present) continue;
+      if (expVal.kind === "unsupported" || expVal.kind === "empty") {
         errors.push(
-          `span ${id} attribute ${key} transformed: expected ${expVal} got ${gotVal}`,
+          `span ${id} source attribute ${key} unsupported selected type (${expVal.detail ?? expVal.kind})`,
+        );
+        continue;
+      }
+      const gotVal = readOtlpAnyValue(got, key);
+      if (!gotVal.present) {
+        errors.push(`span ${id} missing attribute ${key}`);
+        continue;
+      }
+      if (gotVal.kind === "unsupported" || gotVal.kind === "empty") {
+        errors.push(
+          `span ${id} attribute ${key} unsupported selected type (${gotVal.detail ?? gotVal.kind})`,
+        );
+        continue;
+      }
+      if (expVal.kind !== gotVal.kind) {
+        errors.push(
+          `span ${id} attribute ${key} type changed: expected ${expVal.kind} got ${gotVal.kind}`,
+        );
+      } else if (expVal.value !== gotVal.value) {
+        errors.push(
+          `span ${id} attribute ${key} transformed: expected ${String(expVal.value)} got ${String(gotVal.value)}`,
         );
       }
     }
@@ -216,7 +310,11 @@ export function compareSelectedSpanFields(expectedSpans, destinationSpans, opts 
     }
   }
 
-  return { ok: errors.length === 0, errors };
+  return {
+    ok: errors.length === 0,
+    errors,
+    comparedKeys: [...keys],
+  };
 }
 
 /**

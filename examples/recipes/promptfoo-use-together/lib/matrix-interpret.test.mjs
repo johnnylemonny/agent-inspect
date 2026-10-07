@@ -243,6 +243,48 @@ describe("interpretMatrix", () => {
     assert.equal(result.ok, false);
     assert.match(result.failures.join(" "), /generic|unrelated/i);
   });
+
+  it("rejects wrong-tool when equals targets an unrelated answer string", () => {
+    const rows = [
+      goodMatrix[0],
+      row(
+        CASE_SPECS.wrong.caseId,
+        CASE_SPECS.wrong.description,
+        [
+          {
+            pass: true,
+            assertion: { type: "equals", value: "Unrelated expected answer" },
+            reason: "equals",
+          },
+          traj(false, "trajectory fail for run_y: forbidden tool delete_orders"),
+        ],
+        false,
+      ),
+      goodMatrix[2],
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join(" "), /unrelated|answer assertion target/i);
+  });
+
+  it("rejects wrong-tool when trajectory fails only for missing run metadata", () => {
+    const rows = [
+      goodMatrix[0],
+      row(
+        CASE_SPECS.wrong.caseId,
+        CASE_SPECS.wrong.description,
+        [
+          equals(true),
+          traj(false, "missing run metadata"),
+        ],
+        false,
+      ),
+      goodMatrix[2],
+    ];
+    const result = interpretMatrix(rows);
+    assert.equal(result.ok, false);
+    assert.match(result.failures.join(" "), /missing-metadata cause|tool contract/i);
+  });
 });
 
 describe("evaluatePromptfooInvocation", () => {

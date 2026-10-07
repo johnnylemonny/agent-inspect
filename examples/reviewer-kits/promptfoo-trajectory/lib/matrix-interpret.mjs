@@ -161,9 +161,11 @@ function assertionReason(c) {
   return String(c?.reason ?? "");
 }
 
-/** Exact equals answer assertion identity (no prose keyword fallback). */
+/** Exact equals answer assertion identity (type + bound target value). */
 function isAnswerComponent(c) {
-  return assertionType(c) === "equals";
+  return (
+    assertionType(c) === "equals" && assertionValue(c) === ANSWER_ASSERT_VALUE
+  );
 }
 
 function isInfrastructureFailureReason(reason) {
@@ -175,14 +177,26 @@ function isInfrastructureFailureReason(reason) {
   );
 }
 
-function isStructuredToolContractReason(reason) {
+/** Missing-metadata case identity — must not satisfy wrong-tool tool-contract. */
+function isMissingMetadataReason(reason) {
+  return /missing metadata|missing run metadata|exact run required/i.test(
+    String(reason ?? ""),
+  );
+}
+
+/** Wrong-tool expected cause: structured tool-contract finding only. */
+function isToolContractFailureReason(reason) {
   const text = String(reason ?? "");
   if (isInfrastructureFailureReason(text)) return false;
-  return (
-    /delete_orders|forbidden tool|lookup_orders|tool contract|trajectory fail|missing metadata|missing run metadata|exact run required/i.test(
-      text,
-    )
+  if (isMissingMetadataReason(text)) return false;
+  return /delete_orders|forbidden tool|lookup_orders|tool contract|trajectory fail/i.test(
+    text,
   );
+}
+
+/** Trajectory classification may accept tool-contract or missing-metadata reasons. */
+function isStructuredToolContractReason(reason) {
+  return isToolContractFailureReason(reason) || isMissingMetadataReason(reason);
 }
 
 /**
@@ -219,8 +233,17 @@ export function overallPass(row) {
  * @returns {{ pass: boolean|undefined, error?: string }}
  */
 function requireAnswerEvidence(row, label) {
-  const comps = componentResults(row).filter(isAnswerComponent);
+  const equalsComps = componentResults(row).filter(
+    (c) => assertionType(c) === "equals",
+  );
+  const comps = equalsComps.filter(isAnswerComponent);
   if (comps.length === 0) {
+    if (equalsComps.length > 0) {
+      return {
+        pass: undefined,
+        error: `${label}: equals answer assertion target must be exactly "${ANSWER_ASSERT_VALUE}" (unrelated/wrong target rejected)`,
+      };
+    }
     return {
       pass: undefined,
       error: `${label}: missing equals answer assertion evidence`,
@@ -379,11 +402,15 @@ export function interpretMatrix(rows) {
   if (wrongTraj === false) {
     if (wrongReason === undefined || wrongReason.trim() === "") {
       failures.push("wrong-tool: trajectory fail missing structured reason");
+    } else if (isMissingMetadataReason(wrongReason)) {
+      failures.push(
+        `wrong-tool: trajectory failed for missing-metadata cause (belongs to missing-metadata case): ${wrongReason.slice(0, 200)}`,
+      );
     } else if (isInfrastructureFailureReason(wrongReason)) {
       failures.push(
         `wrong-tool: trajectory failed for infrastructure/unrelated reason: ${wrongReason.slice(0, 200)}`,
       );
-    } else if (!isStructuredToolContractReason(wrongReason)) {
+    } else if (!isToolContractFailureReason(wrongReason)) {
       failures.push(
         `wrong-tool: trajectory failed for generic/unrelated reason: ${wrongReason.slice(0, 200)}`,
       );
@@ -401,15 +428,23 @@ export function interpretMatrix(rows) {
       "missing-metadata: expected trajectory assertion to fail (explicit false)",
     );
   }
-  if (
-    missingTraj === false &&
-    missingTrajEv.reason !== undefined &&
-    isInfrastructureFailureReason(missingTrajEv.reason) &&
-    !/missing metadata|exact run required/i.test(missingTrajEv.reason)
-  ) {
-    failures.push(
-      `missing-metadata: failed for infrastructure/unrelated reason: ${missingTrajEv.reason.slice(0, 200)}`,
-    );
+  if (missingTraj === false) {
+    const missingReason = missingTrajEv.reason;
+    const missingComp = componentResults(missing).find(isTrajectoryComponent);
+    const hasMissingMarker =
+      missingComp !== undefined &&
+      assertionValue(missingComp).includes("assert-missing-metadata.mjs");
+    if (missingReason === undefined || missingReason.trim() === "") {
+      failures.push("missing-metadata: trajectory fail missing structured reason");
+    } else if (isInfrastructureFailureReason(missingReason)) {
+      failures.push(
+        `missing-metadata: failed for infrastructure/unrelated reason: ${missingReason.slice(0, 200)}`,
+      );
+    } else if (!isMissingMetadataReason(missingReason) && !hasMissingMarker) {
+      failures.push(
+        `missing-metadata: failed for swapped/unrelated cause: ${missingReason.slice(0, 200)}`,
+      );
+    }
   }
 
   const summary = {

@@ -18,6 +18,7 @@ import {
   createInvocationWorkspace,
   evaluatePromptfooInvocation,
 } from "./lib/matrix-interpret.mjs";
+import { resolveAgentInspectVersion } from "./lib/resolve-agent-inspect-version.mjs";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const TRACE_DIR = path.join(__dirname, ".agent-inspect-runs");
@@ -83,6 +84,7 @@ if (existsSync(invocation.resultsPath)) {
 }
 
 const evaluated = evaluatePromptfooInvocation(child, resultsJson);
+const agentInspect = resolveAgentInspectVersion();
 const latestSummary = path.join(RESULTS_ROOT, "matrix-summary.json");
 writeFileSync(
   invocation.summaryPath,
@@ -90,12 +92,15 @@ writeFileSync(
     {
       invocationId: invocation.invocationId,
       childKind: evaluated.childKind,
-      ok: evaluated.ok,
-      failures: evaluated.failures,
+      ok: evaluated.ok && agentInspect.ok,
+      failures: [...evaluated.failures, ...agentInspect.failures],
       summary: evaluated.summary,
       promptfooVersion: PINNED_PROMPTFOO_VERSION,
-      agentInspectPin: "6.31.11",
-      testedNode: ">=20 (kit verified intent: Node 22.x)",
+      agentInspectConfigured: agentInspect.configured,
+      agentInspectResolved: agentInspect.resolved,
+      agentInspectResolvedPath: agentInspect.resolvedPath,
+      testedNode: `>=20 (runtime ${process.version})`,
+      sourceRevision: process.env.GITHUB_SHA ?? null,
     },
     null,
     2,
@@ -122,8 +127,8 @@ if (evaluated.ok) {
   );
 }
 
-if (!evaluated.ok) {
-  for (const message of evaluated.failures) {
+if (!evaluated.ok || !agentInspect.ok) {
+  for (const message of [...evaluated.failures, ...agentInspect.failures]) {
     fail(message);
   }
   if (!existsSync(invocation.resultsPath)) {
