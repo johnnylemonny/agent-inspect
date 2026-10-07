@@ -1,5 +1,14 @@
 # @agent-inspect/mcp-server
 
+## 6.31.17
+
+### Patch Changes
+
+- dc9aaf2: Harden sensitive-key complete-marker handling so arbitrary `[REDACTED:…]` / `[HASH:…]` payloads are re-scrubbed (library-emitted markers only), and ship the already-merged Windows `--policy` drive-path fix.
+- Updated dependencies [dc9aaf2]
+  - agent-inspect@6.31.17
+  - @agent-inspect/redact@6.31.17
+
 ## 6.31.16
 
 ### Patch Changes
