@@ -1,7 +1,7 @@
 # AgentInspect Canonical Roadmap (permanent)
 
 **Baseline:** `agent-inspect@6.31.15` (published)
-**Roadmap horizon:** stability through **6.31.15** published with incomplete acceptance reopened (**C01, C07–C09, C11** → **6.31.16+**); **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Roadmap horizon:** **6.31.16** published; Oct 7 next public **6.31.17** = W26 marker fix + merged Windows `#473`; residual W01+ repo work; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
 **Status:** **6.31.15 published**; named train `stability-after-63111`; next = C01 Promptfoo exact assertions; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
 **Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
@@ -90,10 +90,9 @@ The canonical release sequence is:
 6.31.13 Run duration, logical execution-step counts, OTLP recursive validation  (published)
 6.31.14 Collector/Elastic structured identity verifiers  (published; selected fields / live path reopened; actual Elastic = C10)
 6.31.15 Executable/packed matrix + docs consolidation  (published; CI wiring / kit provenance reopened)
-6.31.16 Proposed: C01 exact Promptfoo assertion identity  (slot)
-6.31.17 Proposed: C07–C08 selected attributes + Collector NDJSON merge  (slot)
-6.31.18 Proposed: C09 Elastic live-path controls  (slot)
-6.31.19 Proposed: C11 CI wiring + OpenAI maintained transport tests  (slot)
+6.31.16 C01 + C07–C09 + C11 verifier acceptance reopen  (published)
+6.31.17 W26 sensitive-key complete-marker + merged Windows --policy (#473)  (next public)
+6.31.18+ Conditional only if a public recovery defect reproduces (omit empty slots)
 
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
@@ -112,6 +111,8 @@ website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 **Amendment (2026-09-22):** After **6.31.6**, named train was `correctness-after-6316`. Website headers (#458) and OTLP BigInt timestamps are done. **6.31.7–6.31.11** subsequently shipped (see sequence).
 
 **Amendment (2026-09-28):** After **6.31.11**, named train is `stability-after-63111`. Slots **6.31.12–6.31.15** published. Closure audit same day **reopens C01, C07–C09, C11** for **6.31.16+**. Stability package chunk IDs (C00–C12) are a new numbering; prior suite-trust C01–C13 are historical closures.
+
+**Amendment (2026-10-07):** **6.31.16** published. Stale “6.31.17 = C07–C08…” slot labels retired (that work shipped in 6.31.16). Next public patch is **6.31.17** = W26 complete-marker hardening + already-merged Windows `#473`. Residual Promptfoo/OTLP/kit controls are W01 (repo-first). **6.32.0** remains blocked.
 
 No major version is required. No new trace schema. No TrueForge-specific package. No full-content capture mode. No general temporal/workflow DSL.
 
@@ -210,7 +211,9 @@ Fail-closed deterministic gate hardening:
 | **6.29.0**–**6.29.6** | Usage fidelity through safe sharing | published line | Published |
 | **6.30.0** | Rich CLI TraceContracts | amends prior comparable-Evidence plan | Published |
 | **6.31.0**–**6.31.15** | Typed ordering through matrix/docs consolidation | published line | Published (partial acceptance; C01/C07–C09/C11 reopened) |
-| **6.31.16**–**6.31.19** | Reopen verifier/CI acceptance patches | proposed slots | Queued |
+| **6.31.16** | Verifier acceptance reopen | published | Done |
+| **6.31.17** | W26 marker + Windows `#473` | next public | Queued |
+| **6.31.18+** | Conditional public recovery only | omit if empty | Queued |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 
