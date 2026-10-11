@@ -4,8 +4,13 @@ export type {
   McpClientLike,
   McpClientTracerOptions,
   McpListToolsResult,
+  McpRequestOptions,
   McpToolDescriptor,
   McpTraceMetadata,
 } from "./types.js";
 export { hashServerUrl, summarizeMcpValue } from "./summarize.js";
-export { resetMcpToolCallIdsForTests, wrapMcpClient } from "./wrap.js";
+export {
+  resetMcpToolCallIdsForTests,
+  resolveCallToolArgs,
+  wrapMcpClient,
+} from "./wrap.js";

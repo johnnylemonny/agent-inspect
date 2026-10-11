@@ -2,19 +2,26 @@
  * meganemura/headsign review fixture (W13).
  * Synthetic transcripts only — never execute recorded shell commands.
  *
- * Historical pin (docs/skills-era CLI contract; not a current headsign integration):
- *   source revision: meganemura/headsign@0.3.x docs / `headsign next` first-line contract
- *   pin label: headsign-cli-contract-2024-docs (historical/docs-only/synthetic)
+ * Historical pin (docs-era CLI contract; not a current headsign integration):
+ *   meganemura/headsign@v0.3.0
+ *   commit e375f96d1332c59bfa824bdc0bad039d336ba605
+ *   https://github.com/meganemura/headsign/blob/e375f96d1332c59bfa824bdc0bad039d336ba605/README.md#the-contract
  *
- * Documented next first-line / exit contract:
- *   ADVANCE|COMPLETE → exit 0  (ADVANCE ≠ COMPLETE semantically; both success exits)
- *   RETRY|PENDING → exit 1
- *   ESCALATE|ABORT → exit 2
- *   config/usage → exit 3
- * status: exit 0 when state readable (incl. ESCALATED/ABORTED); exit 3 when unreadble.
- * status reports state; next advances/completes — do not conflate the two surfaces.
+ * Documented `next` first-line / exit contract (historical):
+ *   ADVANCE <phase> → exit 0  (continue; possibly fail-routed — NOT terminus)
+ *   COMPLETE        → exit 0  (terminus)
+ *   RETRY|PENDING   → exit 1
+ *   ESCALATE|ABORT  → exit 2
+ *   config/usage    → exit 3
+ *
+ * `status` is a separate surface: exit 0 when state readable (incl. ESCALATED/ABORTED);
+ * exit 3 when unreadable. status never prints ADVANCE/RETRY/PENDING.
  */
 type Class = "pass" | "fail";
+
+type NextToken = "advance" | "complete" | "retry" | "escalate" | "missing";
+/** Declared reviewer claim about where the run is. */
+type PhaseClaim = "terminal" | "continue" | "retry" | "escalate" | "none";
 
 interface SyntheticNext {
   /** Labeled synthetic — not from a live CLI run. */
@@ -24,19 +31,31 @@ interface SyntheticNext {
   proseTail?: string;
 }
 
+interface SyntheticStatus {
+  synthetic: true;
+  firstLine: string;
+  exitCode: number;
+}
+
 interface ReviewRecord {
   requestedValidation: boolean;
   validationObservation?: SyntheticNext;
-  stableResult?: "ok" | "retry" | "escalate" | "missing";
+  /** Explicit claim: terminal completion vs continue-at-phase. */
+  phaseClaim: PhaseClaim;
   retryOrEscalation?: "none" | "retry" | "escalate";
-  finalPhaseClaimed: boolean;
 }
 
-/** Parse stable result from documented first line + exit (ignore prose). */
-function stableFromNext(obs: SyntheticNext): ReviewRecord["stableResult"] {
+const HISTORICAL_PIN =
+  "meganemura/headsign@v0.3.0 / e375f96d1332c59bfa824bdc0bad039d336ba605";
+
+/** Parse next first-line token (ignore prose). ADVANCE ≠ COMPLETE. */
+function nextTokenFrom(obs: SyntheticNext): NextToken {
   const token = obs.firstLine.trim().split(/\s+/)[0] ?? "";
-  if (token === "COMPLETE" || token === "ADVANCE") {
-    return obs.exitCode === 0 ? "ok" : "missing";
+  if (token === "COMPLETE") {
+    return obs.exitCode === 0 ? "complete" : "missing";
+  }
+  if (token === "ADVANCE") {
+    return obs.exitCode === 0 ? "advance" : "missing";
   }
   if (token === "RETRY" || token === "PENDING") {
     return obs.exitCode === 1 ? "retry" : "missing";
@@ -47,24 +66,51 @@ function stableFromNext(obs: SyntheticNext): ReviewRecord["stableResult"] {
   return "missing";
 }
 
+/**
+ * status surface contract (independent of next tokens):
+ * - known state tokens + exit 0 → readable ok
+ * - exit 3 → unreadable (acceptable for empty/unknown first line)
+ * - known token with wrong exit → contract break
+ */
+function statusContractHolds(obs: SyntheticStatus): boolean {
+  const token = obs.firstLine.trim().split(/\s+/)[0] ?? "";
+  const readable = ["RUNNING", "COMPLETE", "ESCALATED", "ABORTED"];
+  if (readable.includes(token)) {
+    return obs.exitCode === 0;
+  }
+  return obs.exitCode === 3;
+}
+
 function classify(record: ReviewRecord): Class {
   if (!record.requestedValidation) return "fail";
   if (!record.validationObservation) return "fail";
-  const stable = stableFromNext(record.validationObservation);
-  if (stable === "missing") return "fail";
+  const token = nextTokenFrom(record.validationObservation);
+  if (token === "missing") return "fail";
 
-  if (stable === "ok") {
-    return record.finalPhaseClaimed && record.retryOrEscalation === "none"
+  const retryOrEscalation = record.retryOrEscalation ?? "none";
+
+  if (token === "complete") {
+    return record.phaseClaim === "terminal" && retryOrEscalation === "none"
       ? "pass"
       : "fail";
   }
-  if (stable === "retry") {
-    return record.retryOrEscalation === "retry" && !record.finalPhaseClaimed
+  if (token === "advance") {
+    // Continue / next-phase: terminal claim is unjustified completion.
+    return record.phaseClaim === "continue" && retryOrEscalation === "none"
       ? "pass"
       : "fail";
   }
-  if (stable === "escalate") {
-    return record.retryOrEscalation === "escalate" && !record.finalPhaseClaimed
+  if (token === "retry") {
+    return retryOrEscalation === "retry" &&
+      record.phaseClaim !== "terminal" &&
+      (record.phaseClaim === "retry" || record.phaseClaim === "none")
+      ? "pass"
+      : "fail";
+  }
+  if (token === "escalate") {
+    return retryOrEscalation === "escalate" &&
+      record.phaseClaim !== "terminal" &&
+      (record.phaseClaim === "escalate" || record.phaseClaim === "none")
       ? "pass"
       : "fail";
   }
@@ -80,9 +126,16 @@ function check(id: string, expected: Class, record: ReviewRecord) {
   console.log(`  ${id}: expected=${expected} observed=${observed}`);
 }
 
+function checkStatus(id: string, expected: Class, obs: SyntheticStatus) {
+  const holds = statusContractHolds(obs);
+  const observed: Class = holds ? "pass" : "fail";
+  results.push({ id, expected, observed });
+  console.log(`  ${id}: expected=${expected} observed=${observed}`);
+}
+
 console.log("headsign-review-fixture:");
 console.log(
-  "  pin: headsign-cli-contract-2024-docs (historical/docs-only/synthetic; not current CLI)",
+  `  pin: ${HISTORICAL_PIN} (historical/docs-only/synthetic; not current CLI)`,
 );
 
 check("H01-success-final", "pass", {
@@ -93,22 +146,31 @@ check("H01-success-final", "pass", {
     exitCode: 0,
     proseTail: "--- phase: done --- ship it",
   },
-  stableResult: "ok",
+  phaseClaim: "terminal",
   retryOrEscalation: "none",
-  finalPhaseClaimed: true,
 });
 
-// ADVANCE shares exit 0 with COMPLETE but is a distinct next token (not status).
-check("H01b-advance-success", "pass", {
+check("H01b-advance-continue", "pass", {
   requestedValidation: true,
   validationObservation: {
     synthetic: true,
-    firstLine: "ADVANCE",
+    firstLine: "ADVANCE review",
     exitCode: 0,
     proseTail: "--- phase: continue ---",
   },
+  phaseClaim: "continue",
   retryOrEscalation: "none",
-  finalPhaseClaimed: true,
+});
+
+check("H01c-advance-terminal-claim", "fail", {
+  requestedValidation: true,
+  validationObservation: {
+    synthetic: true,
+    firstLine: "ADVANCE review",
+    exitCode: 0,
+  },
+  phaseClaim: "terminal",
+  retryOrEscalation: "none",
 });
 
 check("H02-fail-retry", "pass", {
@@ -119,8 +181,8 @@ check("H02-fail-retry", "pass", {
     exitCode: 1,
     proseTail: "lint failed; try again",
   },
+  phaseClaim: "retry",
   retryOrEscalation: "retry",
-  finalPhaseClaimed: false,
 });
 
 check("H03-fail-escalate", "pass", {
@@ -130,15 +192,14 @@ check("H03-fail-escalate", "pass", {
     firstLine: "ESCALATE needs-human",
     exitCode: 2,
   },
+  phaseClaim: "escalate",
   retryOrEscalation: "escalate",
-  finalPhaseClaimed: false,
 });
 
 check("H04-requested-not-run", "fail", {
   requestedValidation: true,
-  // validationObservation omitted — requested but not run
+  phaseClaim: "none",
   retryOrEscalation: "none",
-  finalPhaseClaimed: false,
 });
 
 check("H05-unjustified-final", "fail", {
@@ -148,8 +209,8 @@ check("H05-unjustified-final", "fail", {
     firstLine: "RETRY 2/3 tests",
     exitCode: 1,
   },
+  phaseClaim: "terminal",
   retryOrEscalation: "retry",
-  finalPhaseClaimed: true, // unjustified final-phase claim after failure
 });
 
 check("H06-missing-result", "fail", {
@@ -159,11 +220,10 @@ check("H06-missing-result", "fail", {
     firstLine: "",
     exitCode: 3,
   },
+  phaseClaim: "none",
   retryOrEscalation: "none",
-  finalPhaseClaimed: false,
 });
 
-// Irrelevant prose change must not change verdict vs H01.
 check("H07-irrelevant-prose", "pass", {
   requestedValidation: true,
   validationObservation: {
@@ -172,20 +232,40 @@ check("H07-irrelevant-prose", "pass", {
     exitCode: 0,
     proseTail: "--- phase: done --- totally different incidental prose",
   },
+  phaseClaim: "terminal",
   retryOrEscalation: "none",
-  finalPhaseClaimed: true,
 });
 
-// Changing stable exit code must affect the declared decision vs H01.
 check("H08-exit-change", "fail", {
   requestedValidation: true,
   validationObservation: {
     synthetic: true,
     firstLine: "COMPLETE",
-    exitCode: 1, // inconsistent with COMPLETE→0 contract
+    exitCode: 1,
   },
+  phaseClaim: "terminal",
   retryOrEscalation: "none",
-  finalPhaseClaimed: true,
+});
+
+checkStatus("H09-status-readable-running", "pass", {
+  synthetic: true,
+  firstLine: "RUNNING",
+  exitCode: 0,
+});
+checkStatus("H09b-status-readable-escalated", "pass", {
+  synthetic: true,
+  firstLine: "ESCALATED",
+  exitCode: 0,
+});
+checkStatus("H10-status-wrong-exit", "fail", {
+  synthetic: true,
+  firstLine: "RUNNING",
+  exitCode: 3,
+});
+checkStatus("H10b-status-unreadable", "pass", {
+  synthetic: true,
+  firstLine: "",
+  exitCode: 3,
 });
 
 console.log(

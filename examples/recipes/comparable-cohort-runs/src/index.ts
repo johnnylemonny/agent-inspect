@@ -6,7 +6,14 @@
  * never returned.
  */
 import { createHash } from "node:crypto";
-import { existsSync, readdirSync, readFileSync, rmSync } from "node:fs";
+import {
+  existsSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import { inspectRun, step } from "agent-inspect";
@@ -409,10 +416,109 @@ for (const row of pairResults) {
 }
 console.log("classes:", pairResults.map((r) => r.class).join(","));
 
+/** Per-stage evidence table linked to each run (G01–G07). */
+const evidenceDir = path.join(baseTraceDir, "comparable-evidence");
+mkdirSync(evidenceDir, { recursive: true });
+
+async function loadCommitmentsForPair(name: string): Promise<{
+  left: StageCommitments | null;
+  right: StageCommitments | null;
+}> {
+  // Re-read measured bytes from the last executed pairResults by re-running labels is wasteful;
+  // persist from the in-memory executions above via a side table built during the loop.
+  void name;
+  return { left: null, right: null };
+}
+void loadCommitmentsForPair;
+
+const stageTable: Array<Record<string, unknown>> = [];
+for (const pair of pairCases) {
+  const left = await executeStubWorkflow(`${pair.name}.table.left`, pair.left);
+  let right: StageCommitments | null = null;
+  if (pair.right) {
+    right = await executeStubWorkflow(`${pair.name}.table.right`, pair.right);
+  }
+  if (pair.name === "G05-incompatible-cohort" && right) {
+    right = { ...right, cohortId: "other-cohort" };
+  }
+  const compared = right
+    ? comparePair(left, right)
+    : {
+        class: "partial_unknown" as const,
+        note: "right capture deleted/absent",
+      };
+  const row = {
+    pair: pair.name,
+    class: compared.class,
+    note: compared.note,
+    changedStage: "changedStage" in compared ? compared.changedStage : undefined,
+    left: {
+      runId: left.runId,
+      executionId: left.executionId,
+      toolOutputBytes: left.toolStageOutput,
+      toolOutputDigest: left.toolOutputCommitment,
+      llmInputBytes: left.llmStageInput,
+      llmInputDigest: left.llmInputCommitment,
+      cohortId: left.cohortId,
+      testCaseId: left.testCaseId,
+      promptTemplateVersion: left.promptTemplateVersion,
+      resolvedModel: left.resolvedModel,
+      samplingJson: left.samplingJson,
+      treatment: left.treatment,
+      graderProvenance: left.graderProvenance,
+    },
+    right: right
+      ? {
+          runId: right.runId,
+          executionId: right.executionId,
+          toolOutputBytes: right.toolStageOutput,
+          toolOutputDigest: right.toolOutputCommitment,
+          llmInputBytes: right.llmStageInput,
+          llmInputDigest: right.llmInputCommitment,
+          cohortId: right.cohortId,
+          testCaseId: right.testCaseId,
+          promptTemplateVersion: right.promptTemplateVersion,
+          resolvedModel: right.resolvedModel,
+          samplingJson: right.samplingJson,
+          treatment: right.treatment,
+          graderProvenance: right.graderProvenance,
+        }
+      : null,
+  };
+  stageTable.push(row);
+
+  // Verifier: recompute digests from retained bytes.
+  if (sha256(left.toolStageOutput) !== left.toolOutputCommitment) {
+    throw new Error(`${pair.name}: left tool digest mismatch on recompute`);
+  }
+  if (sha256(left.llmStageInput) !== left.llmInputCommitment) {
+    throw new Error(`${pair.name}: left llm digest mismatch on recompute`);
+  }
+}
+
+const tablePath = path.join(evidenceDir, "per-stage-commitments.json");
+writeFileSync(tablePath, JSON.stringify(stageTable, null, 2) + "\n");
+console.log(`evidence-table: ${tablePath}`);
+
+// Tamper control: mutate retained bytes and ensure digest check fails.
+{
+  const g01row = stageTable.find((r) => r.pair === "G01-matching-stages");
+  if (!g01row || !g01row.left) throw new Error("missing G01 row for tamper");
+  const left = g01row.left as { toolOutputBytes: string; toolOutputDigest: string };
+  const tampered = left.toolOutputBytes + "-tamper";
+  if (sha256(tampered) === left.toolOutputDigest) {
+    throw new Error("tamper control failed — digest unchanged");
+  }
+  console.log("tamper-control: digest mismatch detected as expected");
+}
+
 // Harness checks
 const g01 = pairResults.find((r) => r.name === "G01-matching-stages");
 const g02 = pairResults.find((r) => r.name === "G02-changed-retrieval");
 const g03 = pairResults.find((r) => r.name === "G03-missing-right-capture");
+const g04 = pairResults.find((r) => r.name === "G04-sampling-changed");
+const g05 = pairResults.find((r) => r.name === "G05-incompatible-cohort");
+const g06 = pairResults.find((r) => r.name === "G06-missing-grader");
 const g07 = pairResults.find((r) => r.name === "G07-declared-commitment-lie");
 if (!g01 || g01.class !== "equivalent_stage_inputs") {
   throw new Error("G01 must be equivalent_stage_inputs from two measured captures");
@@ -423,9 +529,21 @@ if (!g02 || g02.class !== "changed_retrieval_boundary" || g02.changedStage !== "
 if (!g03 || g03.class !== "partial_unknown") {
   throw new Error("G03 must be insufficient when one capture is missing");
 }
+if (!g04 || g04.class !== "sampling_or_model_changed") {
+  throw new Error("G04 must be sampling_or_model_changed");
+}
+if (!g05 || g05.class !== "incompatible_scope") {
+  throw new Error("G05 must be incompatible_scope");
+}
+if (!g06 || g06.class !== "grader_unproven") {
+  throw new Error("G06 must be grader_unproven");
+}
 if (!g07 || g07.class !== "commitment_mismatch") {
   throw new Error("G07 must fail when declared commitment mismatches measured bytes");
 }
 if (!g01.leftRunId || !g01.rightRunId || g01.leftRunId === g01.rightRunId) {
   throw new Error("G01 requires two distinct physical run IDs");
+}
+if (stageTable.length !== 7) {
+  throw new Error(`expected 7 stage-table rows, got ${stageTable.length}`);
 }

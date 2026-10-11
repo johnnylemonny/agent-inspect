@@ -183,6 +183,14 @@ function errorCodeOf(event: PersistedInspectEvent): string | undefined {
     const code = (nested as { code?: unknown }).code;
     if (typeof code === "string" && code.trim() !== "") return code.trim();
   }
+  // Workflow/start metadata often carries errorCode when Error.code is not persisted.
+  const meta = attrs.metadata;
+  if (meta && typeof meta === "object") {
+    for (const key of ["errorCode", "code"] as const) {
+      const value = (meta as Record<string, unknown>)[key];
+      if (typeof value === "string" && value.trim() !== "") return value.trim();
+    }
+  }
   return undefined;
 }
 

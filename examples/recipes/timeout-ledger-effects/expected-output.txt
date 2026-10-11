@@ -1,8 +1,9 @@
 timeout-ledger-effects:
-  T01-dedupe-ok: expected=pass observed=pass
-  T02-duplicate-markers: expected=fail observed=fail
-  T03-incomplete-window: expected=unknown observed=unknown
-  T04-contradictory-claim: expected=fail observed=fail
-  T05-wrong-join: expected=fail observed=fail
-  T06-honest-no-effect: expected=task-fail-safe observed=task-fail-safe
+  T01-dedupe-ok: expected=pass observed=pass attempts=2 markers=1
+  T02-duplicate-markers: expected=fail observed=fail attempts=2 markers=2
+  T03-incomplete-window: expected=unknown observed=unknown attempts=1 markers=1
+  T04-contradictory-claim: expected=fail observed=fail attempts=1 markers=1
+  T05-wrong-join: expected=fail observed=fail attempts=2 markers=1
+  T06-honest-no-effect: expected=task-fail-safe observed=task-fail-safe attempts=1 markers=0
 classes: T01:pass,T02:fail,T03:unknown,T04:fail,T05:fail,T06:task-fail-safe
+evidence-table: .agent-inspect-runs/timeout-ledger-evidence-table.json

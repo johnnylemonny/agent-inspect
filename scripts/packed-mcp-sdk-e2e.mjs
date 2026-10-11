@@ -512,6 +512,137 @@ async function main() {
     );
   }
 
+  // M09: RequestOptions parity — pre-aborted signal: reject + zero server calls
+  // (raw Client ≡ wrapMcpClient). Must not drop the third SDK argument.
+  {
+    async function runPreAbort(useWrap) {
+      let serverCalls = 0;
+      const server = new Server(
+        { name: "opts-probe", version: "1.0.0" },
+        { capabilities: { tools: {} } },
+      );
+      server.setRequestHandler(CallToolRequestSchema, async () => {
+        serverCalls += 1;
+        return { content: [{ type: "text", text: "executed" }] };
+      });
+      server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: [
+          {
+            name: "probe",
+            description: "probe",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      }));
+      const raw = new Client({ name: "opts-client", version: "1.0.0" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(st), raw.connect(ct)]);
+      const client = useWrap ? wrapMcpClient(raw) : raw;
+      const controller = new AbortController();
+      controller.abort(new Error("caller cancelled before request"));
+      let status = "resolved";
+      try {
+        await client.callTool(
+          { name: "probe", arguments: {} },
+          undefined,
+          { signal: controller.signal, timeout: 1000 },
+        );
+      } catch {
+        status = "rejected";
+      }
+      await Promise.allSettled([raw.close(), server.close()]);
+      return { status, serverCalls };
+    }
+    const control = await runPreAbort(false);
+    const instrumented = await inspectRun(
+      "mcp-sdk-preabort-" + ${JSON.stringify(kind)},
+      async () => runPreAbort(true),
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    const m09ok =
+      control.status === "rejected" &&
+      control.serverCalls === 0 &&
+      instrumented.status === "rejected" &&
+      instrumented.serverCalls === 0;
+    check(
+      "M09-preabort-options-parity-" + ${JSON.stringify(kind)},
+      "pass",
+      m09ok ? "pass" : "fail",
+    );
+  }
+
+  // M10: request timeout with controlled slow handler — bounded rejection matches raw SDK
+  {
+    async function runTimeout(useWrap) {
+      const server = new Server(
+        { name: "timeout-probe", version: "1.0.0" },
+        { capabilities: { tools: {} } },
+      );
+      server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: [
+          {
+            name: "slow",
+            description: "slow",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      }));
+      server.setRequestHandler(CallToolRequestSchema, async () => {
+        await new Promise((r) => setTimeout(r, 500));
+        return { content: [{ type: "text", text: "late" }] };
+      });
+      const raw = new Client({ name: "timeout-client", version: "1.0.0" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(st), raw.connect(ct)]);
+      const client = useWrap ? wrapMcpClient(raw) : raw;
+      let status = "resolved";
+      try {
+        await client.callTool(
+          { name: "slow", arguments: {} },
+          undefined,
+          { timeout: 50 },
+        );
+      } catch {
+        status = "rejected";
+      }
+      await Promise.allSettled([raw.close(), server.close()]);
+      return status;
+    }
+    const rawStatus = await runTimeout(false);
+    const wrapStatus = await inspectRun(
+      "mcp-sdk-timeout-" + ${JSON.stringify(kind)},
+      async () => runTimeout(true),
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    check(
+      "M10-timeout-options-parity-" + ${JSON.stringify(kind)},
+      "pass",
+      rawStatus === "rejected" && wrapStatus === "rejected" ? "pass" : "fail",
+    );
+  }
+
+  // M11: listTools options forwarded (timeout) — must not throw arity/shape errors
+  {
+    const { client, server } = await createLinked();
+    const wrapped = wrapMcpClient(client, { serverName: "list-opts" });
+    let listOk = false;
+    await inspectRun(
+      "mcp-sdk-list-opts-" + ${JSON.stringify(kind)},
+      async () => {
+        const listed = await wrapped.listTools({}, { timeout: 5000 });
+        listOk = Array.isArray(listed?.tools) && listed.tools.length >= 1;
+      },
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    await wrapped.close();
+    await server.close();
+    check(
+      "M11-listTools-options-" + ${JSON.stringify(kind)},
+      "pass",
+      listOk ? "pass" : "fail",
+    );
+  }
+
   const mismatch = results.filter((r) => r.expected !== r.observed);
   console.log(
     "classes: " +

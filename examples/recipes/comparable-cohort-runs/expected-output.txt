@@ -8,3 +8,5 @@ pairwise-comparability:
   G06-missing-grader: grader_unproven
   G07-declared-commitment-lie: commitment_mismatch
 classes: equivalent_stage_inputs,changed_retrieval_boundary,partial_unknown,sampling_or_model_changed,incompatible_scope,grader_unproven,commitment_mismatch
+evidence-table: .agent-inspect-runs/comparable-evidence/per-stage-commitments.json
+tamper-control: digest mismatch detected as expected

@@ -4,9 +4,9 @@
 executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
-trainStatus: "6.31.19 published (all 18); residual Fix-Owes closed; 6.32 blocked"
-currentChunk: "post-6.31.19 partner/gated holds"
-nextAction: "Artifact-first partner drafts; plumbline #98 re-review on authorize; no 6.32 without EVIDENCE_GATE"
+trainStatus: "committing Oct 11 remaining fixes for 6.31.20; 6.32 blocked"
+currentChunk: "6.31.20 Oct 11 remaining-fixes release train"
+nextAction: "Version Packages → Trusted Publish 6.31.20; hold F12/Swapnil/João/email"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
 pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live; Collector Docker"
@@ -21,33 +21,26 @@ worktreeIgnoreOnly:
 
 **6.31.19** — all 18 packages on npm (Trusted Publish [38113987027](https://github.com/rajudandigam/agent-inspect/actions/runs/38113987027)).
 
-## Residual Fix-Owes (closed in 6.31.19)
+## Oct 11 remaining fixes (local; not yet published)
 
-| Chunk | Status |
-| --- | --- |
-| A recovery attemptNumber + availability time | **published** |
-| B OTLP identity promote + O01–O07 | **published** |
-| C packed MCP 429/cancel/overlap/readiness | **published** |
-| D keyless fixtures Om→Thorin | **published** |
-| E plumbline #98 P1+P2 | **on fork** `c4c0afd` — no re-request until authorize |
-| F12 / F13 / email | **held** |
+| Chunk | Status | Proof |
+| --- | --- | --- |
+| 1 MCP RequestOptions | **implemented** | `packages/mcp` unit tests; packed M09–M11; PR #494 inspected (touches `packed-mcp-e2e.mjs` only — not merged) |
+| 2 Headsign ADVANCE≠COMPLETE | **implemented** | pin `e375f96`; H01c terminal-on-ADVANCE fails |
+| 3 Keniel receipt join | **implemented** | comment+article join; wrong/missing → unmatched |
+| 4 Roy/Gary/Shola/Navya | **implemented** | f04 O05 collision+replay, O06 unknown_unverifiable; stage table; retryableErrors; attempt/marker counts |
+| Manual holds | **held** | Indu v3 archive; Swapnil #437 fields; João binaries; plumbline #98 re-request; publish/email |
 
-## Disposition ledger (2026-10-10)
+## Honesty
 
-| Item | Status |
-| --- | --- |
-| 6.31.18 | **published** |
-| 6.31.19 | **published** (residual A–D) |
-| F11b plumbline | **fork updated** askalf/plumbline#98 (`c4c0afd`) |
-| F12 Indu/João | **gated** — need `scenario-01-v3-agentinspect-instrumented` |
-| 6.32.0 | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
+Published 6.31.19 ≠ this local patch ≠ emailed ≠ reviewer acceptance.
 
 ## Stop marker
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.19
-ACTIVE: stability-after-63111 (Oct 10 residual published)
-NEXT: partner packets / plumbline re-review authorize; no 6.32 without EVIDENCE_GATE
+ACTIVE: Oct 11 remaining fixes ready for maintainer commit
+NEXT: review → optional 6.31.20; no 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded

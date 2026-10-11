@@ -44,6 +44,39 @@ function fail(msg) {
   console.error(`[f04] FAIL: ${msg}`);
 }
 
+function countAttempts(read) {
+  const tools = (read.events ?? []).filter(
+    (e) => e && (e.kind === "TOOL" || e.type === "tool"),
+  );
+  const ids = new Set();
+  for (const t of tools) {
+    const attrs = t.attributes ?? t.metadata ?? {};
+    const id =
+      attrs.attemptId ??
+      attrs["agent_inspect.attempt_id"] ??
+      attrs.operationId ??
+      attrs["agent_inspect.operation_id"] ??
+      t.id ??
+      t.stepId;
+    if (id != null) ids.add(String(id));
+    else ids.add(`anon:${ids.size}`);
+  }
+  return ids.size;
+}
+
+function countOperations(read) {
+  const tools = (read.events ?? []).filter(
+    (e) => e && (e.kind === "TOOL" || e.type === "tool"),
+  );
+  const ops = new Set();
+  for (const t of tools) {
+    const attrs = t.attributes ?? t.metadata ?? {};
+    const id = attrs.operationId ?? attrs["agent_inspect.operation_id"];
+    if (id != null) ops.add(String(id));
+  }
+  return ops.size;
+}
+
 async function capture(label, fn) {
   const traceDir = path.join(outRoot, "traces", label);
   fs.rmSync(traceDir, { recursive: true, force: true });
@@ -207,8 +240,8 @@ const o04 = await capture("O04-second-physical-run", async () => {
 await assertRoundTrip("O04-second-physical-run", o04);
 if (!(o01.runId !== o04.runId)) fail("O04: physical run ids must differ from O01");
 
-// O05 stable duplicate delivery (same identity twice — still one op / two attempts if distinct attemptIds)
-const o05 = await capture("O05-duplicate-delivery", async () => {
+// O05a: identity-collision negative — two handler executions reuse the same attemptId.
+const o05collision = await capture("O05-identity-collision", async () => {
   await toolAttempt("retrieve_policy", {
     operationId: "op1",
     attemptId: "a1",
@@ -221,12 +254,88 @@ const o05 = await capture("O05-duplicate-delivery", async () => {
   });
 });
 {
-  const evalO05 = evaluateTraceContract({ read: o05.otlpRead }, maxOne);
-  // Duplicate same attemptId collapses; must not silently invent a second attempt.
-  fs.writeFileSync(
-    path.join(outRoot, "O05-duplicate-delivery.contract-results.json"),
-    JSON.stringify({ status: evalO05.status, findings: evalO05.findings }, null, 2) + "\n",
+  const evalO05 = evaluateTraceContract({ read: o05collision.otlpRead }, maxOne);
+  const hasDup = evalO05.findings.some(
+    (f) =>
+      f.ruleId === "contract.retry.duplicate-attempt-id" ||
+      String(f.ruleId).includes("duplicate-attempt"),
   );
+  fs.writeFileSync(
+    path.join(outRoot, "O05-identity-collision.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Two executions with the same attemptId — identity-collision negative (not repeated delivery).",
+        status: evalO05.status,
+        findings: evalO05.findings,
+        assertedDuplicateDiagnostic: hasDup,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (!hasDup && evalO05.status === "pass") {
+    fail("O05-identity-collision: expected duplicate-attempt diagnostic or non-pass");
+  }
+}
+
+// O05b: true repeated delivery — same persisted event identity twice, no second handler.
+{
+  const once = await capture("O05-repeated-delivery-base", async () => {
+    await toolAttempt("retrieve_policy", {
+      operationId: "op1",
+      attemptId: "a1",
+      attemptNumber: 1,
+    });
+    await toolAttempt("retrieve_policy", {
+      operationId: "op1",
+      attemptId: "a2",
+      attemptNumber: 2,
+      retryOf: "a1",
+    });
+  });
+  const lines = once.events.map((e) => JSON.stringify(e));
+  // Replay every persisted line twice without invoking handlers again.
+  const duplicatedText = [...lines, ...lines].join("\n") + "\n";
+  const replayPath = path.join(outRoot, "O05-repeated-delivery.source.jsonl");
+  fs.writeFileSync(replayPath, duplicatedText);
+  const tree = manualTraceEventsToRunTree(once.events.concat(once.events));
+  const otlp = exportOtlpJson(tree);
+  fs.writeFileSync(
+    path.join(outRoot, "O05-repeated-delivery.default-otlp.json"),
+    otlp.content,
+  );
+  const sourceRead = await openTraceFile(replayPath);
+  const otlpRead = await openTraceText(otlp.content);
+  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxOne);
+  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxOne);
+  const sourceAttempts = countAttempts(sourceRead);
+  const otlpAttempts = countAttempts(otlpRead);
+  fs.writeFileSync(
+    path.join(outRoot, "O05-repeated-delivery.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Repeated delivery of the same persisted events — distinct from two handler executions.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+        sourceAttemptCount: sourceAttempts,
+        otlpAttemptCount: otlpAttempts,
+        physicalEventRows: once.events.length * 2,
+        uniqueLogicalAttemptsExpected: 2,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (sourceEval.status !== otlpEval.status) {
+    fail("O05-repeated-delivery: source/OTLP status mismatch");
+  }
+  // Repeated physical rows may inflate a naive source count; OTLP/logical
+  // attempt identity after lifecycle collapse must stay at two distinct attempts.
+  if (otlpAttempts !== 2) {
+    fail(
+      `O05-repeated-delivery: expected 2 logical attempts after collapse, got otlp=${otlpAttempts} sourceNaive=${sourceAttempts}`,
+    );
+  }
 }
 
 // O06 missing/partial identities remain unknown (no operationId → maxAttempts unevaluable)
@@ -237,13 +346,21 @@ const o06 = await capture("O06-partial-identity", async () => {
 {
   const sourceEval = evaluateTraceContract({ read: o06.sourceRead }, maxOne);
   const otlpEval = evaluateTraceContract({ read: o06.otlpRead }, maxOne);
+  const packetClassification =
+    sourceEval.findings.some((f) => f.ruleId === "contract.retry.max-attempts")
+      ? "engine_evaluated"
+      : "unknown_unverifiable";
   fs.writeFileSync(
     path.join(outRoot, "O06-partial-identity.contract-results.json"),
     JSON.stringify(
       {
-        note: "Without operationId, global maxAttempts does not invent a grouping; missing identity stays unknown.",
+        note: "Without operationId, global maxAttempts does not invent a grouping; missing identity stays unknown/unverifiable at packet level.",
         sourceStatus: sourceEval.status,
         otlpStatus: otlpEval.status,
+        packetClassification,
+        operationCount: countOperations(o06.otlpRead),
+        attemptCount: countAttempts(o06.otlpRead),
+        physicalRunId: o06.runId,
       },
       null,
       2,
@@ -255,6 +372,9 @@ const o06 = await capture("O06-partial-identity", async () => {
   // Must not fabricate a max-attempts failure from tool name alone.
   if (otlpEval.findings.some((f) => f.ruleId === "contract.retry.max-attempts")) {
     fail("O06: must not invent max-attempts failure without operationId");
+  }
+  if (packetClassification !== "unknown_unverifiable") {
+    fail("O06: packet-level classification must be unknown_unverifiable when identity missing");
   }
 }
 
@@ -328,9 +448,44 @@ const mapping = {
       distinctPhysicalRuns: o01.runId !== o04.runId,
       spans: identityAttrs(o04.otlp.content),
     },
-    O05: identityAttrs(o05.otlp.content),
+    O05_identity_collision: identityAttrs(o05collision.otlp.content),
     O06: identityAttrs(o06.otlp.content),
     O07: identityAttrs(o07.otlp.content),
+  },
+  counts: {
+    O01: {
+      operations: countOperations(o01.otlpRead),
+      attempts: countAttempts(o01.otlpRead),
+      runId: o01.runId,
+      retryLinks: identityAttrs(o01.otlp.content).filter((s) => s.retryOf),
+    },
+    O02: {
+      operations: countOperations(o02.otlpRead),
+      attempts: countAttempts(o02.otlpRead),
+      runId: o02.runId,
+      retryLinks: identityAttrs(o02.otlp.content).filter((s) => s.retryOf),
+    },
+    O03: {
+      operations: countOperations(o03.otlpRead),
+      attempts: countAttempts(o03.otlpRead),
+      runId: o03.runId,
+    },
+    O04: {
+      operations: countOperations(o04.otlpRead),
+      attempts: countAttempts(o04.otlpRead),
+      runId: o04.runId,
+      distinctFromO01: o01.runId !== o04.runId,
+    },
+    O06: {
+      operations: countOperations(o06.otlpRead),
+      attempts: countAttempts(o06.otlpRead),
+      runId: o06.runId,
+    },
+    O07: {
+      operations: countOperations(o07.otlpRead),
+      attempts: countAttempts(o07.otlpRead),
+      runId: o07.runId,
+    },
   },
 };
 
@@ -371,8 +526,9 @@ Default output directory: \`tmp/f04-otlp-identity-evidence\` (or caller-specifie
 | O02 | Real throw 429 → timeout → success; identity chain retained |
 | O03 | Two ops × two attempts |
 | O04 | Separate physical run reusing local labels |
-| O05 | Duplicate same attemptId delivery |
-| O06 | Partial/missing identities (no fabrication) |
+| O05-identity-collision | Two executions, same attemptId (negative) |
+| O05-repeated-delivery | Same persisted events replayed (no second handler) |
+| O06 | Partial/missing identities (packet unknown_unverifiable) |
 | O07 | Equal tool/args, distinct operationIds |
 
 ## Mapping

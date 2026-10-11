@@ -3,7 +3,7 @@
  * In-process fake ledger; handlers are actually called. Not exactly-once.
  */
 import path from "node:path";
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, rmSync, writeFileSync } from "node:fs";
 
 import { inspectRun, observeOutcome, step } from "agent-inspect";
 
@@ -161,6 +161,16 @@ function classify(input: {
 
 type CaseResult = { id: string; expected: Class; observed: Class };
 const results: CaseResult[] = [];
+const evidenceRows: Array<{
+  id: string;
+  operationId: string;
+  attemptCount: number;
+  distinctMarkers: number;
+  markerIds: string[];
+  observer: ObserverJoin;
+  claim: Claim;
+  class: Class;
+}> = [];
 
 async function runCase(
   id: string,
@@ -191,9 +201,39 @@ async function runCase(
   if (!verdictInputs) throw new Error(`case ${id} produced no verdict inputs`);
   const observed = classify(verdictInputs);
   results.push({ id, expected, observed });
-  // Keep a side trace for handback; classification does not depend on file names.
+  const markers = markersForOp(verdictInputs.ledger, verdictInputs.operationId);
+  const distinctMarkers = new Set(markers.map((m) => m.markerId)).size;
+  // Derive attempt/marker counts from retained records — not only attemptCount > 0.
+  if (
+    verdictInputs.windowComplete &&
+    verdictInputs.observed &&
+    (verdictInputs.attemptCount < 1 ||
+      (verdictInputs.observer.observedMarkerIds.length > 0 &&
+        distinctMarkers !==
+          new Set(verdictInputs.observer.observedMarkerIds).size))
+  ) {
+    throw new Error(
+      `${id}: retained attempt/marker evidence irreconcilable (attempts=${verdictInputs.attemptCount} distinctMarkers=${distinctMarkers})`,
+    );
+  }
+  evidenceRows.push({
+    id,
+    operationId: verdictInputs.operationId,
+    attemptCount: verdictInputs.attemptCount,
+    distinctMarkers,
+    markerIds: markers.map((m) => m.markerId),
+    observer: verdictInputs.observer,
+    claim: verdictInputs.claim,
+    class: observed,
+  });
+  writeFileSync(
+    path.join(traceDir, "case-evidence.json"),
+    JSON.stringify(evidenceRows[evidenceRows.length - 1], null, 2) + "\n",
+  );
   void readdirSync(traceDir).filter((f) => f.endsWith(".jsonl"));
-  console.log(`  ${id}: expected=${expected} observed=${observed}`);
+  console.log(
+    `  ${id}: expected=${expected} observed=${observed} attempts=${verdictInputs.attemptCount} markers=${distinctMarkers}`,
+  );
 }
 
 console.log("timeout-ledger-effects:");
@@ -599,6 +639,21 @@ await runCase("T06-honest-no-effect", "task-fail-safe", async () => {
 console.log(
   `classes: ${results.map((r) => `${r.id.slice(0, 3)}:${r.observed}`).join(",")}`,
 );
+
+const evidencePath = path.join(baseDir, "timeout-ledger-evidence-table.json");
+writeFileSync(evidencePath, JSON.stringify(evidenceRows, null, 2) + "\n");
+console.log(`evidence-table: ${evidencePath}`);
+
+const t01 = evidenceRows.find((r) => r.id === "T01-dedupe-ok");
+const t02 = evidenceRows.find((r) => r.id === "T02-duplicate-markers");
+if (!t01 || t01.attemptCount !== 2 || t01.distinctMarkers !== 1) {
+  console.error("T01 must retain 2 attempts and 1 distinct committed marker", t01);
+  process.exitCode = 1;
+}
+if (!t02 || t02.attemptCount !== 2 || t02.distinctMarkers !== 2) {
+  console.error("T02 must retain 2 attempts and 2 distinct markers", t02);
+  process.exitCode = 1;
+}
 
 const mismatch = results.filter((r) => r.expected !== r.observed);
 if (mismatch.length) {

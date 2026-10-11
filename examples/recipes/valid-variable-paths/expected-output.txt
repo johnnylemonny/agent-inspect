@@ -5,10 +5,12 @@ valid-variable-paths:
   V04-missing-lookup: expected=fail observed=fail
   V05-future-result-ref: expected=fail observed=fail
   V06-retry-ok: expected=pass observed=pass
+  V06b-non-allowlisted-retry: expected=fail observed=fail
+  V06c-retry-without-prior-failure: expected=fail observed=fail
   V06-retry-excess: expected=fail observed=fail
   V07-wrong-result-ref: expected=fail observed=fail
   V08-missing-result-ref: expected=fail observed=fail
   anitesh-seven-safe: logicalEvents=7 (physicalRows=14) unmatched=0
   anitesh-seven-safe: expected=pass observed=pass
   anitesh-seven-broken: expected=fail observed=fail
-classes: V01:pass,V02:pass,V03:fail,V04:fail,V05:fail,V06ok:pass,V06excess:fail,V07:fail,V08:fail,A7safe:pass,A7broken:fail
+classes: V01:pass,V02:pass,V03:fail,V04:fail,V05:fail,V06ok:pass,V06b:fail,V06c:fail,V06excess:fail,V07:fail,V08:fail,A7safe:pass,A7broken:fail

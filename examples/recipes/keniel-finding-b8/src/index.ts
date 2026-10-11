@@ -30,16 +30,27 @@ interface FindingB8 {
   [key: string]: unknown;
 }
 
+type ReceiptStatus =
+  | "found"
+  | "not_found_in_search"
+  | "unmatched_join";
+
 interface ReceiptSearch {
   finderRef: string;
-  status: "found" | "not_found_in_search";
+  status: ReceiptStatus;
   receiptId?: string;
+  /** reported correspondence evidence vs independently resolved live proof */
+  evidenceClass?: "reported_locatable" | "independently_resolved";
+  joinDiagnostic?: string;
 }
 
-/** Locatable receipt known from correspondence: Pushpendra only. */
-const RECEIPT_INDEX: Record<string, string> = {
-  "person-pushpendra": "receipt-pushpendra-B8",
-};
+/** Correspondence-supported receipt join keys (not finder-only). */
+const CORRESPONDENCE_RECEIPT = {
+  finderRef: "person-pushpendra",
+  commentId: "3ee98",
+  articleRef: "article-4590564",
+  receiptId: "receipt-pushpendra-B8",
+} as const;
 
 const MAPPING_LEDGER: MappingLedger = {
   id: "keniel-finding-b8-to-local-map",
@@ -86,9 +97,10 @@ const MAPPING_LEDGER: MappingLedger = {
       loss: "none",
     },
     {
-      source: "finder→receipt search",
+      source: "finder+commentIds+article→receipt",
       target: "receipts[].status",
-      transformation: "external-search-status; not_found≠zero-proof",
+      transformation:
+        "join requires finder+comment+article; not_found≠zero-proof; unmatched≠found",
       confidence: "correlated",
       loss: "unsupported",
     },
@@ -103,6 +115,7 @@ const MAPPING_LEDGER: MappingLedger = {
   knownLosses: [
     "Native tool/step timing is unavailable from this public finding record.",
     "Two finder receipts were searched and not found — unknown evidence, not proof of zero contribution.",
+    "Found receipt is correspondence-reported/locatable, not independently fetched live proof.",
   ],
 };
 
@@ -112,20 +125,55 @@ function loadFinding(): FindingB8 {
   ) as FindingB8;
 }
 
-function searchReceipts(finders: FinderRef[]): ReceiptSearch[] {
+/**
+ * Join receipts to the finding's commentIds + article + finder.
+ * Finder-only lookup is insufficient — wrong/missing commentIds or article
+ * must not emit a found receipt.
+ */
+function searchReceipts(
+  finders: FinderRef[],
+  commentIds: string[],
+  articleRef: string | undefined,
+): ReceiptSearch[] {
+  const commentOk = commentIds.includes(CORRESPONDENCE_RECEIPT.commentId);
+  const articleOk = articleRef === CORRESPONDENCE_RECEIPT.articleRef;
+
   return finders.map((f) => {
-    const receiptId = RECEIPT_INDEX[f._ref];
-    if (receiptId) {
-      return { finderRef: f._ref, status: "found", receiptId };
+    if (f._ref !== CORRESPONDENCE_RECEIPT.finderRef) {
+      return { finderRef: f._ref, status: "not_found_in_search" };
     }
-    return { finderRef: f._ref, status: "not_found_in_search" };
+    if (!commentOk || !articleOk) {
+      const reasons: string[] = [];
+      if (!commentOk) {
+        reasons.push(
+          commentIds.length === 0
+            ? "missing commentIds"
+            : "commentIds do not include 3ee98",
+        );
+      }
+      if (!articleOk) reasons.push("article ref unmatched");
+      return {
+        finderRef: f._ref,
+        status: "unmatched_join",
+        joinDiagnostic: reasons.join("; "),
+      };
+    }
+    return {
+      finderRef: f._ref,
+      status: "found",
+      receiptId: CORRESPONDENCE_RECEIPT.receiptId,
+      evidenceClass: "reported_locatable",
+    };
   });
 }
 
 function mapFinding(finding: FindingB8) {
   // Never backfill singular commentId from commentIds[0].
   // Absence (key omitted) and explicit null are distinct provenance states.
-  const hasCommentIdKey = Object.prototype.hasOwnProperty.call(finding, "commentId");
+  const hasCommentIdKey = Object.prototype.hasOwnProperty.call(
+    finding,
+    "commentId",
+  );
   const commentIdPresence: "absent" | "null" | "present" = !hasCommentIdKey
     ? "absent"
     : finding.commentId === null
@@ -135,7 +183,22 @@ function mapFinding(finding: FindingB8) {
     commentIdPresence === "present" && typeof finding.commentId === "string"
       ? finding.commentId
       : null;
-  const receipts = searchReceipts(finding.foundBy);
+
+  const articleRef = finding.commentOn?._ref;
+  const commentIds = Array.isArray(finding.commentIds)
+    ? [...finding.commentIds]
+    : [];
+  const receipts = searchReceipts(finding.foundBy, commentIds, articleRef);
+
+  // sourceCommentId only when the join validates comment 3ee98 on this finding.
+  const joinFound = receipts.some(
+    (r) =>
+      r.status === "found" &&
+      r.finderRef === CORRESPONDENCE_RECEIPT.finderRef &&
+      commentIds.includes(CORRESPONDENCE_RECEIPT.commentId),
+  );
+  const sourceCommentId = joinFound ? CORRESPONDENCE_RECEIPT.commentId : null;
+
   const unknownAttrs = Object.fromEntries(
     Object.entries(finding).filter(
       ([k]) =>
@@ -159,13 +222,12 @@ function mapFinding(finding: FindingB8) {
     findingId: finding._id,
     status: finding.status,
     finders: finding.foundBy.map((f) => f._ref),
-    commentIds: [...finding.commentIds],
+    commentIds,
     commentId: singular,
     commentIdPresence,
-    /** Locatable source comment from correspondence (Pushpendra). */
-    sourceCommentId: "3ee98",
-    articleRef: finding.commentOn?._ref,
-    expectedArticleRef: "article-4590564",
+    sourceCommentId,
+    articleRef,
+    expectedArticleRef: CORRESPONDENCE_RECEIPT.articleRef,
     receipts,
     unknownAttributes: unknownAttrs,
     sourceTiming: {
@@ -202,14 +264,17 @@ if (digest !== recorded) {
 const base = loadFinding();
 const mapped = mapFinding(base);
 
-// K01: 3 finders, exactly 1 locatable receipt (Pushpendra)
+// K01: 3 finders, exactly 1 locatable receipt (Pushpendra via comment+article join)
 check(
   "K01-3finder-1receipt",
   "pass",
   mapped.finders.length === 3 &&
     mapped.receipts.filter((r) => r.status === "found").length === 1 &&
     mapped.receipts.find((r) => r.status === "found")?.finderRef ===
-      "person-pushpendra"
+      "person-pushpendra" &&
+    mapped.receipts.find((r) => r.status === "found")?.evidenceClass ===
+      "reported_locatable" &&
+    mapped.status === "unbuilt"
     ? "pass"
     : "fail",
 );
@@ -241,18 +306,22 @@ check(
     : "fail",
 );
 
-// K03: wrong article join
+// K03: wrong article → unmatched join, never a found receipt
 const wrongArticle = mapFinding({
   ...base,
   commentOn: { _ref: "article-WRONG", _type: "reference" },
 });
 check(
   "K03-wrong-article",
-  "fail",
-  wrongArticle.articleRef === "article-4590564" ? "pass" : "fail",
+  "unknown",
+  wrongArticle.receipts.every((r) => r.status !== "found") &&
+    wrongArticle.receipts.some((r) => r.status === "unmatched_join") &&
+    wrongArticle.sourceCommentId === null
+    ? "unknown"
+    : "fail",
 );
 
-// K03b: wrong comment join — must not treat commentIds[0] as singular commentId
+// K03b: wrong singular commentId must not backfill from commentIds or stand in for join
 const wrongCommentJoin = mapFinding({
   ...base,
   commentId: "comment-WRONG",
@@ -261,19 +330,41 @@ const wrongCommentJoin = mapFinding({
 check(
   "K03b-wrong-comment-join",
   "fail",
-  // Pass only if we incorrectly collapsed to source comment 3ee98.
+  // Pass only if we incorrectly collapsed singular to source comment 3ee98.
   wrongCommentJoin.commentId === "3ee98" ? "pass" : "fail",
 );
 
-// K04: missing/unavailable receipt for a finder that had a found receipt → unknown when index cleared
-const noIndexReceipts = base.foundBy.map((f) => ({
-  finderRef: f._ref,
-  status: "not_found_in_search" as const,
-}));
+// K03c: wrong commentIds → no found receipt
+const wrongCommentIds = mapFinding({
+  ...base,
+  commentIds: ["comment-WRONG"],
+});
+check(
+  "K03c-wrong-commentIds",
+  "unknown",
+  wrongCommentIds.receipts.every((r) => r.status !== "found") &&
+    wrongCommentIds.sourceCommentId === null
+    ? "unknown"
+    : "fail",
+);
+
+// K03d: missing commentIds → no found receipt
+const missingCommentIds = mapFinding({ ...base, commentIds: [] });
+check(
+  "K03d-missing-commentIds",
+  "unknown",
+  missingCommentIds.receipts.every((r) => r.status !== "found") &&
+    missingCommentIds.sourceCommentId === null
+    ? "unknown"
+    : "fail",
+);
+
+// K04: searched-but-not-found for other finders (not zero-proof)
 check(
   "K04-missing-receipt",
   "unknown",
-  noIndexReceipts.every((r) => r.status === "not_found_in_search")
+  mapped.receipts.filter((r) => r.status === "not_found_in_search").length ===
+    2
     ? "unknown"
     : "fail",
 );

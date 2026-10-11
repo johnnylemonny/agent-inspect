@@ -38,6 +38,8 @@ const contract = defineTraceContract({
         maxAttempts: 2,
         sideEffectClass: "read",
         requireRecoveredFailureVisible: true,
+        requireFailureBeforeRetry: true,
+        retryableErrors: { codes: ["ETIMEDOUT", "ECONNRESET"] },
         successfulResultDependency: {
           consumerKind: "LLM",
           requireExplicitReference: true,
@@ -157,14 +159,49 @@ await evalLive("V06-retry-ok", "pass", async () => {
           attemptId: "a1",
           attemptNumber: 1,
           toolCallId: "tc-a1",
+          // Persist allowlist code on the event (writer may omit Error.code).
+          errorCode: "ETIMEDOUT",
         },
       },
     );
   } catch {
-    /* allowlisted failed-then-success */
+    /* allowlisted ETIMEDOUT failed-then-success */
   }
   await lookupOk("tc-a2", "a2", 2, "a1");
   await answerConsuming("tc-a2");
+});
+
+await evalLive("V06b-non-allowlisted-retry", "fail", async () => {
+  try {
+    await step(
+      "lookup",
+      async () => {
+        throw Object.assign(new Error("auth denied"), { code: "EPERM" });
+      },
+      {
+        type: "tool",
+        metadata: {
+          toolName: "lookup",
+          operationId: "op_lookup",
+          attemptId: "a1",
+          attemptNumber: 1,
+          toolCallId: "tc-na1",
+          errorCode: "EPERM",
+        },
+      },
+    );
+  } catch {
+    /* non-allowlisted */
+  }
+  await lookupOk("tc-na2", "a2", 2, "a1");
+  await answerConsuming("tc-na2");
+});
+
+await evalLive("V06c-retry-without-prior-failure", "fail", async () => {
+  // Second attempt labeled retryOf without an earlier failed attempt.
+  await lookupOk("tc-rf1", "a1", 1);
+  await lookupOk("tc-rf2", "a2", 2, "a1");
+  await answerConsuming("tc-rf2");
 });
 
 await evalLive("V06-retry-excess", "fail", async () => {
@@ -364,15 +401,19 @@ console.log(
           ? "V06ok"
           : r.id === "V06-retry-excess"
             ? "V06excess"
-            : r.id === "V07-wrong-result-ref"
-              ? "V07"
-              : r.id === "V08-missing-result-ref"
-                ? "V08"
-                : r.id === "anitesh-seven-safe"
-                  ? "A7safe"
-                  : r.id === "anitesh-seven-broken"
-                    ? "A7broken"
-                    : r.id.slice(0, 3);
+            : r.id === "V06b-non-allowlisted-retry"
+              ? "V06b"
+              : r.id === "V06c-retry-without-prior-failure"
+                ? "V06c"
+                : r.id === "V07-wrong-result-ref"
+                  ? "V07"
+                  : r.id === "V08-missing-result-ref"
+                    ? "V08"
+                    : r.id === "anitesh-seven-safe"
+                      ? "A7safe"
+                      : r.id === "anitesh-seven-broken"
+                        ? "A7broken"
+                        : r.id.slice(0, 3);
       return `${short}:${r.observed}`;
     })
     .join(",")}`,
@@ -404,5 +445,23 @@ if (
   )
 ) {
   console.error("V08 must fail successful-result-dependency", v08);
+  process.exitCode = 1;
+}
+const v06b = results.find((r) => r.id === "V06b-non-allowlisted-retry");
+if (
+  !v06b ||
+  v06b.observed !== "fail" ||
+  !v06b.ruleIds?.some((id) => id.includes("retryable-error"))
+) {
+  console.error("V06b must fail retryable-error allowlist", v06b);
+  process.exitCode = 1;
+}
+const v06c = results.find((r) => r.id === "V06c-retry-without-prior-failure");
+if (
+  !v06c ||
+  v06c.observed !== "fail" ||
+  !v06c.ruleIds?.some((id) => id.includes("failure-before-retry"))
+) {
+  console.error("V06c must fail failure-before-retry", v06c);
   process.exitCode = 1;
 }
