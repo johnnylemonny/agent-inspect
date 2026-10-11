@@ -1,8 +1,8 @@
 # AgentInspect Canonical Roadmap (permanent)
 
-**Baseline:** `agent-inspect@6.31.17` (published; all 18)
-**Roadmap horizon:** **6.31.17** published (W26 marker + Windows `#473`); residual W04+ repo/recipe work; skip empty **6.31.18+**; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
-**Status:** **6.31.17 published**; named train `stability-after-63111`; W01/W02/W03/W26 closed; next = W04+ artifact packages; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
+**Baseline:** `agent-inspect@6.31.20` (published; all 18)
+**Roadmap horizon:** **6.31.20** published (Oct 11 MCP RequestOptions + fixture owes); residual W04+ partner/artifact work; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Status:** **6.31.20 published**; named train `stability-after-63111`; W01/W02/W03/W26 and Oct 10–11 Fix-Owes closed; next = partner packets / W04+; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
 **Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
 **Package policy:** no new public packages before the conditional v7 decision
@@ -92,7 +92,10 @@ The canonical release sequence is:
 6.31.15 Executable/packed matrix + docs consolidation  (published; CI wiring / kit provenance reopened)
 6.31.16 C01 + C07–C09 + C11 verifier acceptance reopen  (published)
 6.31.17 W26 sensitive-key complete-marker + merged Windows --policy (#473)  (published)
-6.31.18+ Conditional only if a public recovery defect reproduces (omit empty slots; W11 replay green → skip)
+6.31.18 Fix-Owes recovery / OTLP identity / recipes / MCP SDK packed e2e  (published)
+6.31.19 Residual Fix-Owes recovery + OTLP identity fixtures  (published)
+6.31.20 Oct 11 MCP RequestOptions forward + Headsign/Keniel/evidence fixture owes  (published)
+6.31.21+ Conditional public defect only (omit empty slots)
 
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
@@ -115,6 +118,8 @@ website  Headers/crawler (#458) done; links/quickstart/TOC/badges retained
 **Amendment (2026-10-07):** **6.31.16** published. Stale “6.31.17 = C07–C08…” slot labels retired (that work shipped in 6.31.16). Next public patch is **6.31.17** = W26 complete-marker hardening + already-merged Windows `#473`. Residual Promptfoo/OTLP/kit controls are W01 (repo-first). **6.32.0** remains blocked.
 
 **Amendment (2026-10-07 later):** **6.31.17** published (all 18). W01 (#481–#483), W02 (proactive-ai-demo #6–#8), W03 matrix honesty, and W26 are done. W11 bounded-read-recovery replay remains green — no empty **6.31.18**. Next repo work is W04+ artifact packages; **EVIDENCE_GATE** still not approved.
+
+**Amendment (2026-10-11):** **6.31.18**–**6.31.20** published (all 18). Fix-Owes and Oct 11 MCP RequestOptions / fixture owes shipped. W23A (#490) aligns this roadmap and active-plan pointers to **6.31.20**. **EVIDENCE_GATE** still not approved; keep #209 open.
 
 No major version is required. No new trace schema. No TrueForge-specific package. No full-content capture mode. No general temporal/workflow DSL.
 
@@ -215,7 +220,10 @@ Fail-closed deterministic gate hardening:
 | **6.31.0**–**6.31.15** | Typed ordering through matrix/docs consolidation | published line | Published (partial acceptance; C01/C07–C09/C11 reopened) |
 | **6.31.16** | Verifier acceptance reopen | published | Done |
 | **6.31.17** | W26 marker + Windows `#473` | published | Done |
-| **6.31.18+** | Conditional public recovery only | omit if empty (W11 green) | Skipped unless defect reproduces |
+| **6.31.18** | Fix-Owes recovery / OTLP / recipes / MCP packed e2e | published | Done |
+| **6.31.19** | Residual Fix-Owes fixtures | published | Done |
+| **6.31.20** | Oct 11 MCP RequestOptions + fixture owes | published | Done |
+| **6.31.21+** | Conditional public defect only | omit if empty | Skip unless defect reproduces |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 

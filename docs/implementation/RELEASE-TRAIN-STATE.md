@@ -9,20 +9,20 @@ baselineVersion: "6.31.20"
 publishedVersion: "6.31.20"
 pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.20 published all 18; Oct 11 remaining fixes closed; 6.32 blocked"
+trainStatus: "6.31.20 published all 18; W23A #490 closed; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.20 partner/gated holds"
-lastConfirmedCommit: "32660b16"
-lastValidationLevel: "npm 6.31.20 ×18; Publish run 38163150789 success"
+currentChunk: "post-W23A partner/gated holds"
+lastConfirmedCommit: "a91a59cf"
+lastValidationLevel: "npm 6.31.20 ×18; Publish run 38163150789 success; W23A docs sync"
 nextAction: "Partner packets / plumbline #98 re-review authorize; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
   "482": "closed — W01 OTLP AnyValues"
   "483": "closed — W01 kit resolved pin"
-  "490": "open — W23A ROADMAP/COMPARE sync"
+  "490": "closed — W23A ROADMAP/COMPARE sync"
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
   "484": "open — W04 OTLP operation/attempt identity"
   "485": "open — W05 browser observer binding"
@@ -43,8 +43,9 @@ completedChunks:
   - "W00 Oct 7 reconcile"
   - "W03 packed-matrix honesty wording"
   - "W11 recovery replay green — skip empty 6.31.18"
+  - "6.31.18–6.31.20 Fix-Owes + Oct 11 MCP/fixture owes"
+  - "W23A #490 ROADMAP/COMPARE/active-plan pointer sync"
 queuedChunks:
-  - "W23A finish #490 COMPARE/ROADMAP pointer sync"
   - "W04/#484 identity packet + Robb/Roy drafts after artifacts"
   - "W05/#485 browser observer controls"
   - "W06/#486 paired captures"
@@ -63,7 +64,7 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.20
-  ACTIVE: stability-after-63111 (Oct 11 remaining fixes published)
+  ACTIVE: stability-after-63111 (W23A closed)
   NEXT: partner packets / plumbline re-review authorize; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
