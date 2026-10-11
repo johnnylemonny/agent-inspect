@@ -11,7 +11,7 @@
       ],
       "evidence": [
         {
-          "eventId": "step_NW2t35Hg4z",
+          "eventId": "step_-Nw2L9c41U",
           "kind": "OUTCOME",
           "name": "policyShown",
           "path": "outcome.policyShown",
@@ -33,7 +33,7 @@
       "actual": "search_docs",
       "evidence": [
         {
-          "eventId": "step_GI6NuejHtK_started",
+          "eventId": "step_kB4AlZ15Pj_started",
           "kind": "TOOL",
           "name": "tool:search_docs",
           "runId": "demo-regression",
