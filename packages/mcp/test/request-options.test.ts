@@ -127,7 +127,7 @@ describe("@agent-inspect/mcp request options", () => {
   });
 
   it("preserves application errors when instrumentation records the step", async () => {
-    const callTool = vi.fn(async () => {
+    const callTool = vi.fn(async (_params) => {
       throw new Error("mcp boom");
     });
     const client = wrapMcpClient({ callTool });
