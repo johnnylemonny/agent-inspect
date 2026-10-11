@@ -34,7 +34,7 @@ export function extractSessionWorkflowMetadata(
   assignString("conversationId", record.conversationId);
   assignString("groupId", record.groupId);
   assignString("parentGroupId", record.parentGroupId);
-  assignString("retryOf", record.retryOf);
+  assignString("retryOf", record.retryOf ?? record["agent_inspect.retry_of"]);
   assignString("retryReason", record.retryReason);
   assignString("handoffFrom", record.handoffFrom);
   assignString("handoffTo", record.handoffTo);
@@ -47,8 +47,8 @@ export function extractSessionWorkflowMetadata(
   assignString("toolCallId", record.toolCallId);
   assignString("mcpToolCallId", record.mcpToolCallId);
   assignString("linkedStepId", record.linkedStepId);
-  assignString("operationId", record.operationId);
-  assignString("attemptId", record.attemptId);
+  assignString("operationId", record.operationId ?? record["agent_inspect.operation_id"]);
+  assignString("attemptId", record.attemptId ?? record["agent_inspect.attempt_id"]);
   assignString("fallbackOf", record.fallbackOf);
   assignString("idempotencyKey", record.idempotencyKey);
   assignString("correlationId", record.correlationId);
@@ -60,7 +60,9 @@ export function extractSessionWorkflowMetadata(
     out.attempt = attempt;
     found = true;
   }
-  const attemptNumber = finitePositiveInt(record.attemptNumber);
+  const attemptNumber = finitePositiveInt(
+    record.attemptNumber ?? record["agent_inspect.attempt_number"],
+  );
   if (attemptNumber !== undefined) {
     out.attemptNumber = attemptNumber;
     found = true;

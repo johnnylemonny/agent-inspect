@@ -233,37 +233,93 @@ await inspectRun(
     }
 
     await step("om-attempt-comparison", async () => {
-      const a1: AttemptRecord = {
-        attemptId: "a1",
-        operationId: "op_checkout_click",
-        locator: {
-          role: "button",
-          matchCount: 0,
-          frame: "main",
-          shadow: false,
-          ready: false,
-          waitBudgetMs: 100,
-        },
-        errorClass: "LocatorNotFound",
-        toolStatus: "error",
-        routeTemplate: "/orders/:id",
+      // Execute two controlled in-memory action attempts (not predefined AttemptRecords).
+      type LocState = {
+        matchCount: number;
+        ready: boolean;
+        page: Page;
       };
-      const a2: AttemptRecord = {
-        attemptId: "a2",
-        operationId: "op_checkout_click",
-        retryOf: "a1",
-        locator: {
-          role: "button",
-          matchCount: 1,
-          frame: "main",
-          shadow: false,
-          ready: true,
-          waitBudgetMs: 100,
+      const loc: LocState = { matchCount: 0, ready: false, page: "cart" };
+      const routeTemplate = "/orders/:id";
+      const waitBudgetMs = 100;
+
+      const a1 = await step(
+        "browser.click",
+        async (): Promise<AttemptRecord> => {
+          const record: AttemptRecord = {
+            attemptId: "a1",
+            operationId: "op_checkout_click",
+            locator: {
+              role: "button",
+              matchCount: loc.matchCount,
+              frame: "main",
+              shadow: false,
+              ready: loc.ready,
+              waitBudgetMs,
+            },
+            errorClass: "LocatorNotFound",
+            toolStatus: "error",
+            routeTemplate,
+          };
+          if (loc.matchCount === 0 || !loc.ready) {
+            const err = new Error("LocatorNotFound");
+            (err as Error & { attempt: AttemptRecord }).attempt = record;
+            throw err;
+          }
+          return record;
         },
-        toolStatus: "success",
-        observedTransition: { from: "cart", to: "checkout" },
-        routeTemplate: "/orders/:id",
-      };
+        {
+          type: "tool",
+          metadata: {
+            toolName: "browser.click",
+            operationId: "op_checkout_click",
+            attemptId: "a1",
+            attemptNumber: 1,
+          },
+        },
+      ).catch((error: Error & { attempt?: AttemptRecord }) => {
+        if (!error.attempt) throw error;
+        return error.attempt;
+      });
+
+      // Controlled readiness transition before retry (synthetic page, not a real browser).
+      loc.matchCount = 1;
+      loc.ready = true;
+
+      const a2 = await step(
+        "browser.click",
+        async (): Promise<AttemptRecord> => {
+          const from = loc.page;
+          loc.page = "checkout";
+          return {
+            attemptId: "a2",
+            operationId: "op_checkout_click",
+            retryOf: "a1",
+            locator: {
+              role: "button",
+              matchCount: loc.matchCount,
+              frame: "main",
+              shadow: false,
+              ready: loc.ready,
+              waitBudgetMs,
+            },
+            toolStatus: "success",
+            observedTransition: { from, to: loc.page },
+            routeTemplate,
+          };
+        },
+        {
+          type: "tool",
+          metadata: {
+            toolName: "browser.click",
+            operationId: "op_checkout_click",
+            attemptId: "a2",
+            attemptNumber: 2,
+            retryOf: "a1",
+          },
+        },
+      );
+
       const cmp = compareAttempts(a1, a2);
       await observeOutcome("om.attemptComparison", {
         expectation: "failed a1 then successful a2 with retryOf and observed transition",
@@ -293,8 +349,8 @@ await inspectRun(
         },
         evidence: {
           routeTemplate: a2.routeTemplate,
-          simulation: "synthetic-attempt-inputs",
-          note: "Not a claim that a real browser supplied these values",
+          simulation: "executed-in-memory-locator-attempts",
+          note: "Controlled synthetic page/locator; not a claim a real browser supplied these values",
         },
       });
       return cmp;

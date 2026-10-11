@@ -1,0 +1,475 @@
+{
+  "schema": "bezalel-agentinspect-pilot.v2",
+  "fixture_id": "pilot-governed-remediation-acceptance-01",
+  "title": "Sanitized governed remediation, acceptance, bounded mutation, and durability trajectory",
+  "naming": {
+    "formal_system_name": "Bezalel",
+    "historical_project_name": "Aegis",
+    "note": "Bezalel is the formal system name. Aegis is the project/historical implementation name under which this trajectory was produced. The fixture uses Bezalel for the system and retains Aegis only where historical naming context matters; they do not denote two independent systems in this pilot."
+  },
+  "provenance_profile": {
+    "source_type": "sanitized_summary_of_one_real_governed_development_trajectory",
+    "semantic_fidelity": "transition-and-relationship faithful; not a raw evidence export",
+    "original_commit_ids_exposed": false,
+    "original_repository_paths_exposed": false,
+    "raw_prompts_exposed": false,
+    "private_reasoning_exposed": false,
+    "credentials_exposed": false,
+    "source_code_exposed": false,
+    "agent_model_names_exposed": false,
+    "internal_test_taxonomy_exposed": false,
+    "policy_learning_internals_exposed": false
+  },
+  "ordering_model": {
+    "kind": "explicit_ordinal",
+    "timestamps": "intentionally_omitted",
+    "rule": "sequence is presentation order only; causality exists only where an explicit relationship says so"
+  },
+  "actors": [
+    {
+      "actor_id": "actor_impl_r1",
+      "role": "implementation_agent"
+    },
+    {
+      "actor_id": "actor_audit_r1",
+      "role": "independent_source_auditor"
+    },
+    {
+      "actor_id": "actor_impl_r2",
+      "role": "implementation_agent"
+    },
+    {
+      "actor_id": "actor_audit_r2",
+      "role": "independent_source_auditor"
+    },
+    {
+      "actor_id": "actor_owner",
+      "role": "human_acceptance_and_consequential_execution_authority"
+    },
+    {
+      "actor_id": "actor_closure_preparer",
+      "role": "read_only_closure_preparation_agent"
+    },
+    {
+      "actor_id": "actor_closure_runtime",
+      "role": "bounded_closure_runtime_mechanism"
+    },
+    {
+      "actor_id": "actor_closure_audit",
+      "role": "independent_post_closure_auditor"
+    }
+  ],
+  "authority_identifiers": [
+    {
+      "authority_id": "auth_source_acceptance",
+      "meaning": "human authority that can explicitly accept the source candidate in this fixture"
+    },
+    {
+      "authority_id": "auth_bounded_closure_execution",
+      "meaning": "human-triggered, bounded authority to execute the already-accepted canonical closure once"
+    }
+  ],
+  "source_lineage": {
+    "accepted_base_id": "src_accepted_base_0",
+    "r1_candidate_id": "src_candidate_r1",
+    "r2_candidate_id": "src_candidate_r2",
+    "r1_parent_id": "src_accepted_base_0",
+    "r2_parent_id": "src_accepted_base_0",
+    "r2_is_source_child_of_r1": false,
+    "note": "R2 explicitly remediates the R1 verification failure, but its source parent is the prior accepted base rather than failed R1."
+  },
+  "events": [
+    {
+      "event_id": "evt_010_r1_candidate_created",
+      "sequence": 10,
+      "actor_id": "actor_impl_r1",
+      "authority_id": null,
+      "permission_scope": "bounded_implementation",
+      "parent_or_causal_reference": [
+        "src_accepted_base_0"
+      ],
+      "caused_by_event_id": null,
+      "event_kind": "candidate.created",
+      "event_name": "R1 candidate created",
+      "status": "CANDIDATE_UNACCEPTED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": null,
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_ACCEPTANCE_DECISION"
+    },
+    {
+      "event_id": "evt_020_r1_independent_audit_fail",
+      "sequence": 20,
+      "actor_id": "actor_audit_r1",
+      "authority_id": null,
+      "permission_scope": "read_only_verification",
+      "parent_or_causal_reference": [
+        "evt_010_r1_candidate_created"
+      ],
+      "caused_by_event_id": "evt_010_r1_candidate_created",
+      "event_kind": "verification.independent_audit",
+      "event_name": "R1 independent audit",
+      "status": "VERIFICATION_FAILED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": {
+        "verdict": "FAIL_MAJOR",
+        "meaning": "verification failed; the audit did not itself create an acceptance or rejection authority event"
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_ACCEPTANCE_DECISION"
+    },
+    {
+      "event_id": "evt_030_r2_remediation_candidate_created",
+      "sequence": 30,
+      "actor_id": "actor_impl_r2",
+      "authority_id": null,
+      "permission_scope": "bounded_implementation",
+      "parent_or_causal_reference": [
+        "src_accepted_base_0",
+        "evt_020_r1_independent_audit_fail"
+      ],
+      "caused_by_event_id": "evt_020_r1_independent_audit_fail",
+      "event_kind": "candidate.remediation_created",
+      "event_name": "R2 remediation candidate re-cut from accepted base",
+      "status": "CANDIDATE_UNACCEPTED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": null,
+      "remediation_of": {
+        "event_id": "evt_020_r1_independent_audit_fail",
+        "failed_candidate_event_id": "evt_010_r1_candidate_created",
+        "relationship_kind": "explicit_remediation_cause"
+      },
+      "final_acceptance_or_rejection": "NO_ACCEPTANCE_DECISION",
+      "source_lineage_note": "source parent remains src_accepted_base_0, not src_candidate_r1"
+    },
+    {
+      "event_id": "evt_040_r2_independent_audit_pass",
+      "sequence": 40,
+      "actor_id": "actor_audit_r2",
+      "authority_id": null,
+      "permission_scope": "read_only_verification",
+      "parent_or_causal_reference": [
+        "evt_030_r2_remediation_candidate_created"
+      ],
+      "caused_by_event_id": "evt_030_r2_remediation_candidate_created",
+      "event_kind": "verification.independent_audit",
+      "event_name": "R2 independent audit",
+      "status": "VERIFICATION_PASSED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": {
+        "verdict": "PASS"
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_ACCEPTANCE_DECISION",
+      "semantic_note": "PASS verifies the candidate; it does not accept it."
+    },
+    {
+      "event_id": "evt_050_owner_acceptance",
+      "sequence": 50,
+      "actor_id": "actor_owner",
+      "authority_id": "auth_source_acceptance",
+      "permission_scope": "source_acceptance_authority",
+      "parent_or_causal_reference": [
+        "evt_030_r2_remediation_candidate_created",
+        "evt_040_r2_independent_audit_pass"
+      ],
+      "caused_by_event_id": null,
+      "event_kind": "authority.source_acceptance",
+      "event_name": "Explicit human source acceptance",
+      "status": "SOURCE_ACCEPTED",
+      "authority_decision": "ACCEPT_R2_AS_PASS_CANDIDATE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false,
+        "note": "Source acceptance does not itself perform the later canonical state mutation."
+      },
+      "verification_result": null,
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "ACCEPTED"
+    },
+    {
+      "event_id": "evt_055_closure_preflight",
+      "sequence": 55,
+      "actor_id": "actor_closure_preparer",
+      "authority_id": null,
+      "permission_scope": "read_only_preparation",
+      "parent_or_causal_reference": [
+        "evt_050_owner_acceptance"
+      ],
+      "caused_by_event_id": "evt_050_owner_acceptance",
+      "event_kind": "preparation.closure_preflight",
+      "event_name": "Read-only closure preflight and bounded command preparation",
+      "status": "PRECHECK_PASSED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": {
+        "preconditions": "PASS"
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_NEW_ACCEPTANCE_DECISION"
+    },
+    {
+      "event_id": "evt_060_owner_triggers_bounded_closure",
+      "sequence": 60,
+      "actor_id": "actor_owner",
+      "mechanism_actor_id": "actor_closure_runtime",
+      "authority_id": "auth_bounded_closure_execution",
+      "permission_scope": "consequential_execution_authority",
+      "parent_or_causal_reference": [
+        "evt_050_owner_acceptance",
+        "evt_055_closure_preflight"
+      ],
+      "caused_by_event_id": "evt_050_owner_acceptance",
+      "event_kind": "authority.bounded_canonical_state_transition",
+      "event_name": "Human-triggered bounded canonical closure",
+      "status": "CLOSED",
+      "authority_decision": "EXECUTE_ALREADY_ACCEPTED_SOURCE_CLOSURE_ONCE",
+      "consequential_mutation": {
+        "occurred": true,
+        "authority_surface_changed": true,
+        "authoritative_state_transition_count": 1,
+        "durable_retention_binding_count": 1,
+        "other_authority_mutation_count": 0,
+        "failed_r1_authority_role": "NONE"
+      },
+      "verification_result": {
+        "authority_execution_count": 1,
+        "automatic_retry": false
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_NEW_ACCEPTANCE_DECISION"
+    },
+    {
+      "event_id": "evt_070_durability_recovery_verification",
+      "sequence": 70,
+      "actor_id": "actor_closure_runtime",
+      "authority_id": null,
+      "permission_scope": "verification_within_bounded_closure",
+      "parent_or_causal_reference": [
+        "evt_060_owner_triggers_bounded_closure"
+      ],
+      "caused_by_event_id": "evt_060_owner_triggers_bounded_closure",
+      "event_kind": "verification.durability_and_recovery",
+      "event_name": "Durability and fresh recovery verification",
+      "status": "VERIFICATION_PASSED",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": {
+        "durability": "PASS",
+        "fresh_recovery": "PASS",
+        "recovery_streams_match": true
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_NEW_ACCEPTANCE_DECISION"
+    },
+    {
+      "event_id": "evt_080_independent_closure_audit",
+      "sequence": 80,
+      "actor_id": "actor_closure_audit",
+      "authority_id": null,
+      "permission_scope": "read_only_verification",
+      "parent_or_causal_reference": [
+        "evt_060_owner_triggers_bounded_closure",
+        "evt_070_durability_recovery_verification"
+      ],
+      "caused_by_event_id": "evt_060_owner_triggers_bounded_closure",
+      "event_kind": "verification.independent_post_closure_audit",
+      "event_name": "Independent closure audit",
+      "status": "VERIFICATION_PASSED_WITH_MINOR_NOTES",
+      "authority_decision": "NONE",
+      "consequential_mutation": {
+        "occurred": false,
+        "authority_surface_changed": false
+      },
+      "verification_result": {
+        "verdict": "PASS_WITH_MINOR_NOTES",
+        "closure_confirmed": true,
+        "final_durable_closure": "CLOSED",
+        "notes_classification": "non_blocking"
+      },
+      "remediation_of": null,
+      "final_acceptance_or_rejection": "NO_NEW_ACCEPTANCE_REQUIRED"
+    }
+  ],
+  "relationships": [
+    {
+      "relationship_id": "rel_r1_audit_verifies_r1",
+      "kind": "verification_of",
+      "from_event_id": "evt_020_r1_independent_audit_fail",
+      "to_event_id": "evt_010_r1_candidate_created"
+    },
+    {
+      "relationship_id": "rel_r2_remediates_r1_failure",
+      "kind": "remediation_of",
+      "from_event_id": "evt_030_r2_remediation_candidate_created",
+      "to_event_id": "evt_020_r1_independent_audit_fail",
+      "explicit": true
+    },
+    {
+      "relationship_id": "rel_r2_audit_verifies_r2",
+      "kind": "verification_of",
+      "from_event_id": "evt_040_r2_independent_audit_pass",
+      "to_event_id": "evt_030_r2_remediation_candidate_created"
+    },
+    {
+      "relationship_id": "rel_owner_accepts_r2",
+      "kind": "acceptance_of",
+      "from_event_id": "evt_050_owner_acceptance",
+      "to_event_id": "evt_030_r2_remediation_candidate_created"
+    },
+    {
+      "relationship_id": "rel_acceptance_precedes_preflight",
+      "kind": "precondition_for",
+      "from_event_id": "evt_050_owner_acceptance",
+      "to_event_id": "evt_055_closure_preflight"
+    },
+    {
+      "relationship_id": "rel_acceptance_authorizes_mutation",
+      "kind": "authority_before_mutation",
+      "from_event_id": "evt_050_owner_acceptance",
+      "to_event_id": "evt_060_owner_triggers_bounded_closure"
+    },
+    {
+      "relationship_id": "rel_preflight_precedes_mutation",
+      "kind": "preparation_before_mutation",
+      "from_event_id": "evt_055_closure_preflight",
+      "to_event_id": "evt_060_owner_triggers_bounded_closure"
+    },
+    {
+      "relationship_id": "rel_durability_verifies_mutation",
+      "kind": "verification_of",
+      "from_event_id": "evt_070_durability_recovery_verification",
+      "to_event_id": "evt_060_owner_triggers_bounded_closure"
+    },
+    {
+      "relationship_id": "rel_closure_audit_verifies_closure",
+      "kind": "verification_of",
+      "from_event_id": "evt_080_independent_closure_audit",
+      "to_event_id": "evt_060_owner_triggers_bounded_closure"
+    }
+  ],
+  "invariants": [
+    {
+      "invariant_id": "INV-01",
+      "statement": "Candidate existence does not imply acceptance.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-02",
+      "statement": "Independent audit PASS does not itself imply acceptance.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-03",
+      "statement": "The failed R1 candidate never acquires accepted or canonical authority.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-04",
+      "statement": "R2 has an explicit remediation causal link to R1 failure while its source parent remains the prior accepted base, not failed R1.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-05",
+      "statement": "Verification and human acceptance are distinct event kinds with distinct authority semantics.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-06",
+      "statement": "The preparation agent does not execute the consequential mutation; the human authority triggers the bounded closure after acceptance.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-07",
+      "statement": "The bounded closure contains one authoritative state transition and one durable retention binding, with no other authority mutation.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-08",
+      "statement": "Presentation order alone must not manufacture causality; causal claims require explicit relationship fields.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-09",
+      "statement": "Durability/recovery verification and closure audit create no second source acceptance.",
+      "expected": true
+    },
+    {
+      "invariant_id": "INV-10",
+      "statement": "This sanitized fixture makes no claim that the original execution can be replayed from the package.",
+      "expected": true
+    }
+  ],
+  "questions_for_agentinspect": [
+    {
+      "question_id": "Q1",
+      "question": "Can the current model distinguish source-lineage parenthood from remediation causality?"
+    },
+    {
+      "question_id": "Q2",
+      "question": "Can it represent independent verification PASS separately from human acceptance authority?"
+    },
+    {
+      "question_id": "Q3",
+      "question": "Can it distinguish a read-only preparation agent from the human actor that triggers the consequential mutation?"
+    },
+    {
+      "question_id": "Q4",
+      "question": "Can it prove authority-before-mutation from explicit relations without inferring causality from sequence?"
+    },
+    {
+      "question_id": "Q5",
+      "question": "Can it keep the failed R1 candidate explicitly non-authoritative even though R1 remains part of the trajectory?"
+    },
+    {
+      "question_id": "Q6",
+      "question": "Can it represent a bounded state transition plus a separate durability-retention effect without treating later verification as new authority?"
+    },
+    {
+      "question_id": "Q7",
+      "question": "Which relationships remain ambiguous under existing AgentInspect reader/transform and TraceFacts contracts?"
+    },
+    {
+      "question_id": "Q8",
+      "question": "Can the model preserve the explicit non-claim around replay rather than infer replay capability from evidence completeness?"
+    }
+  ],
+  "explicit_non_claims": [
+    "No raw Bezalel/Aegis evidence bundle is included.",
+    "No private reasoning or chain-of-thought is included.",
+    "No raw prompts are included.",
+    "No credentials or secrets are included.",
+    "No source code is included.",
+    "No original Git object identifiers or local repository paths are included.",
+    "No implementation-agent or auditor model names are included.",
+    "No internal counterexample/test taxonomy is included.",
+    "No policy-learning internals are included.",
+    "No claim is made that ordering establishes causality.",
+    "No claim is made that audit PASS equals acceptance.",
+    "No claim is made that canonical mutation equals source verification.",
+    "No claim is made that this sanitized fixture is sufficient for execution replay.",
+    "AgentInspect is not granted any Bezalel authority by consuming this fixture."
+  ]
+}

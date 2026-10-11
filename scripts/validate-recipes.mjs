@@ -69,6 +69,7 @@ const RECIPES = [
   "timeout-ledger-effects",
   "access-disclosure-controls",
   "keniel-finding-b8",
+  "bezalel-pilot-invariants",
   "headsign-review-fixture",
   "causal-failure-summary",
   "nestjs-tenant-incident",

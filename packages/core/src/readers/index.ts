@@ -1648,6 +1648,91 @@ function mapOtlpEvents(
   };
 }
 
+/**
+ * Promote bounded agent_inspect.* identity attrs into camelCase workflow keys
+ * that retry/recovery checks read via extractSessionWorkflowMetadata.
+ * Retains the dotted source attributes. Conflicts are diagnosable warnings;
+ * conflicting values are not overwritten.
+ */
+function promoteAgentInspectWorkflowIdentity(
+  attributes: Record<string, unknown>,
+  pathPrefix: string,
+): TraceReadWarning[] {
+  const warnings: TraceReadWarning[] = [];
+  const mapping = [
+    ["agent_inspect.operation_id", "operationId", "string"],
+    ["agent_inspect.attempt_id", "attemptId", "string"],
+    ["agent_inspect.retry_of", "retryOf", "string"],
+    ["agent_inspect.attempt_number", "attemptNumber", "int"],
+  ] as const;
+
+  const metadata =
+    attributes.metadata &&
+    typeof attributes.metadata === "object" &&
+    !Array.isArray(attributes.metadata)
+      ? { ...(attributes.metadata as Record<string, unknown>) }
+      : {};
+
+  for (const [dotted, camel, kind] of mapping) {
+    const raw = attributes[dotted];
+    if (raw === undefined || raw === null) continue;
+
+    let promoted: string | number | undefined;
+    if (kind === "int") {
+      const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+      if (!Number.isFinite(n) || n < 1) {
+        warnings.push({
+          code: "otlp_identity_invalid",
+          message: `Ignoring invalid ${dotted} identity value.`,
+          severity: "warning",
+          field: `${pathPrefix}.${dotted}`,
+        });
+        continue;
+      }
+      promoted = Math.trunc(n);
+    } else if (typeof raw === "string" && raw.trim() !== "") {
+      promoted = raw.trim();
+    } else {
+      warnings.push({
+        code: "otlp_identity_invalid",
+        message: `Ignoring non-string ${dotted} identity value.`,
+        severity: "warning",
+        field: `${pathPrefix}.${dotted}`,
+      });
+      continue;
+    }
+
+    const direct = attributes[camel];
+    const nested = metadata[camel];
+    if (direct !== undefined && direct !== promoted) {
+      warnings.push({
+        code: "otlp_identity_conflict",
+        message: `Conflicting ${camel}: attributes.${camel} vs ${dotted}; keeping camelCase.`,
+        severity: "warning",
+        field: `${pathPrefix}.${dotted}`,
+      });
+      continue;
+    }
+    if (nested !== undefined && nested !== promoted && direct === undefined) {
+      warnings.push({
+        code: "otlp_identity_conflict",
+        message: `Conflicting ${camel}: attributes.metadata.${camel} vs ${dotted}; keeping nested.`,
+        severity: "warning",
+        field: `${pathPrefix}.${dotted}`,
+      });
+      continue;
+    }
+
+    if (direct === undefined) attributes[camel] = promoted;
+    if (nested === undefined) metadata[camel] = promoted;
+  }
+
+  if (Object.keys(metadata).length > 0) {
+    attributes.metadata = metadata;
+  }
+  return warnings;
+}
+
 function mapOtlpSpan(context: OtlpSpanContext): OpenInferenceMappedSpan {
   const { span, pathPrefix } = context;
   const warnings: TraceReadWarning[] = [];
@@ -1681,6 +1766,7 @@ function mapOtlpSpan(context: OtlpSpanContext): OpenInferenceMappedSpan {
   if (context.scopeVersion !== undefined) {
     attributes["scope.version"] = context.scopeVersion;
   }
+  warnings.push(...promoteAgentInspectWorkflowIdentity(attributes, pathPrefix));
 
   for (const [key, value] of Object.entries(span)) {
     if (OTLP_SPAN_KEYS.has(key)) continue;
@@ -1721,6 +1807,8 @@ function mapOtlpSpan(context: OtlpSpanContext): OpenInferenceMappedSpan {
   if (events.events !== undefined) {
     attributes["otlp.events"] = events.events;
   }
+
+  warnings.push(...promoteAgentInspectWorkflowIdentity(attributes, pathPrefix));
 
   const traceId = readStringField(span, ["traceId"]) ?? "trace-unknown";
   const spanId = readStringField(span, ["spanId"]) ?? "span-unknown";

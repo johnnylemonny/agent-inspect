@@ -1,8 +1,15 @@
 #!/usr/bin/env node
 /**
  * F04 controlled OTLP identity evidence (Robb / Roy).
- * Captures real local runs, default OTLP export, mapping table.
- * Not Honeycomb/Refinery validation; not a shipped-release claim.
+ * Captures real local runs, default OTLP export, round-trip contract parity.
+ * Not Honeycomb/Refinery validation.
+ *
+ * Usage:
+ *   pnpm build
+ *   node scripts/f04-otlp-identity-evidence.mjs [output-dir]
+ *
+ * Default output: <repo>/tmp/f04-otlp-identity-evidence
+ * Exit nonzero on source/round-trip contract mismatches.
  */
 import fs from "node:fs";
 import path from "node:path";
@@ -11,12 +18,9 @@ import { createRequire } from "node:module";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const root = path.resolve(__dirname, "..");
-const outRoot =
-  process.argv[2] ??
-  path.join(
-    process.env.HOME ?? "",
-    "Library/Application Support/Cursor/AgentStores/cursor_agent_stores/0b534b29-4d7a-426a-bfc9-a6732695828f/files/f04-otlp-robb-roy",
-  );
+const outRoot = path.resolve(
+  process.argv[2] ?? path.join(root, "tmp", "f04-otlp-identity-evidence"),
+);
 
 const require = createRequire(path.join(root, "packages/core/package.json"));
 const dist = path.join(root, "packages/core/dist");
@@ -24,10 +28,21 @@ const { inspectRun, step } = await import(path.join(dist, "index.mjs"));
 const { exportOtlpJson, manualTraceEventsToRunTree } = await import(
   path.join(dist, "exporters.mjs")
 );
-const { openTraceFile } = await import(path.join(dist, "readers.mjs"));
+const { openTraceFile, openTraceText } = await import(path.join(dist, "readers.mjs"));
 const { getCurrentRunId } = await import(path.join(dist, "advanced.mjs"));
+const { defineTraceContract, evaluateTraceContract } = await import(
+  path.join(dist, "checks.mjs")
+);
 
 fs.mkdirSync(outRoot, { recursive: true });
+
+const maxOne = defineTraceContract({ retry: { maxAttempts: 1 } });
+let failures = 0;
+
+function fail(msg) {
+  failures += 1;
+  console.error(`[f04] FAIL: ${msg}`);
+}
 
 async function capture(label, fn) {
   const traceDir = path.join(outRoot, "traces", label);
@@ -55,16 +70,44 @@ async function capture(label, fn) {
   const jsonlCopy = path.join(outRoot, `${label}.source.jsonl`);
   fs.writeFileSync(jsonlCopy, text);
   fs.writeFileSync(otlpPath, otlp.content);
-  const read = await openTraceFile(jsonlCopy);
-  return { runId, sourcePath: jsonlCopy, otlpPath, events, otlp, read };
+  const sourceRead = await openTraceFile(jsonlCopy);
+  const otlpRead = await openTraceText(otlp.content);
+  return { runId, sourcePath: jsonlCopy, otlpPath, events, otlp, sourceRead, otlpRead };
 }
 
-function toolAttempt(name, meta) {
+function toolAttempt(name, meta, body) {
   return step(
     name,
-    async () => ({ ok: true }),
+    async () => {
+      if (typeof body === "function") return body();
+      return { ok: true };
+    },
     { type: "tool", metadata: { toolName: name, ...meta } },
   );
+}
+
+async function assertRoundTrip(label, captureResult, { expectFail = true } = {}) {
+  const sourceEval = evaluateTraceContract({ read: captureResult.sourceRead }, maxOne);
+  const otlpEval = evaluateTraceContract({ read: captureResult.otlpRead }, maxOne);
+  const actual = {
+    sourceStatus: sourceEval.status,
+    otlpStatus: otlpEval.status,
+    sourceFindings: sourceEval.findings.map((f) => f.ruleId),
+    otlpFindings: otlpEval.findings.map((f) => f.ruleId),
+  };
+  fs.writeFileSync(
+    path.join(outRoot, `${label}.contract-results.json`),
+    JSON.stringify({ expectedFail: expectFail, ...actual }, null, 2) + "\n",
+  );
+  if (expectFail) {
+    if (sourceEval.status !== "fail") fail(`${label}: source expected fail, got ${sourceEval.status}`);
+    if (otlpEval.status !== "fail") fail(`${label}: OTLP round-trip expected fail, got ${otlpEval.status}`);
+    const srcMax = sourceEval.findings.some((f) => f.ruleId === "contract.retry.max-attempts");
+    const otlpMax = otlpEval.findings.some((f) => f.ruleId === "contract.retry.max-attempts");
+    if (!srcMax) fail(`${label}: source missing max-attempts finding`);
+    if (!otlpMax) fail(`${label}: OTLP round-trip missing max-attempts finding`);
+  }
+  return actual;
 }
 
 // O01 Robb: one op, two attempts, a2 retryOf a1
@@ -83,22 +126,43 @@ const o01 = await capture("O01-robb-one-op-two-attempts", async () => {
     });
   });
 });
+await assertRoundTrip("O01-robb-one-op-two-attempts", o01);
 
-// O02 Roy: a1=429, a2=timeout, a3=success
+// O02 Roy: actually throw 429 then timeout then success
 const o02 = await capture("O02-roy-three-attempts", async () => {
-  await toolAttempt("retrieve_policy", {
-    operationId: "op1",
-    attemptId: "a1",
-    attemptNumber: 1,
-    httpStatus: 429,
-  });
-  await toolAttempt("retrieve_policy", {
-    operationId: "op1",
-    attemptId: "a2",
-    attemptNumber: 2,
-    retryOf: "a1",
-    errorClass: "TIMEOUT",
-  });
+  try {
+    await toolAttempt(
+      "retrieve_policy",
+      { operationId: "op1", attemptId: "a1", attemptNumber: 1, httpStatus: 429 },
+      async () => {
+        const err = new Error("429 Too Many Requests");
+        err.code = "HTTP_429";
+        err.status = 429;
+        throw err;
+      },
+    );
+  } catch {
+    /* retained failed attempt */
+  }
+  try {
+    await toolAttempt(
+      "retrieve_policy",
+      {
+        operationId: "op1",
+        attemptId: "a2",
+        attemptNumber: 2,
+        retryOf: "a1",
+        errorClass: "TIMEOUT",
+      },
+      async () => {
+        const err = new Error("timeout");
+        err.code = "TIMEOUT";
+        throw err;
+      },
+    );
+  } catch {
+    /* retained */
+  }
   await toolAttempt("retrieve_policy", {
     operationId: "op1",
     attemptId: "a3",
@@ -106,6 +170,7 @@ const o02 = await capture("O02-roy-three-attempts", async () => {
     retryOf: "a2",
   });
 });
+await assertRoundTrip("O02-roy-three-attempts", o02);
 
 // O03 two operations × two attempts
 const o03 = await capture("O03-two-ops-four-attempts", async () => {
@@ -123,6 +188,7 @@ const o03 = await capture("O03-two-ops-four-attempts", async () => {
     });
   }
 });
+await assertRoundTrip("O03-two-ops-four-attempts", o03);
 
 // O04 second physical run reusing labels
 const o04 = await capture("O04-second-physical-run", async () => {
@@ -138,6 +204,82 @@ const o04 = await capture("O04-second-physical-run", async () => {
     retryOf: "a1",
   });
 });
+await assertRoundTrip("O04-second-physical-run", o04);
+if (!(o01.runId !== o04.runId)) fail("O04: physical run ids must differ from O01");
+
+// O05 stable duplicate delivery (same identity twice — still one op / two attempts if distinct attemptIds)
+const o05 = await capture("O05-duplicate-delivery", async () => {
+  await toolAttempt("retrieve_policy", {
+    operationId: "op1",
+    attemptId: "a1",
+    attemptNumber: 1,
+  });
+  await toolAttempt("retrieve_policy", {
+    operationId: "op1",
+    attemptId: "a1",
+    attemptNumber: 1,
+  });
+});
+{
+  const evalO05 = evaluateTraceContract({ read: o05.otlpRead }, maxOne);
+  // Duplicate same attemptId collapses; must not silently invent a second attempt.
+  fs.writeFileSync(
+    path.join(outRoot, "O05-duplicate-delivery.contract-results.json"),
+    JSON.stringify({ status: evalO05.status, findings: evalO05.findings }, null, 2) + "\n",
+  );
+}
+
+// O06 missing/partial identities remain unknown (no operationId → maxAttempts unevaluable)
+const o06 = await capture("O06-partial-identity", async () => {
+  await toolAttempt("retrieve_policy", { attemptNumber: 1 });
+  await toolAttempt("retrieve_policy", {});
+});
+{
+  const sourceEval = evaluateTraceContract({ read: o06.sourceRead }, maxOne);
+  const otlpEval = evaluateTraceContract({ read: o06.otlpRead }, maxOne);
+  fs.writeFileSync(
+    path.join(outRoot, "O06-partial-identity.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Without operationId, global maxAttempts does not invent a grouping; missing identity stays unknown.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (sourceEval.status !== otlpEval.status) {
+    fail("O06: source and OTLP round-trip statuses must match when identities are partial");
+  }
+  // Must not fabricate a max-attempts failure from tool name alone.
+  if (otlpEval.findings.some((f) => f.ruleId === "contract.retry.max-attempts")) {
+    fail("O06: must not invent max-attempts failure without operationId");
+  }
+}
+
+// O07 two ops with equal tool/args stay distinct
+const o07 = await capture("O07-equal-args-distinct-ops", async () => {
+  await toolAttempt("retrieve_policy", {
+    operationId: "opA",
+    attemptId: "a1",
+    attemptNumber: 1,
+    arguments: { policyId: "p" },
+  });
+  await toolAttempt("retrieve_policy", {
+    operationId: "opB",
+    attemptId: "b1",
+    attemptNumber: 1,
+    arguments: { policyId: "p" },
+  });
+});
+{
+  const tools = o07.otlpRead.events.filter((e) => e.kind === "TOOL");
+  const ops = new Set(
+    tools.map((t) => t.attributes?.operationId ?? t.attributes?.["agent_inspect.operation_id"]),
+  );
+  if (ops.size < 2) fail("O07: equal tool/args must retain distinct operationIds after round-trip");
+}
 
 function identityAttrs(otlpContent) {
   const parsed = JSON.parse(otlpContent);
@@ -163,15 +305,19 @@ function identityAttrs(otlpContent) {
 
 const mapping = {
   fieldMapping: {
-    "source metadata.operationId": "attributes.agent_inspect.operation_id",
-    "source metadata.attemptId": "attributes.agent_inspect.attempt_id",
-    "source metadata.retryOf": "attributes.agent_inspect.retry_of",
-    "source metadata.attemptNumber|attempt": "attributes.agent_inspect.attempt_number",
+    "source metadata.operationId": "attributes.agent_inspect.operation_id → reader attributes.operationId",
+    "source metadata.attemptId": "attributes.agent_inspect.attempt_id → reader attributes.attemptId",
+    "source metadata.retryOf": "attributes.agent_inspect.retry_of → reader attributes.retryOf",
+    "source metadata.attemptNumber|attempt":
+      "attributes.agent_inspect.attempt_number → reader attributes.attemptNumber",
     "source parentId": "span.parentSpanId (hashed)",
     "source runId": "attributes.agent_inspect.run_id",
   },
-  disclosureNote:
-    "This restores emission of explicitly recorded identity fields as bounded structural OTLP attributes without includeAttributes. Treat as a compatibility/privacy review item before calling it a released default contract.",
+  lossNotes: [
+    "Raw dotted agent_inspect.* attrs are retained alongside promoted camelCase.",
+    "Conflicting camelCase vs dotted values warn (otlp_identity_conflict) and keep camelCase.",
+    "Identities are never inferred from tool name/arguments.",
+  ],
   controls: {
     O01: identityAttrs(o01.otlp.content),
     O02: identityAttrs(o02.otlp.content),
@@ -182,6 +328,9 @@ const mapping = {
       distinctPhysicalRuns: o01.runId !== o04.runId,
       spans: identityAttrs(o04.otlp.content),
     },
+    O05: identityAttrs(o05.otlp.content),
+    O06: identityAttrs(o06.otlp.content),
+    O07: identityAttrs(o07.otlp.content),
   },
 };
 
@@ -199,38 +348,48 @@ fs.writeFileSync(
   path.join(outRoot, "README.md"),
   `# F04 — OTLP identity pair (Robb) + conformance vector (Roy)
 
-**Status:** local candidate evidence for maintainer review (not shipped; no Honeycomb claim).
-**Package version string:** ${pkg.version}
-**Source SHA:** ${sha}
+**Exporter identity emission:** shipped in **agent-inspect@6.31.18** (\`agent_inspect.operation_id|attempt_id|retry_of|attempt_number\`).
+**Reader promotion + round-trip contract parity:** this candidate (SHA \`${sha}\`, package string ${pkg.version}).
+**Not** a Honeycomb/Refinery claim.
 
 ## Commands
 
 \`\`\`bash
 pnpm build
-node scripts/f04-otlp-identity-evidence.mjs
-pnpm exec vitest run packages/core/test/exporters/otlp-json-exporter.test.ts
+node scripts/f04-otlp-identity-evidence.mjs [output-dir]
+pnpm exec vitest run packages/core/test/exporters/otlp-json-exporter.test.ts \\
+  packages/core/test/readers/otlp-identity-roundtrip.test.ts
 \`\`\`
 
-## Robb (O01)
+Default output directory: \`tmp/f04-otlp-identity-evidence\` (or caller-specified path).
 
-- \`O01-robb-one-op-two-attempts.source.jsonl\`
-- \`O01-robb-one-op-two-attempts.default-otlp.json\`
-- One logical parent \`logical-retrieve\`, child attempts a1/a2 with \`retryOf\`.
+## Cases
 
-## Roy (O02)
-
-- \`O02-roy-three-attempts.source.jsonl\` + default OTLP
-- op1 with a1/a2/a3 attempt chain
+| ID | Intent |
+| --- | --- |
+| O01 | One op / two attempts with retryOf; source≡OTLP fail maxAttempts:1 |
+| O02 | Real throw 429 → timeout → success; identity chain retained |
+| O03 | Two ops × two attempts |
+| O04 | Separate physical run reusing local labels |
+| O05 | Duplicate same attemptId delivery |
+| O06 | Partial/missing identities (no fabrication) |
+| O07 | Equal tool/args, distinct operationIds |
 
 ## Mapping
 
-See \`mapping-and-loss-table.json\`. Unknown identities remain absent (not fabricated).
-Physical run ids for O01 vs O04 remain distinct when labels are reused.
-
-## Privacy / contract
-
-Default export now emits bounded \`agent_inspect.operation_id|attempt_id|retry_of|attempt_number\` when the source recorded them. This is **not** \`includeAttributes\`. Maintainer should confirm this as an accepted default disclosure before release notes claim a fixed contract.
+See \`mapping-and-loss-table.json\` and per-case \`*.contract-results.json\`.
 `,
 );
 
-console.log(JSON.stringify({ outRoot, o01: o01.runId, o02: o02.runId, o04: o04.runId, distinct: o01.runId !== o04.runId }, null, 2));
+const summary = {
+  outRoot,
+  packageVersion: pkg.version,
+  sourceSha: sha,
+  o01: o01.runId,
+  o02: o02.runId,
+  o04: o04.runId,
+  distinctO01O04: o01.runId !== o04.runId,
+  failures,
+};
+console.log(JSON.stringify(summary, null, 2));
+if (failures > 0) process.exitCode = 1;

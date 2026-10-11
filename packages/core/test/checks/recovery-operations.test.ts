@@ -838,5 +838,146 @@ describe("bounded safe recovery operations (6.27)", () => {
         "pass",
       );
     });
+
+    it("R08: partial attemptNumber must not hide second call under maxAttempts", () => {
+      const contract = defineTraceContract({
+        retry: {
+          operations: [
+            {
+              tool: "retrieve_policy",
+              sideEffectClass: "read",
+              maxAttempts: 1,
+              requireTerminalSuccess: true,
+            },
+          ],
+        },
+      });
+      const events = [
+        runEvent("run-1"),
+        tool("one", "run-1", "retrieve_policy", at(1), at(2), {
+          operationId: "op-policy",
+          attemptNumber: 1,
+          arguments: { policyId: "p-1" },
+        }),
+        tool("two", "run-1", "retrieve_policy", at(3), at(4), {
+          operationId: "op-policy",
+          arguments: { policyId: "p-1" },
+        }),
+      ];
+      const result = evaluateTraceContract({ read: readOf(events) }, contract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some(
+          (f) => f.ruleId === "contract.retry.operations.max-attempts" && f.status === "fail",
+        ),
+      ).toBe(true);
+      expect(result.findings.some((f) => f.evidence?.some((e) => e.eventId === "two"))).toBe(true);
+    });
+
+    it("R08b: global maxAttempts also counts partial attemptNumber peers", () => {
+      const contract = defineTraceContract({
+        retry: { maxAttempts: 1 },
+      });
+      const events = [
+        runEvent("run-1"),
+        tool("one", "run-1", "retrieve_policy", at(1), at(2), {
+          operationId: "op-policy",
+          attemptNumber: 1,
+        }),
+        tool("two", "run-1", "retrieve_policy", at(3), at(4), {
+          operationId: "op-policy",
+        }),
+      ];
+      const result = evaluateTraceContract({ read: readOf(events) }, contract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some(
+          (f) => f.ruleId === "contract.retry.max-attempts" && f.status === "fail",
+        ),
+      ).toBe(true);
+    });
+
+    it("R09: end-before-start makes result unavailable for successful-result-dependency", () => {
+      const events = [
+        runEvent("run-1"),
+        tool("policy", "run-1", "retrieve_policy", at(4), at(2), {
+          operationId: "op-policy",
+          attemptNumber: 1,
+          arguments: { policyId: "policy-42" },
+        }),
+        llm("llm", "run-1", at(3), { referencedEventIds: ["policy"] }),
+      ];
+      const result = evaluateTraceContract({ read: readOf(events) }, dependencyContract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some(
+          (f) =>
+            f.ruleId === "contract.retry.operations.successful-result-dependency" &&
+            f.status === "fail",
+        ),
+      ).toBe(true);
+    });
+
+    it("R10: invalid endedAt must not fall back to an older timestamp", () => {
+      const toolEvent = tool("policy", "run-1", "retrieve_policy", at(4), at(5), {
+        operationId: "op-policy",
+        attemptNumber: 1,
+        arguments: { policyId: "policy-42" },
+      });
+      toolEvent.endedAt = "invalid";
+      toolEvent.timestamp = at(0);
+      const events = [runEvent("run-1"), toolEvent, llm("llm", "run-1", at(3), { referencedEventIds: ["policy"] })];
+      const result = evaluateTraceContract({ read: readOf(events) }, dependencyContract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some(
+          (f) =>
+            f.ruleId === "contract.retry.operations.successful-result-dependency" &&
+            f.status === "fail",
+        ),
+      ).toBe(true);
+    });
+
+    it("R11: negative duration without endedAt is unavailable evidence", () => {
+      const toolEvent = tool("policy", "run-1", "retrieve_policy", at(1), at(2), {
+        operationId: "op-policy",
+        attemptNumber: 1,
+        arguments: { policyId: "policy-42" },
+      });
+      delete toolEvent.endedAt;
+      toolEvent.durationMs = -5;
+      const events = [
+        runEvent("run-1"),
+        toolEvent,
+        llm("llm", "run-1", at(3), { referencedEventIds: ["policy"] }),
+      ];
+      const result = evaluateTraceContract({ read: readOf(events) }, dependencyContract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some(
+          (f) =>
+            f.ruleId === "contract.retry.operations.successful-result-dependency" &&
+            f.status === "fail",
+        ),
+      ).toBe(true);
+    });
+
+    it("R12: start+duration availability still passes when chronology is valid", () => {
+      const toolEvent = tool("policy", "run-1", "retrieve_policy", at(1), at(2), {
+        operationId: "op-policy",
+        attemptNumber: 1,
+        arguments: { policyId: "policy-42" },
+      });
+      delete toolEvent.endedAt;
+      toolEvent.durationMs = 1000;
+      const events = [
+        runEvent("run-1"),
+        toolEvent,
+        llm("llm", "run-1", at(3), { referencedEventIds: ["policy"] }),
+      ];
+      expect(evaluateTraceContract({ read: readOf(events) }, dependencyContract).status).toBe(
+        "pass",
+      );
+    });
   });
 });

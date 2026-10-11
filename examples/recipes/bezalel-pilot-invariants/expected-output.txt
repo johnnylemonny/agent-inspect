@@ -1,0 +1,26 @@
+bezalel-pilot-invariants:
+  mappingLedger: bezalel-pilot-v2-to-custom-invariants
+  native-jsonl: unsupported (foreign semantic-summary)
+  native-openTraceFile: unsupported/lossy
+  INV-01: expected=true observed=true PASS support=custom
+  INV-02: expected=true observed=true PASS support=custom
+  INV-03: expected=true observed=true PASS support=custom
+  INV-04: expected=true observed=true PASS support=custom
+  INV-05: expected=true observed=true PASS support=custom
+  INV-06: expected=true observed=true PASS support=custom
+  INV-07: expected=true observed=true PASS support=custom
+  INV-08: expected=true observed=true PASS support=custom
+  INV-09: expected=true observed=true PASS support=custom
+  INV-10: expected=true observed=true PASS support=custom
+mutation-controls:
+  M-accept-candidate: expectFail=INV-01 failed=[INV-01] PASS
+  M-audit-as-authority: expectFail=INV-02 failed=[INV-02] PASS
+  M-r1-authority: expectFail=INV-03 failed=[INV-03] PASS
+  M-rewrite-lineage: expectFail=INV-04 failed=[INV-04] PASS
+  M-collapse-acceptance: expectFail=INV-05 failed=[INV-05] PASS
+  M-preparer-mutates: expectFail=INV-06 failed=[INV-06] PASS
+  M-mutation-counts: expectFail=INV-07 failed=[INV-07] PASS
+  M-drop-relationship: expectFail=INV-08 failed=[INV-08] PASS
+  M-second-acceptance: expectFail=INV-09 failed=[INV-09] PASS
+  M-fabricate-replay: expectFail=INV-10 failed=[INV-10] PASS
+classes: INV-01:pass,INV-02:pass,INV-03:pass,INV-04:pass,INV-05:pass,INV-06:pass,INV-07:pass,INV-08:pass,INV-09:pass,INV-10:pass

@@ -124,11 +124,17 @@ function searchReceipts(finders: FinderRef[]): ReceiptSearch[] {
 
 function mapFinding(finding: FindingB8) {
   // Never backfill singular commentId from commentIds[0].
-  // Source may omit the key or set null — both mean singular null, not commentIds[0].
+  // Absence (key omitted) and explicit null are distinct provenance states.
+  const hasCommentIdKey = Object.prototype.hasOwnProperty.call(finding, "commentId");
+  const commentIdPresence: "absent" | "null" | "present" = !hasCommentIdKey
+    ? "absent"
+    : finding.commentId === null
+      ? "null"
+      : "present";
   const singular =
-    finding.commentId === undefined || finding.commentId === null
-      ? null
-      : finding.commentId;
+    commentIdPresence === "present" && typeof finding.commentId === "string"
+      ? finding.commentId
+      : null;
   const receipts = searchReceipts(finding.foundBy);
   const unknownAttrs = Object.fromEntries(
     Object.entries(finding).filter(
@@ -155,7 +161,11 @@ function mapFinding(finding: FindingB8) {
     finders: finding.foundBy.map((f) => f._ref),
     commentIds: [...finding.commentIds],
     commentId: singular,
+    commentIdPresence,
+    /** Locatable source comment from correspondence (Pushpendra). */
+    sourceCommentId: "3ee98",
     articleRef: finding.commentOn?._ref,
+    expectedArticleRef: "article-4590564",
     receipts,
     unknownAttributes: unknownAttrs,
     sourceTiming: {
@@ -204,13 +214,29 @@ check(
     : "fail",
 );
 
-// K02: singular commentId null preserved independently of commentIds
+// K02: frozen record omits commentId (absence ≠ explicit null); commentIds keeps 3ee98
 check(
-  "K02-singular-null",
+  "K02-singular-absent",
   "pass",
-  mapped.commentId === null &&
+  mapped.commentIdPresence === "absent" &&
+    mapped.commentId === null &&
     mapped.commentIds.length === 1 &&
-    mapped.commentIds[0] === "3ee98"
+    mapped.commentIds[0] === "3ee98" &&
+    mapped.sourceCommentId === "3ee98" &&
+    mapped.articleRef === "article-4590564"
+    ? "pass"
+    : "fail",
+);
+
+// K02b: explicit null is a distinct provenance state from key absence
+const explicitNull = mapFinding({ ...base, commentId: null });
+check(
+  "K02b-explicit-null",
+  "pass",
+  explicitNull.commentIdPresence === "null" &&
+    explicitNull.commentId === null &&
+    mapped.commentIdPresence === "absent" &&
+    explicitNull.commentIdPresence !== mapped.commentIdPresence
     ? "pass"
     : "fail",
 );
@@ -224,6 +250,19 @@ check(
   "K03-wrong-article",
   "fail",
   wrongArticle.articleRef === "article-4590564" ? "pass" : "fail",
+);
+
+// K03b: wrong comment join — must not treat commentIds[0] as singular commentId
+const wrongCommentJoin = mapFinding({
+  ...base,
+  commentId: "comment-WRONG",
+  commentIds: ["3ee98"],
+});
+check(
+  "K03b-wrong-comment-join",
+  "fail",
+  // Pass only if we incorrectly collapsed to source comment 3ee98.
+  wrongCommentJoin.commentId === "3ee98" ? "pass" : "fail",
 );
 
 // K04: missing/unavailable receipt for a finder that had a found receipt → unknown when index cleared

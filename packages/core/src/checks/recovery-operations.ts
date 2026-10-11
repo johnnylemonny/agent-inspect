@@ -122,20 +122,40 @@ function consumerStartMs(event: PersistedInspectEvent): number | undefined {
 
 /**
  * Result/terminal availability boundary for a tool attempt.
- * Prefer endedAt; else startedAt+durationMs; else (legacy) timestamp only when
- * endedAt/duration are absent — treated as the recorded result instant.
+ *
+ * Policy (fail closed on bad chronology):
+ * - Explicit endedAt present: must parse; must not precede startedAt/timestamp;
+ *   never fall back to an older timestamp when the terminal field is invalid.
+ * - Else startedAt+durationMs when duration is finite and >= 0.
+ * - Explicit nonfinite/negative duration without endedAt → unavailable.
+ * - Legacy instant: timestamp only when endedAt and duration are absent.
+ * - Equal result/consumer boundaries are allowed by callers (resultMs <= consumerMs).
  */
 function resultAvailableMs(event: PersistedInspectEvent): number | undefined {
-  const ended = parseComparableMs(event.endedAt);
-  if (ended !== undefined) return ended;
   const started = parseComparableMs(event.startedAt) ?? parseComparableMs(event.timestamp);
-  if (
-    started !== undefined &&
-    event.durationMs !== undefined &&
-    Number.isFinite(event.durationMs)
-  ) {
-    return started + event.durationMs;
+  const endedRaw = event.endedAt;
+  const endedPresent =
+    endedRaw !== undefined && endedRaw !== null && String(endedRaw).trim() !== "";
+
+  if (endedPresent) {
+    const ended = parseComparableMs(typeof endedRaw === "string" ? endedRaw : String(endedRaw));
+    // Invalid terminal timestamp: do not fall back to an older instant.
+    if (ended === undefined) return undefined;
+    // End-before-start is not a trustworthy availability boundary.
+    if (started !== undefined && ended < started) return undefined;
+    return ended;
   }
+
+  if (event.durationMs !== undefined) {
+    if (!Number.isFinite(event.durationMs) || event.durationMs < 0) {
+      return undefined;
+    }
+    if (started !== undefined) {
+      return started + event.durationMs;
+    }
+    return undefined;
+  }
+
   // Legacy instant events: timestamp is the only recorded availability boundary.
   return parseComparableMs(event.timestamp);
 }

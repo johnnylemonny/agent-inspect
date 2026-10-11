@@ -159,16 +159,25 @@ export function countOperationAttempts(members: readonly PersistedInspectEvent[]
     return identified.size + unidentified;
   }
 
-  const numbers = members
-    .map((event) => attemptNumberOf(event))
-    .filter((value): value is number => value !== undefined)
-    .sort((a, b) => a - b);
-  if (numbers.length > 0) {
-    const unique = [...new Set(numbers)];
-    return unique.length;
+  // No attemptIds: apply the same mixed-identity rule to attemptNumber.
+  // Partial numbering must not hide unnumbered finished TOOL/LLM members
+  // (unique annotated numbers alone undercount when peers omit the field).
+  const numbered = new Set<number>();
+  let unnumbered = 0;
+  for (const event of members) {
+    if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
+    const num = attemptNumberOf(event);
+    if (num !== undefined) {
+      numbered.add(num);
+      continue;
+    }
+    unnumbered += 1;
+  }
+  if (numbered.size > 0) {
+    return numbered.size + unnumbered;
   }
 
-  return unidentified;
+  return unnumbered;
 }
 
 type RetryClassification =

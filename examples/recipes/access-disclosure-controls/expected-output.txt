@@ -3,5 +3,7 @@ access-disclosure-controls:
   P02-awaiting-approval: expected=awaiting observed=awaiting
   P03-allowed-disclosed: expected=fail-prevention observed=fail-prevention
   P04-incomplete-observer: expected=unknown observed=unknown
-classes: P01:pass,P02:awaiting,P03:fail-prevention,P04:unknown
-redaction-canary: beforeDisk=true shareExport=true
+  P05-wrong-join: expected=fail-join observed=fail-join
+  P06-redaction-persisted: expected=fail-prevention observed=fail-prevention
+redaction-canary: beforeDisk=true shareExport=true sharePath=share-export.json
+classes: P01:pass,P02:awaiting,P03:fail-prevention,P04:unknown,P05:fail-join,P06:fail-prevention

@@ -8,4 +8,6 @@ future-overlapping-answer expected=fail observed=fail OK
 both-fail-answer-claims-success expected=fail observed=fail OK
 missing-result-link expected=fail observed=fail OK
 failed-safety-observation expected=fail observed=fail OK
-bounded-read-recovery matrix: 10/10 classifications match
+over-budget-valid-path expected=fail observed=fail OK
+future-overlapping-answer-rule expected=fail observed=fail OK
+bounded-read-recovery matrix: 12/12 classifications match

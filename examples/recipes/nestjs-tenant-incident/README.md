@@ -11,8 +11,14 @@ the policy result for the **requested** tenant.
 
 Synthetic tenants only. No private Navan data.
 
-## Run
+## Exact command
 
 ```bash
-pnpm --filter agent-inspect-recipe-nestjs-tenant-incident start
+AGENT_INSPECT_SILENT=true pnpm --filter agent-inspect-recipe-nestjs-tenant-incident start
 ```
+
+## Narrow handback
+
+- Supported: requested-tenant policy join on the Nest path (good vs wrong-bind).
+- Not claimed: production Nest multi-tenancy, Navan data, or general causal root-cause.
+- Evidence: recipe stdout matrix + `.agent-inspect-runs/` traces from the command above.

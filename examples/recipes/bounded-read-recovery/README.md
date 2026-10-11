@@ -25,9 +25,12 @@ Also asserts F01 regressions: future/overlapping result references fail
 | `both-fail-answer-claims-success` | FAIL — no terminal ok |
 | `missing-result-link` | FAIL — LLM references wrong/missing event |
 | `failed-safety-observation` | FAIL — policyShown outcome failed |
+| `over-budget-valid-path` | FAIL — recipe 100ms budget exceeded (fixture check, not a core field) |
+| `future-overlapping-answer-rule` | FAIL — asserts `successful-result-dependency` rule id |
 
 Recipe-level **100ms budget** for the valid paths is a declared fixture check
-(not a core TraceContract field).
+(not a core TraceContract field). `over-budget-valid-path` is the independent
+negative for that helper.
 
 ## How to run
 

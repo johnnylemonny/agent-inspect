@@ -186,6 +186,10 @@ type Case = {
   expected: "pass" | "fail";
   /** Optional recipe-level budget assertion (disclosed; not a core contract field). */
   requireWithinBudget?: boolean;
+  /** When set, at least one finding with this ruleId must be present on fail. */
+  expectRuleId?: string;
+  /** Recipe-only budget failure (independent of TraceContract status). */
+  expectBudgetFail?: boolean;
 };
 
 const cases: Case[] = [
@@ -403,16 +407,50 @@ const cases: Case[] = [
       outcome("failed"),
     ],
   },
+  {
+    name: "over-budget-valid-path",
+    expected: "fail",
+    requireWithinBudget: true,
+    expectBudgetFail: true,
+    events: [
+      runRoot(),
+      toolAttempt("a1", 0, 10, { attemptId: "a1", attemptNumber: 1 }),
+      // Answer ends at 150ms — outside the recipe's declared 100ms budget.
+      answer(150, "a1"),
+      outcome("passed"),
+    ],
+  },
+  {
+    name: "future-overlapping-answer-rule",
+    expected: "fail",
+    expectRuleId: "contract.retry.operations.successful-result-dependency",
+    events: [
+      runRoot(),
+      toolAttempt("a1", 0, 40, { attemptId: "a1", attemptNumber: 1 }),
+      answer(20, "a1"),
+      outcome("passed"),
+    ],
+  },
 ];
 
 let mismatches = 0;
 for (const c of cases) {
   const evaluated = evaluateTraceContract({ read: read(c.events) }, contract);
   let status = evaluated.status;
-  if (c.requireWithinBudget === true && !withinBudget(c.events)) {
+  const budgetOk = withinBudget(c.events);
+  if (c.requireWithinBudget === true && !budgetOk) {
     status = "fail";
   }
-  const match = status === c.expected;
+  let match = status === c.expected;
+  if (c.expectBudgetFail === true && budgetOk) {
+    match = false;
+  }
+  if (c.expectRuleId) {
+    const hasRule = evaluated.findings.some(
+      (f) => f.ruleId === c.expectRuleId && f.status === "fail",
+    );
+    if (!hasRule) match = false;
+  }
   if (!match) mismatches += 1;
   console.log(
     `${c.name} expected=${c.expected} observed=${status} ${match ? "OK" : "MISMATCH"}`,

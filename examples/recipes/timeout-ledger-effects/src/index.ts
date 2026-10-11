@@ -83,6 +83,44 @@ function markersForOp(ledger: Ledger, operationId: string): Marker[] {
   return ledger.markers.filter((m) => m.operationId === operationId);
 }
 
+interface ObserverJoin {
+  observedOperationId: string;
+  observedMarkerIds: string[];
+  /** Business-arg fingerprint from observer (must match committed markers). */
+  observedArgsFingerprint?: string;
+}
+
+function argsFingerprint(args: Record<string, string>): string {
+  return Object.keys(args)
+    .sort()
+    .map((k) => `${k}=${args[k]}`)
+    .join("&");
+}
+
+/** Derive join validity from source markers vs observer records (not a boolean flag). */
+function deriveJoinOk(input: {
+  ledger: Ledger;
+  operationId: string;
+  observer: ObserverJoin;
+}): boolean {
+  if (input.observer.observedOperationId !== input.operationId) return false;
+  const markers = markersForOp(input.ledger, input.operationId);
+  const markerIds = new Set(markers.map((m) => m.markerId));
+  for (const id of input.observer.observedMarkerIds) {
+    if (!markerIds.has(id)) return false;
+  }
+  if (input.observer.observedArgsFingerprint !== undefined) {
+    const fps = new Set(markers.map((m) => argsFingerprint(m.args)));
+    if (
+      fps.size > 1 ||
+      (fps.size === 1 && !fps.has(input.observer.observedArgsFingerprint))
+    ) {
+      return false;
+    }
+  }
+  return true;
+}
+
 function classify(input: {
   ledger: Ledger;
   operationId: string;
@@ -90,10 +128,19 @@ function classify(input: {
   claim: Claim;
   windowComplete: boolean;
   observed: boolean;
-  joinOk: boolean;
+  observer: ObserverJoin;
 }): Class {
   if (!input.observed || !input.windowComplete) return "unknown";
-  if (!input.joinOk) return "fail";
+  // attemptCount is part of the classifier evidence surface (must be positive when observed).
+  if (!Number.isFinite(input.attemptCount) || input.attemptCount < 1) {
+    return "unknown";
+  }
+  const joinOk = deriveJoinOk({
+    ledger: input.ledger,
+    operationId: input.operationId,
+    observer: input.observer,
+  });
+  if (!joinOk) return "fail";
 
   const markers = markersForOp(input.ledger, input.operationId);
   const distinct = new Set(markers.map((m) => m.markerId)).size;
@@ -125,7 +172,7 @@ async function runCase(
     claim: Claim;
     windowComplete: boolean;
     observed: boolean;
-    joinOk: boolean;
+    observer: ObserverJoin;
   }>,
 ) {
   const traceDir = path.join(baseDir, id);
@@ -222,6 +269,7 @@ await runCase("T01-dedupe-ok", "pass", async () => {
     },
   });
 
+  const markers = markersForOp(ledger, operationId);
   return {
     ledger,
     operationId,
@@ -229,7 +277,11 @@ await runCase("T01-dedupe-ok", "pass", async () => {
     claim: "effect_present",
     windowComplete: true,
     observed: true,
-    joinOk: true,
+    observer: {
+      observedOperationId: operationId,
+      observedMarkerIds: markers.map((m) => m.markerId),
+      observedArgsFingerprint: argsFingerprint(args),
+    },
   };
 });
 
@@ -299,6 +351,7 @@ await runCase("T02-duplicate-markers", "fail", async () => {
     },
   });
 
+  const markers = markersForOp(ledger, operationId);
   return {
     ledger,
     operationId,
@@ -306,7 +359,10 @@ await runCase("T02-duplicate-markers", "fail", async () => {
     claim: "effect_present",
     windowComplete: true,
     observed: true,
-    joinOk: true,
+    observer: {
+      observedOperationId: operationId,
+      observedMarkerIds: markers.map((m) => m.markerId),
+    },
   };
 });
 
@@ -347,7 +403,10 @@ await runCase("T03-incomplete-window", "unknown", async () => {
     claim: "effect_present",
     windowComplete: false,
     observed: false,
-    joinOk: true,
+    observer: {
+      observedOperationId: operationId,
+      observedMarkerIds: markersForOp(ledger, operationId).map((m) => m.markerId),
+    },
   };
 });
 
@@ -390,6 +449,7 @@ await runCase("T04-contradictory-claim", "fail", async () => {
       markerIds: markersForOp(ledger, operationId).map((m) => m.markerId),
     },
   });
+  const markers = markersForOp(ledger, operationId);
   return {
     ledger,
     operationId,
@@ -397,7 +457,11 @@ await runCase("T04-contradictory-claim", "fail", async () => {
     claim: "no_effect",
     windowComplete: true,
     observed: true,
-    joinOk: true,
+    observer: {
+      observedOperationId: operationId,
+      observedMarkerIds: markers.map((m) => m.markerId),
+      observedArgsFingerprint: argsFingerprint({ amount: "10", dedupeKey: "k1" }),
+    },
   };
 });
 
@@ -463,6 +527,7 @@ await runCase("T05-wrong-join", "fail", async () => {
     method: "database",
     evidence: { operationId: "op-OTHER", markerIds: ["m1"] },
   });
+  // Join derived from observer records (wrong operationId / args), not a preset flag.
   return {
     ledger,
     operationId,
@@ -470,7 +535,11 @@ await runCase("T05-wrong-join", "fail", async () => {
     claim: "effect_present",
     windowComplete: true,
     observed: true,
-    joinOk: false,
+    observer: {
+      observedOperationId: "op-OTHER",
+      observedMarkerIds: ["m1"],
+      observedArgsFingerprint: argsFingerprint({ amount: "10", dedupeKey: "k1" }),
+    },
   };
 });
 
@@ -520,7 +589,10 @@ await runCase("T06-honest-no-effect", "task-fail-safe", async () => {
     claim: "failed",
     windowComplete: true,
     observed: true,
-    joinOk: true,
+    observer: {
+      observedOperationId: operationId,
+      observedMarkerIds: [],
+    },
   };
 });
 

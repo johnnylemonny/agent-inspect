@@ -71,10 +71,42 @@ export function wrapMcpClient<T extends McpClientLike>(
 
   const wrappedCallTool = async (
     params: Parameters<McpClientLike["callTool"]>[0],
-  ) =>
-    step(
+    resultSchemaOrOptions?: unknown,
+    maybeOptions?: { metadata?: Record<string, unknown> },
+  ) => {
+    let resultSchema: unknown;
+    let callMetadata: Record<string, unknown> = {};
+    if (maybeOptions && typeof maybeOptions === "object") {
+      resultSchema = resultSchemaOrOptions;
+      if (maybeOptions.metadata && typeof maybeOptions.metadata === "object") {
+        callMetadata = maybeOptions.metadata;
+      }
+    } else if (
+      resultSchemaOrOptions &&
+      typeof resultSchemaOrOptions === "object" &&
+      resultSchemaOrOptions !== null &&
+      "metadata" in resultSchemaOrOptions &&
+      !("parse" in (resultSchemaOrOptions as object))
+    ) {
+      const bag = resultSchemaOrOptions as { metadata?: Record<string, unknown> };
+      if (bag.metadata && typeof bag.metadata === "object") {
+        callMetadata = bag.metadata;
+      }
+    } else {
+      resultSchema = resultSchemaOrOptions;
+    }
+
+    return step(
       `mcp:${params.name}`,
-      async () => callToolImpl(params),
+      async () => {
+        if (resultSchema !== undefined) {
+          return (callToolImpl as (...args: unknown[]) => Promise<unknown>)(
+            params,
+            resultSchema,
+          );
+        }
+        return callToolImpl(params);
+      },
       {
         type: "tool",
         metadata: baseMetadata(options, {
@@ -84,9 +116,11 @@ export function wrapMcpClient<T extends McpClientLike>(
             params.arguments ?? {},
             maxSummaryLength,
           ),
+          ...callMetadata,
         }),
       },
     );
+  };
 
   return new Proxy(client, {
     get(target, property, receiver) {

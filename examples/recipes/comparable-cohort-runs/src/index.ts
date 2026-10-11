@@ -199,6 +199,21 @@ type StubSpec = {
   lieAboutToolCommitment?: boolean;
 };
 
+/** Deterministic stub model — must consume the measured next-model input bytes. */
+export function stubModel(nextModelInput: string): {
+  decision: string;
+  consumedInput: string;
+  consumedInputDigest: string;
+  consumedBytes: number;
+} {
+  return {
+    decision: "ok",
+    consumedInput: nextModelInput,
+    consumedInputDigest: sha256(nextModelInput),
+    consumedBytes: Buffer.byteLength(nextModelInput, "utf8"),
+  };
+}
+
 async function executeStubWorkflow(
   label: string,
   spec: StubSpec,
@@ -210,6 +225,7 @@ async function executeStubWorkflow(
   let measuredToolOut = "";
   let measuredLlmIn = "";
   let runId: string | null = null;
+  let modelConsumedDigest: string | null = null;
 
   await inspectRun(
     `comparable.${label}`,
@@ -231,12 +247,19 @@ async function executeStubWorkflow(
         `sampling=${JSON.stringify(spec.sampling)}`,
         `toolOut=${measuredToolOut}`,
       ].join("\n");
-      await step.llm(spec.model, async () => {
-        // Consume the measured input boundary (recorded via closure for commitment).
-        void measuredLlmIn;
-        return { decision: "ok", usedToolBytes: measuredToolOut.length };
-      });
-      return { ok: true, toolOut: measuredToolOut };
+      const modelOut = await step.llm(spec.model, async () =>
+        stubModel(measuredLlmIn),
+      );
+      modelConsumedDigest = modelOut.consumedInputDigest;
+      if (modelOut.consumedInputDigest !== sha256(measuredLlmIn)) {
+        throw new Error("stub model did not consume measured next-model input");
+      }
+      return {
+        ok: true,
+        toolOut: measuredToolOut,
+        modelConsumedDigest: modelOut.consumedInputDigest,
+        modelConsumedBytes: modelOut.consumedBytes,
+      };
     },
     {
       silent,
@@ -279,6 +302,11 @@ async function executeStubWorkflow(
   const text = readFileSync(path.join(traceDir, files[0]!), "utf8");
   if (!text.includes(runId ?? "")) {
     throw new Error(`trace for ${label} missing runId`);
+  }
+  if (!modelConsumedDigest || modelConsumedDigest !== measured.llmInputCommitment) {
+    throw new Error(
+      `stub model consumption digest missing or mismatched for ${label}`,
+    );
   }
 
   return measured;

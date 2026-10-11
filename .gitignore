@@ -42,3 +42,7 @@ redstamp-proposal-issue-body.md
 fixtures/studio/.agent-inspect/*.db*
 fixtures/studio/.agent-inspect/*.db-shm
 fixtures/studio/.agent-inspect/*.db-wal
+
+# Scratch external checkouts / local evidence
+.tmp-plumbline/
+/tmp/

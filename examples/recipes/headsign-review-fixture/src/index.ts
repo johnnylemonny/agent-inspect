@@ -2,12 +2,17 @@
  * meganemura/headsign review fixture (W13).
  * Synthetic transcripts only — never execute recorded shell commands.
  *
- * Documented next first-line / exit contract (pinned from headsign docs):
- *   ADVANCE|COMPLETE → exit 0
+ * Historical pin (docs/skills-era CLI contract; not a current headsign integration):
+ *   source revision: meganemura/headsign@0.3.x docs / `headsign next` first-line contract
+ *   pin label: headsign-cli-contract-2024-docs (historical/docs-only/synthetic)
+ *
+ * Documented next first-line / exit contract:
+ *   ADVANCE|COMPLETE → exit 0  (ADVANCE ≠ COMPLETE semantically; both success exits)
  *   RETRY|PENDING → exit 1
  *   ESCALATE|ABORT → exit 2
  *   config/usage → exit 3
  * status: exit 0 when state readable (incl. ESCALATED/ABORTED); exit 3 when unreadble.
+ * status reports state; next advances/completes — do not conflate the two surfaces.
  */
 type Class = "pass" | "fail";
 
@@ -76,7 +81,9 @@ function check(id: string, expected: Class, record: ReviewRecord) {
 }
 
 console.log("headsign-review-fixture:");
-console.log("  pin: meganemura/headsign docs contract (synthetic transcripts)");
+console.log(
+  "  pin: headsign-cli-contract-2024-docs (historical/docs-only/synthetic; not current CLI)",
+);
 
 check("H01-success-final", "pass", {
   requestedValidation: true,
@@ -87,6 +94,19 @@ check("H01-success-final", "pass", {
     proseTail: "--- phase: done --- ship it",
   },
   stableResult: "ok",
+  retryOrEscalation: "none",
+  finalPhaseClaimed: true,
+});
+
+// ADVANCE shares exit 0 with COMPLETE but is a distinct next token (not status).
+check("H01b-advance-success", "pass", {
+  requestedValidation: true,
+  validationObservation: {
+    synthetic: true,
+    firstLine: "ADVANCE",
+    exitCode: 0,
+    proseTail: "--- phase: continue ---",
+  },
   retryOrEscalation: "none",
   finalPhaseClaimed: true,
 });

@@ -25,7 +25,11 @@ export interface McpCallToolResult {
  */
 export interface McpClientLike {
   listTools?: (params?: unknown) => Promise<McpListToolsResult>;
-  callTool: (params: McpCallToolParams) => Promise<McpCallToolResult>;
+  callTool: (
+    params: McpCallToolParams,
+    resultSchemaOrOptions?: unknown,
+    options?: { metadata?: Record<string, unknown> },
+  ) => Promise<McpCallToolResult>;
 }
 
 export interface McpClientTracerOptions {

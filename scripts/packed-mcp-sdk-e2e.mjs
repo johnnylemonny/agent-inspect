@@ -127,8 +127,10 @@ function check(id, expected, observed) {
   console.log("  " + id + ": expected=" + expected + " observed=" + observed);
 }
 
-async function createLinked() {
+async function createLinked(options = {}) {
   let callCount = 0;
+  const failEchoTimes = options.failEchoTimes ?? 0;
+  const slowEchoMs = options.slowEchoMs ?? 0;
   const server = new Server(
     { name: "fixture-sdk", version: "1.0.0" },
     { capabilities: { tools: {} } },
@@ -145,12 +147,26 @@ async function createLinked() {
         description: "throws",
         inputSchema: { type: "object", properties: {} },
       },
+      {
+        name: "slow",
+        description: "slow then ok",
+        inputSchema: { type: "object", properties: {} },
+      },
     ],
   }));
   server.setRequestHandler(CallToolRequestSchema, async (req) => {
     callCount += 1;
     if (req.params.name === "boom") {
       throw new Error("mcp boom");
+    }
+    if (req.params.name === "slow" || (req.params.name === "echo" && slowEchoMs > 0)) {
+      await new Promise((r) => setTimeout(r, slowEchoMs || 80));
+    }
+    if (req.params.name === "echo" && callCount <= failEchoTimes) {
+      const err = new Error("429 Too Many Requests");
+      err.code = "HTTP_429";
+      err.status = 429;
+      throw err;
     }
     return {
       content: [
@@ -251,65 +267,162 @@ async function main() {
     check("M08-close-bounded-" + ${JSON.stringify(kind)}, "pass", "pass");
   }
 
-  // M03: transport 429/retry is NOT auto-captured by wrapMcpClient — app must supply attempt IDs
+  // M03: real 429 → fake-clock delay → success at CallTool boundary (not a predefined array)
   {
-    const transportAttempts = [
-      {
-        operationId: "op-list",
-        attemptId: "a1",
-        attemptNumber: 1,
-        httpStatus: 429,
-        selectedDelayMs: 25,
-        delaySource: "retry-after",
-        terminal: "retryable",
+    let fakeNow = 0;
+    const clock = {
+      now: () => fakeNow,
+      advance: (ms) => {
+        fakeNow += ms;
       },
-      {
-        operationId: "op-list",
-        attemptId: "a2",
-        attemptNumber: 2,
-        retryOf: "a1",
-        httpStatus: 200,
-        delaySource: "none",
-        terminal: "success",
-      },
-    ];
-    const wrapperSuccessDoesNotImplyTransport =
-      transportAttempts.some((a) => a.httpStatus === 429) &&
-      transportAttempts.some((a) => a.attemptId && a.retryOf);
-    check(
-      "M03-429-retry-boundary-" + ${JSON.stringify(kind)},
-      "pass",
-      wrapperSuccessDoesNotImplyTransport ? "pass" : "fail",
-    );
-  }
-
-  // M04: cancellation via close while idle after connect (not a hang)
-  {
-    const { client, server } = await createLinked();
-    const wrapped = wrapMcpClient(client, { serverName: "cancel-fixture" });
-    await inspectRun(
-      "mcp-sdk-cancel-" + ${JSON.stringify(kind)},
+    };
+    const { client, server, getCallCount } = await createLinked({ failEchoTimes: 1 });
+    const wrapped = wrapMcpClient(client, {
+      serverName: "retry-429",
+      toolCallIdPrefix: "r429",
+    });
+    const journal = [];
+    const appResult = await inspectRun(
+      "mcp-sdk-429-" + ${JSON.stringify(kind)},
       async () => {
-        await wrapped.listTools();
+        try {
+          await wrapped.callTool(
+            { name: "echo", arguments: { n: 1 } },
+            {
+              metadata: {
+                operationId: "op-echo",
+                attemptId: "a1",
+                attemptNumber: 1,
+                httpStatus: 429,
+                terminal: "retryable",
+              },
+            },
+          );
+          journal.push({ attemptId: "a1", ok: true });
+        } catch (error) {
+          journal.push({
+            attemptId: "a1",
+            ok: false,
+            status: error?.status ?? 429,
+            message: String(error?.message ?? error),
+            boundary: "CallToolRequestSchema→client.callTool",
+            observedAt: clock.now(),
+          });
+          const delayMs = 25;
+          clock.advance(delayMs);
+          journal.push({
+            selectedDelayMs: delayMs,
+            delaySource: "fake-clock",
+            observedAt: clock.now(),
+          });
+          const ok = await wrapped.callTool(
+            { name: "echo", arguments: { n: 1 } },
+            {
+              metadata: {
+                operationId: "op-echo",
+                attemptId: "a2",
+                attemptNumber: 2,
+                retryOf: "a1",
+                httpStatus: 200,
+                terminal: "success",
+              },
+            },
+          );
+          journal.push({ attemptId: "a2", ok: true, text: JSON.stringify(ok) });
+          return ok;
+        }
+        throw new Error("expected first echo to fail with 429");
       },
       { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
     );
+    const files = readdirSync(${JSON.stringify(traceDirName)}).filter((f) =>
+      f.endsWith(".jsonl"),
+    );
+    const lines = files.flatMap((f) =>
+      readFileSync(path.join(${JSON.stringify(traceDirName)}, f), "utf8")
+        .split("\\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
+    );
+    const attempts = lines.filter(
+      (e) =>
+        e &&
+        e.event === "step_started" &&
+        e.name === "mcp:echo" &&
+        (e.metadata?.operationId === "op-echo" ||
+          e.metadata?.attemptId === "a1" ||
+          e.metadata?.attemptId === "a2"),
+    );
+    const hasRetryLink = lines.some(
+      (e) => e && e.metadata?.attemptId === "a2" && e.metadata?.retryOf === "a1",
+    );
+    const m03ok =
+      journal.some((j) => j.attemptId === "a1" && j.ok === false) &&
+      journal.some((j) => j.selectedDelayMs === 25) &&
+      journal.some((j) => j.attemptId === "a2" && j.ok === true) &&
+      getCallCount() >= 2 &&
+      hasRetryLink &&
+      appResult != null;
+    check(
+      "M03-429-retry-boundary-" + ${JSON.stringify(kind)},
+      "pass",
+      m03ok ? "pass" : "fail",
+    );
     await wrapped.close();
     await server.close();
-    check("M04-cancel-close-" + ${JSON.stringify(kind)}, "pass", "pass");
   }
 
-  // M05: overlapping calls keep distinct toolCallIds under one run
+  // M04: cancel in-flight slow tool via close; caller error + cleanup (not idle-only close)
+  {
+    const { client, server } = await createLinked({ slowEchoMs: 200 });
+    const wrapped = wrapMcpClient(client, { serverName: "cancel-inflight" });
+    let callerError = null;
+    let settled = false;
+    await inspectRun(
+      "mcp-sdk-cancel-" + ${JSON.stringify(kind)},
+      async () => {
+        const pending = wrapped.callTool({ name: "slow", arguments: {} }).then(
+          (v) => {
+            settled = true;
+            return v;
+          },
+          (err) => {
+            callerError = err;
+            settled = true;
+            throw err;
+          },
+        );
+        await new Promise((r) => setTimeout(r, 20));
+        await wrapped.close();
+        try {
+          await pending;
+        } catch {
+          /* expected after cancel/close */
+        }
+      },
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    await server.close().catch(() => {});
+    const m04ok = settled === true && callerError != null;
+    check(
+      "M04-cancel-close-" + ${JSON.stringify(kind)},
+      "pass",
+      m04ok ? "pass" : "fail",
+    );
+  }
+
+  // M05: overlapping calls — distinct toolCallIds AND per-call result isolation
   {
     const { client, server } = await createLinked();
     const wrapped = wrapMcpClient(client, {
       serverName: "overlap",
       toolCallIdPrefix: "ov",
     });
+    let resultsOverlap;
     await inspectRun(
       "mcp-sdk-overlap-" + ${JSON.stringify(kind)},
       async () => {
-        await Promise.all([
+        resultsOverlap = await Promise.all([
           wrapped.callTool({ name: "echo", arguments: { n: 1 } }),
           wrapped.callTool({ name: "echo", arguments: { n: 2 } }),
         ]);
@@ -331,40 +444,71 @@ async function main() {
     const ids = new Set(
       echoStarts.map((e) => e.metadata?.toolCallId).filter(Boolean),
     );
+    const texts = (resultsOverlap ?? []).map((r) => JSON.stringify(r));
+    const isolated =
+      texts.length === 2 &&
+      texts[0] !== texts[1] &&
+      texts.some((t) => t.includes('"n":1') || t.includes(":1")) &&
+      texts.some((t) => t.includes('"n":2') || t.includes(":2"));
     check(
       "M05-overlap-distinct-ids-" + ${JSON.stringify(kind)},
       "pass",
-      echoStarts.length >= 2 && ids.size >= 2 ? "pass" : "fail",
+      echoStarts.length >= 2 && ids.size >= 2 && isolated ? "pass" : "fail",
     );
     await wrapped.close();
     await server.close();
   }
 
-  // M06: readiness observed; healthy idle ≠ failure; EOF/close ≠ readiness
+  // M06: missing-readiness vs healthy-idle vs EOF — distinct observations
   {
+    const unreadyClient = new Client({ name: "unready", version: "1.0.0" });
+    let unreadyThrew = false;
+    try {
+      await unreadyClient.listTools();
+    } catch {
+      unreadyThrew = true;
+    }
     const { client, server } = await createLinked();
     const wrapped = wrapMcpClient(client, { serverName: "lifecycle" });
     let readiness = "unknown";
+    let idleHealthy = false;
     await inspectRun(
       "mcp-sdk-lifecycle-" + ${JSON.stringify(kind)},
       async () => {
         await wrapped.listTools();
         readiness = "ready";
+        idleHealthy = true;
         await observeOutcome("mcp-readiness", {
           expectation: "Client connected and listed tools",
           status: "passed",
           method: "custom",
-          evidence: { readiness, idleHealthy: true, eofIsNotReadiness: true },
+          evidence: {
+            readiness,
+            idleHealthy,
+            missingReadinessObserved: unreadyThrew,
+            eofIsNotReadinessFailure: true,
+          },
         });
       },
       { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
     );
     await wrapped.close();
+    let eofAfterClose = false;
+    try {
+      await client.listTools();
+    } catch {
+      eofAfterClose = true;
+    }
     await server.close();
+    const m06ok =
+      unreadyThrew &&
+      readiness === "ready" &&
+      idleHealthy &&
+      eofAfterClose;
     check(
       "M06-readiness-not-eof-" + ${JSON.stringify(kind)},
       "pass",
-      readiness === "ready" ? "pass" : "fail",
+      m06ok ? "pass" : "fail",
     );
   }
 
