@@ -9,14 +9,14 @@ baselineVersion: "6.31.19"
 publishedVersion: "6.31.19"
 pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.18 published all 18; Fix-Owes complete for shippable scope; 6.32 blocked"
+trainStatus: "6.31.19 published all 18; residual Fix-Owes closed; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.18 residuals"
-lastConfirmedCommit: "6c2ab366"
-lastValidationLevel: "npm 6.31.18 ×18; Publish runs 38074155181 + 38075524297 success"
-nextAction: "Partner packets / plumbline #98; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-6.31.19 partner/gated holds"
+lastConfirmedCommit: "8554785b"
+lastValidationLevel: "npm 6.31.19 ×18; Publish run 38113987027 success"
+nextAction: "Partner packets / plumbline #98 re-review authorize; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -62,11 +62,11 @@ worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.17
-  ACTIVE: stability-after-63111 (Oct 7; post-W02)
-  NEXT: W04+ artifacts; no 6.32 without EVIDENCE_GATE
+  LAST_PUBLISHED_RELEASE: 6.31.19
+  ACTIVE: stability-after-63111 (Oct 10 residual published)
+  NEXT: partner packets / plumbline re-review authorize; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-07"
+updatedAt: "2026-10-10"
 ```
