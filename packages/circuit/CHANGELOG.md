@@ -1,5 +1,11 @@
 # @agent-inspect/circuit
 
+## 6.31.20
+
+### Patch Changes
+
+- 714475a: Forward MCP SDK RequestOptions (signal/timeout/progress) through wrapMcpClient; distinguish Headsign ADVANCE from COMPLETE; join Keniel receipts to comment+article; harden Roy/Gary/Shola/Navya evidence packets and retryable-error metadata lookup.
+
 ## 6.31.19
 
 ### Patch Changes
