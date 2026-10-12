@@ -9,14 +9,14 @@ baselineVersion: "6.31.21"
 publishedVersion: "6.31.21"
 pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.20 published; post-6.31.20 MCP/Roy boundaries local; 6.32 blocked"
+trainStatus: "6.31.21 published (MCP compose + SDK Client TS + Roy O05); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.20 remaining boundary fixes (uncommitted)"
-lastConfirmedCommit: "8c7f674e"
-lastValidationLevel: "npm 6.31.20 ×18; local vitest+f04+packed-mcp+recipes green for remaining boundaries"
-nextAction: "Maintainer review → optional 6.31.21; partner holds; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-6.31.21 — partner holds; no empty patch"
+lastConfirmedCommit: "3f68dc81"
+lastValidationLevel: "npm 6.31.21 ×18; Publish 38204663903 green; PR #499 merged"
+nextAction: "Hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -45,6 +45,7 @@ completedChunks:
   - "W11 recovery replay green — skip empty 6.31.18"
   - "6.31.18–6.31.20 Fix-Owes + Oct 11 MCP/fixture owes"
   - "W23A #490 ROADMAP/COMPARE/active-plan pointer sync"
+  - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery (7e385c16 → #499 → Publish)"
 queuedChunks:
   - "W04/#484 identity packet + Robb/Roy drafts after artifacts"
   - "W05/#485 browser observer controls"
@@ -59,15 +60,16 @@ blockedTrains:
 amendments:
   - "Adoption freeze excluded"
   - "2026-10-07 6.31.17 published; W02 merged; W11 skip empty patch"
+  - "2026-10-12 6.31.21 published (Trusted Publish 38204663903)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.20
-  ACTIVE: post-6.31.20 boundaries ready for maintainer review
-  NEXT: optional 6.31.21; partner holds; no 6.32 without EVIDENCE_GATE
+  LAST_PUBLISHED_RELEASE: 6.31.21
+  ACTIVE: stability holds; no empty patch
+  NEXT: partner holds; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-11"
+updatedAt: "2026-10-12"
 ```
