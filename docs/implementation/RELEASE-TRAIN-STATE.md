@@ -9,14 +9,14 @@ baselineVersion: "6.31.20"
 publishedVersion: "6.31.20"
 pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.20 published all 18; W23A #490 closed; 6.32 blocked"
+trainStatus: "6.31.20 published; post-6.31.20 MCP/Roy boundaries local; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-W23A partner/gated holds"
-lastConfirmedCommit: "a91a59cf"
-lastValidationLevel: "npm 6.31.20 ×18; Publish run 38163150789 success; W23A docs sync"
-nextAction: "Partner packets / plumbline #98 re-review authorize; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-6.31.20 remaining boundary fixes (uncommitted)"
+lastConfirmedCommit: "8c7f674e"
+lastValidationLevel: "npm 6.31.20 ×18; local vitest+f04+packed-mcp+recipes green for remaining boundaries"
+nextAction: "Maintainer review → optional 6.31.21; partner holds; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -64,8 +64,8 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.20
-  ACTIVE: stability-after-63111 (W23A closed)
-  NEXT: partner packets / plumbline re-review authorize; no 6.32 without EVIDENCE_GATE
+  ACTIVE: post-6.31.20 boundaries ready for maintainer review
+  NEXT: optional 6.31.21; partner holds; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded

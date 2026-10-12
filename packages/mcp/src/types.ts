@@ -41,20 +41,25 @@ export interface McpRequestOptions {
  * Minimal MCP client surface for local tracing. Compatible with common SDK
  * client shapes without requiring @modelcontextprotocol/sdk at runtime.
  *
+ * Method syntax (not property function types) so real SDK `Client` remains
+ * assignable under `strictFunctionTypes` (bivariant method parameters).
+ * `callTool` returns `Promise<unknown>` to accept both normal tool results and
+ * the SDK compatibility `{ toolResult }` branch.
+ *
  * Matches SDK arity: `callTool(params, resultSchema?, requestOptions?)` and
  * `listTools(params?, requestOptions?)`. AgentInspect also accepts a
  * `{ metadata }` bag in place of schema/options when it is not RequestOptions-shaped.
  */
 export interface McpClientLike {
-  listTools?: (
+  listTools?(
     params?: unknown,
-    options?: McpRequestOptions,
-  ) => Promise<McpListToolsResult>;
-  callTool: (
+    options?: unknown,
+  ): Promise<McpListToolsResult | unknown>;
+  callTool(
     params: McpCallToolParams,
     resultSchemaOrOptions?: unknown,
-    options?: McpRequestOptions | { metadata?: Record<string, unknown> },
-  ) => Promise<McpCallToolResult>;
+    options?: unknown,
+  ): Promise<unknown>;
 }
 
 export interface McpClientTracerOptions {

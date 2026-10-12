@@ -75,10 +75,41 @@ function extractCallMetadata(bag: {
   return {};
 }
 
+/** Peel AgentInspect `metadata` without consuming SDK RequestOptions keys. */
+function peelOptionsObject(value: unknown): {
+  callMetadata: Record<string, unknown>;
+  requestOptions: McpRequestOptions | undefined;
+} {
+  if (value === null || value === undefined) {
+    return { callMetadata: {}, requestOptions: undefined };
+  }
+  if (typeof value !== "object") {
+    return { callMetadata: {}, requestOptions: undefined };
+  }
+  const obj = value as Record<string, unknown>;
+  const callMetadata = extractCallMetadata(obj);
+
+  // Pure AI bag — do not forward as SDK RequestOptions.
+  if (isAgentInspectMetadataBag(value)) {
+    return { callMetadata, requestOptions: undefined };
+  }
+
+  if (isSdkRequestOptions(value) || Object.keys(obj).length > 0) {
+    const { metadata: _ignored, ...rest } = obj;
+    return {
+      callMetadata,
+      requestOptions: rest as McpRequestOptions,
+    };
+  }
+
+  return { callMetadata, requestOptions: undefined };
+}
+
 /**
  * Resolve SDK callTool arity:
  *   callTool(params, resultSchema?, requestOptions?)
  * plus AgentInspect overloads that peel `{ metadata }` without dropping RequestOptions.
+ * Composed `{ timeout, metadata: { operationId, attemptId } }` keeps both sides.
  */
 export function resolveCallToolArgs(
   resultSchemaOrOptions?: unknown,
@@ -90,27 +121,11 @@ export function resolveCallToolArgs(
 } {
   // Three-arg form: (params, schema|undefined, options)
   if (maybeOptions !== undefined) {
-    let callMetadata: Record<string, unknown> = {};
-    let requestOptions: McpRequestOptions | undefined;
-
-    if (isAgentInspectMetadataBag(maybeOptions)) {
-      callMetadata = extractCallMetadata(maybeOptions);
-      // Remaining SDK keys (if any were mixed in) still forward — but AI bags exclude them.
-      requestOptions = undefined;
-    } else if (isSdkRequestOptions(maybeOptions) || maybeOptions === null) {
-      requestOptions =
-        maybeOptions && typeof maybeOptions === "object"
-          ? (maybeOptions as McpRequestOptions)
-          : undefined;
-    } else if (maybeOptions && typeof maybeOptions === "object") {
-      // Unknown object third arg — forward as RequestOptions to preserve caller intent.
-      requestOptions = maybeOptions as McpRequestOptions;
-    }
-
+    const peeled = peelOptionsObject(maybeOptions);
     return {
       resultSchema: resultSchemaOrOptions,
-      requestOptions,
-      callMetadata,
+      requestOptions: peeled.requestOptions,
+      callMetadata: peeled.callMetadata,
     };
   }
 
@@ -124,10 +139,11 @@ export function resolveCallToolArgs(
   }
 
   if (isSdkRequestOptions(resultSchemaOrOptions)) {
+    const peeled = peelOptionsObject(resultSchemaOrOptions);
     return {
       resultSchema: undefined,
-      requestOptions: resultSchemaOrOptions,
-      callMetadata: {},
+      requestOptions: peeled.requestOptions,
+      callMetadata: peeled.callMetadata,
     };
   }
 

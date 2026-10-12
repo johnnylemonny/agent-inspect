@@ -54,6 +54,85 @@ describe("@agent-inspect/mcp request options", () => {
     const sdk = resolveCallToolArgs(undefined, { onprogress, timeout: 50 });
     expect(sdk.requestOptions?.onprogress).toBe(onprogress);
     expect(sdk.callMetadata).toEqual({});
+    expect(sdk.requestOptions).not.toHaveProperty("metadata");
+  });
+
+  it("resolveCallToolArgs composes timeout/signal/progress with operation/attempt metadata", () => {
+    const signal = AbortSignal.abort();
+    const onprogress = vi.fn();
+    const mixed = resolveCallToolArgs(undefined, {
+      timeout: 1000,
+      signal,
+      onprogress,
+      metadata: { operationId: "op1", attemptId: "a1" },
+    });
+    expect(mixed.callMetadata).toEqual({
+      operationId: "op1",
+      attemptId: "a1",
+    });
+    expect(mixed.requestOptions?.timeout).toBe(1000);
+    expect(mixed.requestOptions?.signal).toBe(signal);
+    expect(mixed.requestOptions?.onprogress).toBe(onprogress);
+    expect(mixed.requestOptions).not.toHaveProperty("metadata");
+
+    const twoArgMixed = resolveCallToolArgs({
+      timeout: 50,
+      metadata: { operationId: "op2", attemptId: "a2" },
+    });
+    expect(twoArgMixed.resultSchema).toBeUndefined();
+    expect(twoArgMixed.callMetadata).toEqual({
+      operationId: "op2",
+      attemptId: "a2",
+    });
+    expect(twoArgMixed.requestOptions?.timeout).toBe(50);
+    expect(twoArgMixed.requestOptions).not.toHaveProperty("metadata");
+
+    const schema = { parse: () => ({}) };
+    const withSchema = resolveCallToolArgs(schema, {
+      timeout: 25,
+      metadata: { attemptId: "a3" },
+    });
+    expect(withSchema.resultSchema).toBe(schema);
+    expect(withSchema.callMetadata).toEqual({ attemptId: "a3" });
+    expect(withSchema.requestOptions?.timeout).toBe(25);
+  });
+
+  it("persists operation/attempt identity when composed with timeout", async () => {
+    const callTool = vi.fn(async (_p, _s, options) => {
+      expect(options?.timeout).toBe(1000);
+      expect(options).not.toHaveProperty("metadata");
+      return { content: [{ type: "text", text: "ok" }] };
+    });
+    const client = wrapMcpClient({ callTool });
+
+    await inspectRun(
+      "mcp-compose-meta",
+      async () =>
+        client.callTool({ name: "probe", arguments: {} }, undefined, {
+          timeout: 1000,
+          metadata: { operationId: "op1", attemptId: "a1" },
+        }),
+      { silent: true, traceDir },
+    );
+
+    const files = (await readdir(traceDir)).filter((f) => f.endsWith(".jsonl"));
+    const lines = (await readFile(path.join(traceDir, files[0]!), "utf8"))
+      .split("\n")
+      .filter(Boolean)
+      .map(
+        (l) =>
+          JSON.parse(l) as {
+            event?: string;
+            name?: string;
+            metadata?: { operationId?: string; attemptId?: string };
+          },
+      );
+    const start = lines.find(
+      (e) => e.event === "step_started" && e.name === "mcp:probe",
+    );
+    expect(start?.metadata?.operationId).toBe("op1");
+    expect(start?.metadata?.attemptId).toBe("a1");
+    expect(callTool).toHaveBeenCalledTimes(1);
   });
 
   it("forwards pre-aborted signal so underlying callTool is still invoked with options", async () => {

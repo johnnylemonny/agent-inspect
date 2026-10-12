@@ -37,6 +37,7 @@ const { defineTraceContract, evaluateTraceContract } = await import(
 fs.mkdirSync(outRoot, { recursive: true });
 
 const maxOne = defineTraceContract({ retry: { maxAttempts: 1 } });
+const maxTwo = defineTraceContract({ retry: { maxAttempts: 2 } });
 let failures = 0;
 
 function fail(msg) {
@@ -51,15 +52,14 @@ function countAttempts(read) {
   const ids = new Set();
   for (const t of tools) {
     const attrs = t.attributes ?? t.metadata ?? {};
+    const nested =
+      attrs.metadata && typeof attrs.metadata === "object" ? attrs.metadata : {};
     const id =
       attrs.attemptId ??
+      nested.attemptId ??
       attrs["agent_inspect.attempt_id"] ??
-      attrs.operationId ??
-      attrs["agent_inspect.operation_id"] ??
-      t.id ??
-      t.stepId;
-    if (id != null) ids.add(String(id));
-    else ids.add(`anon:${ids.size}`);
+      attrs["agent_inspect.attemptId"];
+    if (id != null && String(id).trim() !== "") ids.add(String(id));
   }
   return ids.size;
 }
@@ -306,17 +306,31 @@ const o05collision = await capture("O05-identity-collision", async () => {
   );
   const sourceRead = await openTraceFile(replayPath);
   const otlpRead = await openTraceText(otlp.content);
-  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxOne);
-  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxOne);
+  const sourceEval1 = evaluateTraceContract({ read: sourceRead }, maxOne);
+  const otlpEval1 = evaluateTraceContract({ read: otlpRead }, maxOne);
+  const sourceEval2 = evaluateTraceContract({ read: sourceRead }, maxTwo);
+  const otlpEval2 = evaluateTraceContract({ read: otlpRead }, maxTwo);
   const sourceAttempts = countAttempts(sourceRead);
   const otlpAttempts = countAttempts(otlpRead);
+  const hasRule = (evalResult, ruleId) =>
+    evalResult.findings.some((f) => f.ruleId === ruleId);
   fs.writeFileSync(
     path.join(outRoot, "O05-repeated-delivery.contract-results.json"),
     JSON.stringify(
       {
-        note: "Repeated delivery of the same persisted events — distinct from two handler executions.",
-        sourceStatus: sourceEval.status,
-        otlpStatus: otlpEval.status,
+        note: "Repeated delivery of the same persisted events — distinct from two handler executions. Assert both maxAttempts ceilings.",
+        maxAttempts1: {
+          sourceStatus: sourceEval1.status,
+          otlpStatus: otlpEval1.status,
+          sourceFindings: sourceEval1.findings.map((f) => f.ruleId),
+          otlpFindings: otlpEval1.findings.map((f) => f.ruleId),
+        },
+        maxAttempts2: {
+          sourceStatus: sourceEval2.status,
+          otlpStatus: otlpEval2.status,
+          sourceFindings: sourceEval2.findings.map((f) => f.ruleId),
+          otlpFindings: otlpEval2.findings.map((f) => f.ruleId),
+        },
         sourceAttemptCount: sourceAttempts,
         otlpAttemptCount: otlpAttempts,
         physicalEventRows: once.events.length * 2,
@@ -326,14 +340,32 @@ const o05collision = await capture("O05-identity-collision", async () => {
       2,
     ) + "\n",
   );
-  if (sourceEval.status !== otlpEval.status) {
-    fail("O05-repeated-delivery: source/OTLP status mismatch");
-  }
-  // Repeated physical rows may inflate a naive source count; OTLP/logical
-  // attempt identity after lifecycle collapse must stay at two distinct attempts.
-  if (otlpAttempts !== 2) {
+  // maxAttempts:1 — both sides fail for the ceiling with two logical attempts.
+  if (sourceEval1.status !== "fail" || otlpEval1.status !== "fail") {
     fail(
-      `O05-repeated-delivery: expected 2 logical attempts after collapse, got otlp=${otlpAttempts} sourceNaive=${sourceAttempts}`,
+      `O05-repeated-delivery maxAttempts:1: expected fail/fail, got source=${sourceEval1.status} otlp=${otlpEval1.status}`,
+    );
+  }
+  if (!hasRule(sourceEval1, "contract.retry.max-attempts")) {
+    fail("O05-repeated-delivery maxAttempts:1: source missing max-attempts");
+  }
+  if (!hasRule(otlpEval1, "contract.retry.max-attempts")) {
+    fail("O05-repeated-delivery maxAttempts:1: OTLP missing max-attempts");
+  }
+  if (hasRule(sourceEval1, "contract.retry.duplicate-attempt-id")) {
+    fail(
+      "O05-repeated-delivery maxAttempts:1: source must not treat identical redelivery as conflicting duplicate-attempt-id",
+    );
+  }
+  // maxAttempts:2 — supported deduplicated case passes on both source and OTLP.
+  if (sourceEval2.status !== "pass" || otlpEval2.status !== "pass") {
+    fail(
+      `O05-repeated-delivery maxAttempts:2: expected pass/pass, got source=${sourceEval2.status} otlp=${otlpEval2.status} sourceFindings=${sourceEval2.findings.map((f) => f.ruleId).join(",")} otlpFindings=${otlpEval2.findings.map((f) => f.ruleId).join(",")}`,
+    );
+  }
+  if (otlpAttempts !== 2 || sourceAttempts !== 2) {
+    fail(
+      `O05-repeated-delivery: expected 2 logical attempts, got otlp=${otlpAttempts} source=${sourceAttempts}`,
     );
   }
 }

@@ -103,9 +103,11 @@ import { InMemoryTransport } from "@modelcontextprotocol/sdk/inMemory.js";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import {
   CallToolRequestSchema,
+  CallToolResultSchema,
   ListToolsRequestSchema,
 } from "@modelcontextprotocol/sdk/types.js";
-import { readdirSync, readFileSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, writeFileSync } from "node:fs";
+import os from "node:os";
 import path from "node:path";`
     : `const { inspectRun, observeOutcome } = require("agent-inspect");
 const { wrapMcpClient } = require("@agent-inspect/mcp");
@@ -115,8 +117,10 @@ const { Server } = require("@modelcontextprotocol/sdk/server/index.js");
 const {
   CallToolRequestSchema,
   ListToolsRequestSchema,
+  CallToolResultSchema,
 } = require("@modelcontextprotocol/sdk/types.js");
-const { readdirSync, readFileSync } = require("node:fs");
+const { mkdirSync, readdirSync, readFileSync, writeFileSync } = require("node:fs");
+const os = require("node:os");
 const path = require("node:path");`;
 
   return `${importBlock}
@@ -643,6 +647,137 @@ async function main() {
     );
   }
 
+  // M12: composed RequestOptions + AgentInspect metadata — timeout forwards AND
+  // operationId/attemptId persist on the traced step (must not be mutually exclusive).
+  {
+    const composeDir = ${JSON.stringify(traceDirName)} + "-compose";
+    mkdirSync(composeDir, { recursive: true });
+    const { client, server } = await createLinked();
+    const wrapped = wrapMcpClient(client, { serverName: "compose-meta" });
+    await inspectRun(
+      "mcp-sdk-compose-meta-" + ${JSON.stringify(kind)},
+      async () =>
+        wrapped.callTool(
+          { name: "echo", arguments: { n: 1 } },
+          undefined,
+          {
+            timeout: 1000,
+            metadata: { operationId: "op1", attemptId: "a1" },
+          },
+        ),
+      { silent: true, traceDir: composeDir },
+    );
+    const files = readdirSync(composeDir).filter((f) => f.endsWith(".jsonl"));
+    const lines = files.flatMap((f) =>
+      readFileSync(path.join(composeDir, f), "utf8")
+        .split("\\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
+    );
+    const start = lines.find(
+      (e) => e && e.event === "step_started" && e.name === "mcp:echo",
+    );
+    const m12ok =
+      start?.metadata?.operationId === "op1" &&
+      start?.metadata?.attemptId === "a1";
+    check(
+      "M12-compose-options-metadata-" + ${JSON.stringify(kind)},
+      "pass",
+      m12ok ? "pass" : "fail",
+    );
+    await wrapped.close();
+    await server.close();
+  }
+
+  // M13: malformed SDK result — CallToolResultSchema rejects invalid content shape.
+  // Raw and wrapped must both reject; wrapper must not swallow the SDK error.
+  {
+    async function runMalformed(useWrap) {
+      const server = new Server(
+        { name: "malformed-probe", version: "1.0.0" },
+        { capabilities: { tools: {} } },
+      );
+      server.setRequestHandler(ListToolsRequestSchema, async () => ({
+        tools: [
+          {
+            name: "bad",
+            description: "bad",
+            inputSchema: { type: "object", properties: {} },
+          },
+        ],
+      }));
+      server.setRequestHandler(CallToolRequestSchema, async () => ({
+        // Invalid: content must be an array of content blocks, not a string.
+        content: "not-an-array",
+      }));
+      const raw = new Client({ name: "malformed-client", version: "1.0.0" });
+      const [ct, st] = InMemoryTransport.createLinkedPair();
+      await Promise.all([server.connect(st), raw.connect(ct)]);
+      const client = useWrap ? wrapMcpClient(raw) : raw;
+      let status = "resolved";
+      let message = "";
+      try {
+        await client.callTool(
+          { name: "bad", arguments: {} },
+          CallToolResultSchema,
+        );
+      } catch (error) {
+        status = "rejected";
+        message = String(error?.message ?? error);
+      }
+      await Promise.allSettled([raw.close(), server.close()]);
+      return { status, message };
+    }
+    const control = await runMalformed(false);
+    const instrumented = await inspectRun(
+      "mcp-sdk-malformed-" + ${JSON.stringify(kind)},
+      async () => runMalformed(true),
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    const m13ok =
+      control.status === "rejected" &&
+      instrumented.status === "rejected";
+    check(
+      "M13-malformed-result-" + ${JSON.stringify(kind)},
+      "pass",
+      m13ok ? "pass" : "fail",
+    );
+  }
+
+  // M14: instrumentation/persistence failure must not alter successful tool result.
+  {
+    const { client, server } = await createLinked();
+    const wrapped = wrapMcpClient(client, { serverName: "instr-fail" });
+    const badTrace = path.join(
+      os.tmpdir(),
+      "agent-inspect-mcp-not-dir-" + Date.now(),
+    );
+    writeFileSync(badTrace, "not-a-directory");
+    let appResult = null;
+    let threw = false;
+    try {
+      appResult = await inspectRun(
+        "mcp-sdk-instr-fail-" + ${JSON.stringify(kind)},
+        async () =>
+          wrapped.callTool({ name: "echo", arguments: { n: 1 } }),
+        { silent: true, traceDir: badTrace },
+      );
+    } catch {
+      threw = true;
+    }
+    const m14ok =
+      !threw &&
+      appResult != null &&
+      JSON.stringify(appResult).includes("ok:echo");
+    check(
+      "M14-instrumentation-isolates-" + ${JSON.stringify(kind)},
+      "pass",
+      m14ok ? "pass" : "fail",
+    );
+    await wrapped.close();
+    await server.close();
+  }
+
   const mismatch = results.filter((r) => r.expected !== r.observed);
   console.log(
     "classes: " +
@@ -686,7 +821,14 @@ try {
   run(
     "packed SDK consumer install",
     "npm",
-    ["install", "--ignore-scripts", rootTarball, mcpTarball, SDK_PIN],
+    [
+      "install",
+      "--ignore-scripts",
+      rootTarball,
+      mcpTarball,
+      SDK_PIN,
+      "typescript@5.9.3",
+    ],
     { cwd: consumerDir },
   );
 
@@ -702,8 +844,73 @@ try {
     cwd: consumerDir,
   });
 
+  // Declaration consumers: strict tsc must accept wrapMcpClient(new Client(...)).
+  // Runtime smoke only checks retained method shapes (no network/connect required).
+  const mtsSource = `import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { wrapMcpClient } from "@agent-inspect/mcp";
+const wrapped = wrapMcpClient(new Client({ name: "decl", version: "1" }));
+const _call: typeof wrapped.callTool = wrapped.callTool;
+const _list: typeof wrapped.listTools = wrapped.listTools;
+const _close: typeof wrapped.close = wrapped.close;
+void _call;
+void _list;
+void _close;
+void wrapped.callTool;
+void wrapped.listTools;
+void wrapped.close;
+console.log("mts-ok", typeof wrapped.callTool, typeof wrapped.close);
+`;
+  const ctsSource = `import { Client } from "@modelcontextprotocol/sdk/client/index.js";
+import { wrapMcpClient } from "@agent-inspect/mcp";
+const wrapped = wrapMcpClient(new Client({ name: "decl-cjs", version: "1" }));
+const _call: typeof wrapped.callTool = wrapped.callTool;
+const _list: typeof wrapped.listTools = wrapped.listTools;
+const _close: typeof wrapped.close = wrapped.close;
+void _call;
+void _list;
+void _close;
+void wrapped.callTool;
+void wrapped.listTools;
+void wrapped.close;
+console.log("cts-ok", typeof wrapped.callTool, typeof wrapped.close);
+`;
+  writeFileSync(path.join(consumerDir, "sdk-typecheck.mts"), mtsSource);
+  writeFileSync(path.join(consumerDir, "sdk-typecheck.cts"), ctsSource);
+  writeFileSync(
+    path.join(consumerDir, "tsconfig.decl.json"),
+    JSON.stringify(
+      {
+        compilerOptions: {
+          strict: true,
+          skipLibCheck: true,
+          target: "ES2022",
+          module: "NodeNext",
+          moduleResolution: "NodeNext",
+          noEmit: false,
+          outDir: "decl-out",
+          declaration: false,
+        },
+        include: ["sdk-typecheck.mts", "sdk-typecheck.cts"],
+      },
+      null,
+      2,
+    ),
+  );
+  run(
+    "packed SDK declaration typecheck",
+    path.join(consumerDir, "node_modules", ".bin", "tsc"),
+    ["-p", "tsconfig.decl.json"],
+    { cwd: consumerDir },
+  );
+  run("run compiled .mts consumer", process.execPath, [
+    path.join(consumerDir, "decl-out", "sdk-typecheck.mjs"),
+  ], { cwd: consumerDir });
+  run("run compiled .cts consumer", process.execPath, [
+    path.join(consumerDir, "decl-out", "sdk-typecheck.cjs"),
+  ], { cwd: consumerDir });
+
   console.log(
-    "[packed-mcp-sdk-e2e] OK: packed ESM/CJS consumers use real @modelcontextprotocol/sdk Client",
+    "[packed-mcp-sdk-e2e] OK: packed ESM/CJS + declaration consumers use real @modelcontextprotocol/sdk Client",
   );
 } catch (error) {
   console.error(error instanceof Error ? error.message : String(error));

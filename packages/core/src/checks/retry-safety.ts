@@ -248,13 +248,44 @@ export function classifyRetryAttempt(
   return { kind: "unknown", reason: "ambiguous attempt identity" };
 }
 
-function hasDuplicateAttemptIds(members: readonly PersistedInspectEvent[]): boolean {
-  const seen = new Set<string>();
+/**
+ * Stable identity for repeated-delivery detection. Readers may append `:<line>`
+ * to `eventId` for uniqueness; strip that suffix so identical redelivered rows
+ * collapse while distinct executions (different step identity) stay distinct.
+ */
+function redeliveryFingerprint(event: PersistedInspectEvent): string {
+  const workflow = workflowFor(event);
+  const stableEventId = (event.eventId ?? "").replace(/:\d+$/, "");
+  return JSON.stringify({
+    stableEventId,
+    runId: event.runId,
+    kind: event.kind,
+    name: event.name,
+    status: event.status,
+    operationId: workflow.operationId ?? null,
+    attemptId: workflow.attemptId ?? null,
+    attemptNumber: workflow.attemptNumber ?? null,
+    retryOf: workflow.retryOf ?? null,
+  });
+}
+
+/**
+ * True when the same attemptId is reused by conflicting executions (distinct
+ * fingerprints). Identical redelivery of the same persisted attempt does not
+ * count as a conflict.
+ */
+function hasConflictingAttemptIdReuse(members: readonly PersistedInspectEvent[]): boolean {
+  const byAttempt = new Map<string, Set<string>>();
   for (const event of members) {
+    if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
     const id = attemptIdOf(event);
     if (!id) continue;
-    if (seen.has(id)) return true;
-    seen.add(id);
+    const fingerprints = byAttempt.get(id) ?? new Set<string>();
+    fingerprints.add(redeliveryFingerprint(event));
+    byAttempt.set(id, fingerprints);
+  }
+  for (const fingerprints of byAttempt.values()) {
+    if (fingerprints.size > 1) return true;
   }
   return false;
 }
@@ -281,11 +312,11 @@ export function evaluateRetrySafetyRules(
 
   if (rules.maxAttempts !== undefined) {
     for (const [operationId, members] of byOperation) {
-      if (hasDuplicateAttemptIds(members)) {
+      if (hasConflictingAttemptIdReuse(members)) {
         findings.push(
           fail(
             "contract.retry.duplicate-attempt-id",
-            `Operation ${operationId} has duplicate attemptId values.`,
+            `Operation ${operationId} has conflicting attemptId reuse (distinct executions).`,
             members.slice(0, 4).map(eventEvidence),
             "unique attemptId",
             "duplicate",
