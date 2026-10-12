@@ -1,5 +1,14 @@
 # @agent-inspect/mcp-server
 
+## 6.31.21
+
+### Patch Changes
+
+- 7e385c1: Compose MCP RequestOptions with trace metadata (operation/attempt identity), accept real SDK Client under strict TypeScript, add packed malformed/instrumentation negatives, and collapse identical O05 redelivery for source/OTLP parity at both maxAttempts ceilings.
+- Updated dependencies [7e385c1]
+  - agent-inspect@6.31.21
+  - @agent-inspect/redact@6.31.21
+
 ## 6.31.20
 
 ### Patch Changes
