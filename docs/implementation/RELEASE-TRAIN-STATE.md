@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.22"
 publishedVersion: "6.31.22"
-pendingPublishVersion: "6.31.22"
+pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "Prompt A identity fidelity ready for 6.31.22; 6.32 blocked"
+trainStatus: "6.31.22 published (Prompt A identity fidelity); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "6.31.22 Prompt A identity fidelity (#484)"
-lastConfirmedCommit: "732fa61e"
-lastValidationLevel: "focused vitest+f04 green; full core/runtime gate green for Prompt A"
-nextAction: "Commit → push → Version Packages → Trusted Publish 6.31.22"
+currentChunk: "post-6.31.22 — next prompt D1; partner holds"
+lastConfirmedCommit: "5fce9a78"
+lastValidationLevel: "npm 6.31.22 ×18; Publish 38649811477 green; PR #502 merged"
+nextAction: "D1 MCP isError evidence; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -24,7 +24,7 @@ githubIssues:
   "483": "closed — W01 kit resolved pin"
   "490": "closed — W23A ROADMAP/COMPARE sync"
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
-  "484": "open — W04 identity; Prompt A matrix shipping in 6.31.22; partner packet remains"
+  "484": "open — W04; Prompt A matrix shipped in 6.31.22; partner packet remains"
   "485": "open — W05 browser observer binding"
   "486": "open — W06 paired captures"
   "487": "open — W27 private Promptfoo deps"
@@ -45,10 +45,11 @@ completedChunks:
   - "W11 recovery replay green — skip empty 6.31.18"
   - "6.31.18–6.31.20 Fix-Owes + Oct 11 MCP/fixture owes"
   - "W23A #490 ROADMAP/COMPARE/active-plan pointer sync"
-  - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery (7e385c16 → #499 → Publish)"
+  - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery"
+  - "6.31.22 Prompt A identity fidelity (#484 matrix) (3f02b619 → #502 → Publish)"
 queuedChunks:
-  - "6.31.22 Prompt A identity fidelity (#484 matrix)"
-  - "W04/#484 residual partner packet after 6.31.22"
+  - "D1 MCP isError tool-result fidelity"
+  - "W04/#484 residual partner packet"
   - "W05/#485 browser observer controls"
   - "W06/#486 paired captures"
   - "W15/#491 valid-variable-path matrix"
@@ -62,13 +63,14 @@ amendments:
   - "Adoption freeze excluded"
   - "2026-10-07 6.31.17 published; W02 merged; W11 skip empty patch"
   - "2026-10-12 6.31.21 published (Trusted Publish 38204663903)"
+  - "2026-10-14 6.31.22 published (Trusted Publish 38649811477)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.21
-  ACTIVE: 6.31.22 Prompt A identity fidelity
-  NEXT: Version Packages → Trusted Publish; no 6.32 without EVIDENCE_GATE
+  LAST_PUBLISHED_RELEASE: 6.31.22
+  ACTIVE: next D1; partner holds
+  NEXT: D1 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
