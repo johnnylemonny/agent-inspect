@@ -11,7 +11,12 @@ import type { TraceCheckEvidence, TraceCheckFinding } from "./index.js";
 import { encodeCanonicalStructured } from "./canonical-equality.js";
 import { resolveCanonicalToolName } from "./logical-events.js";
 import { extractToolArgumentPayload } from "./tool-arguments.js";
-import { classifyRetryAttempt, countOperationAttempts } from "./retry-safety.js";
+import {
+  classifyRetryAttempt,
+  countOperationAttempts,
+  hasConflictingAttemptIdReuse,
+  hasConflictingEventIdReuse,
+} from "./retry-safety.js";
 import { extractSessionWorkflowMetadata } from "../sessions/metadata.js";
 import type { PersistedInspectEvent } from "../types/persisted-inspect-event.js";
 import type { SessionWorkflowMetadata } from "../sessions/types.js";
@@ -354,14 +359,11 @@ function attemptIdOf(event: PersistedInspectEvent): string | undefined {
 }
 
 function hasDuplicateAttemptIds(members: readonly PersistedInspectEvent[]): boolean {
-  const seen = new Set<string>();
-  for (const event of members) {
-    const id = attemptIdOf(event);
-    if (!id) continue;
-    if (seen.has(id)) return true;
-    seen.add(id);
-  }
-  return false;
+  // Align with global retry-safety: identical redelivery is not a conflict;
+  // distinct executions reusing attemptId (or conflicting same eventId) are.
+  return (
+    hasConflictingAttemptIdReuse(members) || hasConflictingEventIdReuse(members)
+  );
 }
 
 function findRetryTarget(

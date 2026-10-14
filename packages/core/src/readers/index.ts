@@ -1665,6 +1665,12 @@ function promoteAgentInspectWorkflowIdentity(
     ["agent_inspect.retry_of", "retryOf", "string"],
     ["agent_inspect.attempt_number", "attemptNumber", "int"],
   ] as const;
+  const conflictMapping = [
+    ["agent_inspect.identity_conflict.operation_id", "operationId", "string"],
+    ["agent_inspect.identity_conflict.attempt_id", "attemptId", "string"],
+    ["agent_inspect.identity_conflict.retry_of", "retryOf", "string"],
+    ["agent_inspect.identity_conflict.attempt_number", "attemptNumber", "int"],
+  ] as const;
 
   const metadata =
     attributes.metadata &&
@@ -1725,6 +1731,49 @@ function promoteAgentInspectWorkflowIdentity(
 
     if (direct === undefined) attributes[camel] = promoted;
     if (nested === undefined) metadata[camel] = promoted;
+  }
+
+  // Restore nested identity from exporter conflict alternates so direct/nested
+  // disagreement remains observable after round-trip (A14).
+  for (const [dotted, camel, kind] of conflictMapping) {
+    const raw = attributes[dotted];
+    if (raw === undefined || raw === null) continue;
+    let alternate: string | number | undefined;
+    if (kind === "int") {
+      const n = typeof raw === "number" ? raw : typeof raw === "string" ? Number(raw) : NaN;
+      if (!Number.isFinite(n) || n < 1) {
+        warnings.push({
+          code: "otlp_identity_invalid",
+          message: `Ignoring invalid ${dotted} identity conflict value.`,
+          severity: "warning",
+          field: `${pathPrefix}.${dotted}`,
+        });
+        continue;
+      }
+      alternate = Math.trunc(n);
+    } else if (typeof raw === "string" && raw.trim() !== "") {
+      alternate = raw.trim();
+    } else {
+      warnings.push({
+        code: "otlp_identity_invalid",
+        message: `Ignoring non-string ${dotted} identity conflict value.`,
+        severity: "warning",
+        field: `${pathPrefix}.${dotted}`,
+      });
+      continue;
+    }
+    const preferred = attributes[camel];
+    if (preferred !== undefined && preferred !== alternate) {
+      metadata[camel] = alternate;
+      warnings.push({
+        code: "otlp_identity_conflict",
+        message: `Conflicting ${camel}: attributes.${camel} vs nested alternate from ${dotted}; retaining both.`,
+        severity: "warning",
+        field: `${pathPrefix}.${dotted}`,
+      });
+    } else if (preferred === undefined) {
+      metadata[camel] = alternate;
+    }
   }
 
   if (Object.keys(metadata).length > 0) {

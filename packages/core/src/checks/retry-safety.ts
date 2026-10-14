@@ -10,6 +10,10 @@
 import type { TraceCheckEvidence, TraceCheckFinding } from "./index.js";
 import { resolveCanonicalToolName } from "./logical-events.js";
 import type { TraceContractRecoveryOperation } from "./recovery-operations.js";
+import {
+  deliverySemanticFingerprint,
+  hasDeliveryConflictMarker,
+} from "../persisted/delivery-identity.js";
 import { extractSessionWorkflowMetadata } from "../sessions/metadata.js";
 import type { PersistedInspectEvent } from "../types/persisted-inspect-event.js";
 import type { SessionWorkflowMetadata } from "../sessions/types.js";
@@ -142,7 +146,7 @@ function attemptIdOf(event: PersistedInspectEvent): string | undefined {
  */
 export function countOperationAttempts(members: readonly PersistedInspectEvent[]): number {
   const identified = new Set<string>();
-  let unidentified = 0;
+  const unidentifiedFingerprints = new Set<string>();
   for (const event of members) {
     if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
     const id = attemptIdOf(event);
@@ -150,20 +154,21 @@ export function countOperationAttempts(members: readonly PersistedInspectEvent[]
       identified.add(id);
       continue;
     }
-    unidentified += 1;
+    // Collapse identical redelivery of rows that lack attemptId (A08).
+    unidentifiedFingerprints.add(redeliveryFingerprint(event));
   }
 
   if (identified.size > 0) {
-    // Mixed identity: identified attemptIds + each unidentified member.
+    // Mixed identity: identified attemptIds + distinct unidentified deliveries.
     // Pure identified: lifecycle pairs with the same attemptId already collapsed.
-    return identified.size + unidentified;
+    return identified.size + unidentifiedFingerprints.size;
   }
 
   // No attemptIds: apply the same mixed-identity rule to attemptNumber.
   // Partial numbering must not hide unnumbered finished TOOL/LLM members
   // (unique annotated numbers alone undercount when peers omit the field).
   const numbered = new Set<number>();
-  let unnumbered = 0;
+  const unnumberedFingerprints = new Set<string>();
   for (const event of members) {
     if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
     const num = attemptNumberOf(event);
@@ -171,13 +176,13 @@ export function countOperationAttempts(members: readonly PersistedInspectEvent[]
       numbered.add(num);
       continue;
     }
-    unnumbered += 1;
+    unnumberedFingerprints.add(redeliveryFingerprint(event));
   }
   if (numbered.size > 0) {
-    return numbered.size + unnumbered;
+    return numbered.size + unnumberedFingerprints.size;
   }
 
-  return unnumbered;
+  return unnumberedFingerprints.size;
 }
 
 type RetryClassification =
@@ -249,19 +254,27 @@ export function classifyRetryAttempt(
 }
 
 /**
- * Stable identity for repeated-delivery detection. Readers may append `:<line>`
- * to `eventId` for uniqueness; strip that suffix so identical redelivered rows
- * collapse while distinct executions (different step identity) stay distinct.
+ * Stable identity for repeated-delivery detection.
+ * Strips only proven reader/manual `:<index>` discriminators; native opaque
+ * eventIds stay intact. Collapse requires matching identity and immutable
+ * semantic content (status/parent/source/time/captured args/result).
  */
-function redeliveryFingerprint(event: PersistedInspectEvent): string {
+export function redeliveryFingerprint(event: PersistedInspectEvent): string {
   const workflow = workflowFor(event);
-  const stableEventId = (event.eventId ?? "").replace(/:\d+$/, "");
-  return JSON.stringify({
-    stableEventId,
+  return deliverySemanticFingerprint({
+    eventId: event.eventId ?? "",
     runId: event.runId,
     kind: event.kind,
     name: event.name,
     status: event.status,
+    parentId: event.parentId,
+    timestamp: event.timestamp,
+    startedAt: event.startedAt,
+    sourceType: event.source?.type,
+    attributes:
+      event.attributes && typeof event.attributes === "object"
+        ? (event.attributes as Record<string, unknown>)
+        : undefined,
     operationId: workflow.operationId ?? null,
     attemptId: workflow.attemptId ?? null,
     attemptNumber: workflow.attemptNumber ?? null,
@@ -269,12 +282,51 @@ function redeliveryFingerprint(event: PersistedInspectEvent): string {
   });
 }
 
+const IDENTITY_KEYS = ["operationId", "attemptId", "retryOf", "attemptNumber"] as const;
+
+function identityValuesEqual(a: unknown, b: unknown): boolean {
+  if (typeof a === "number" && typeof b === "number") {
+    return Number.isFinite(a) && Number.isFinite(b) && a === b;
+  }
+  if (typeof a === "string" && typeof b === "string") {
+    return a.trim() === b.trim();
+  }
+  return a === b;
+}
+
+/**
+ * Direct vs nested metadata disagreement for supported identity fields.
+ */
+export function directNestedIdentityConflicts(
+  event: PersistedInspectEvent,
+): string[] {
+  const attrs = event.attributes;
+  if (!attrs || typeof attrs !== "object") return [];
+  const nested =
+    attrs.metadata && typeof attrs.metadata === "object" && !Array.isArray(attrs.metadata)
+      ? (attrs.metadata as Record<string, unknown>)
+      : undefined;
+  if (!nested) return [];
+  const conflicts: string[] = [];
+  for (const key of IDENTITY_KEYS) {
+    const direct = attrs[key];
+    const nestedValue = nested[key];
+    if (direct === undefined || nestedValue === undefined) continue;
+    if (!identityValuesEqual(direct, nestedValue)) {
+      conflicts.push(key);
+    }
+  }
+  return conflicts;
+}
+
 /**
  * True when the same attemptId is reused by conflicting executions (distinct
  * fingerprints). Identical redelivery of the same persisted attempt does not
  * count as a conflict.
  */
-function hasConflictingAttemptIdReuse(members: readonly PersistedInspectEvent[]): boolean {
+export function hasConflictingAttemptIdReuse(
+  members: readonly PersistedInspectEvent[],
+): boolean {
   const byAttempt = new Map<string, Set<string>>();
   for (const event of members) {
     if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
@@ -291,6 +343,41 @@ function hasConflictingAttemptIdReuse(members: readonly PersistedInspectEvent[])
 }
 
 /**
+ * True when the same opaque eventId appears with conflicting semantic content
+ * (or a tree/export delivery-conflict marker survives after collapse).
+ */
+export function hasConflictingEventIdReuse(
+  members: readonly PersistedInspectEvent[],
+): boolean {
+  const byEventId = new Map<string, Set<string>>();
+  for (const event of members) {
+    if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
+    const eventId = event.eventId;
+    if (!eventId) continue;
+    if (hasDeliveryConflictMarker(event.attributes as Record<string, unknown> | undefined)) {
+      return true;
+    }
+    const fingerprints = byEventId.get(eventId) ?? new Set<string>();
+    fingerprints.add(redeliveryFingerprint(event));
+    byEventId.set(eventId, fingerprints);
+  }
+  for (const fingerprints of byEventId.values()) {
+    if (fingerprints.size > 1) return true;
+  }
+  return false;
+}
+
+function hasIdentityRepresentationConflict(
+  members: readonly PersistedInspectEvent[],
+): boolean {
+  for (const event of members) {
+    if (event.kind !== "TOOL" && event.kind !== "LLM") continue;
+    if (directNestedIdentityConflicts(event).length > 0) return true;
+  }
+  return false;
+}
+
+/**
  * Evaluate retry / side-effect safety invariants.
  */
 export function evaluateRetrySafetyRules(
@@ -299,20 +386,23 @@ export function evaluateRetrySafetyRules(
   _runEvidence: readonly TraceCheckEvidence[],
 ): TraceCheckFinding[] {
   const findings: TraceCheckFinding[] = [];
-  const byOperation = new Map<string, PersistedInspectEvent[]>();
+  // Scope operation identity to the physical run so identical labels in
+  // distinct runs are never merged (A10).
+  const byOperation = new Map<string, { operationId: string; members: PersistedInspectEvent[] }>();
 
   for (const event of events) {
     const workflow = workflowFor(event);
     const operationId = workflow.operationId;
     if (!operationId) continue;
-    const list = byOperation.get(operationId) ?? [];
-    list.push(event);
-    byOperation.set(operationId, list);
+    const key = `${event.runId}\0${operationId}`;
+    const group = byOperation.get(key) ?? { operationId, members: [] };
+    group.members.push(event);
+    byOperation.set(key, group);
   }
 
   if (rules.maxAttempts !== undefined) {
-    for (const [operationId, members] of byOperation) {
-      if (hasConflictingAttemptIdReuse(members)) {
+    for (const { operationId, members } of byOperation.values()) {
+      if (hasConflictingAttemptIdReuse(members) || hasConflictingEventIdReuse(members)) {
         findings.push(
           fail(
             "contract.retry.duplicate-attempt-id",
@@ -320,6 +410,31 @@ export function evaluateRetrySafetyRules(
             members.slice(0, 4).map(eventEvidence),
             "unique attemptId",
             "duplicate",
+          ),
+        );
+      }
+      if (hasIdentityRepresentationConflict(members)) {
+        findings.push(
+          fail(
+            "contract.retry.ambiguous-identity",
+            `Operation ${operationId} has conflicting direct vs nested identity fields; strict identity cannot pass.`,
+            members.slice(0, 4).map(eventEvidence),
+            "agreeing identity representation",
+            "direct/nested conflict",
+          ),
+        );
+      }
+      const toolish = members.filter((event) => event.kind === "TOOL" || event.kind === "LLM");
+      const hasAttemptId = toolish.some((event) => attemptIdOf(event) !== undefined);
+      const missingAttemptId = toolish.some((event) => attemptIdOf(event) === undefined);
+      if (hasAttemptId && missingAttemptId) {
+        findings.push(
+          fail(
+            "contract.retry.ambiguous-identity",
+            `Operation ${operationId} has partial attempt identity; strict identity conformance cannot pass.`,
+            members.slice(0, 4).map(eventEvidence),
+            "complete attempt identity",
+            "partial attemptId coverage",
           ),
         );
       }
@@ -339,7 +454,7 @@ export function evaluateRetrySafetyRules(
   }
 
   if (rules.requireTerminalResult) {
-    for (const [operationId, members] of byOperation) {
+    for (const { operationId, members } of byOperation.values()) {
       const hasTerminal = members.some((event) => event.status === "ok" || event.status === "error");
       if (!hasTerminal) {
         findings.push(
@@ -360,7 +475,7 @@ export function evaluateRetrySafetyRules(
       const workflow = workflowFor(event);
       const fallbackOf = workflow.fallbackOf;
       if (!fallbackOf) continue;
-      const prior = byOperation.get(fallbackOf) ?? [];
+      const prior = byOperation.get(`${event.runId}\0${fallbackOf}`)?.members ?? [];
       const fallbackStart = eventTime(event);
       const earlierFailure = prior.some(
         (candidate) =>
@@ -392,7 +507,7 @@ export function evaluateRetrySafetyRules(
     for (const event of toolEvents) {
       const name = resolveCanonicalToolName(event);
       const workflow = workflowFor(event);
-      const key = `${workflow.operationId ?? name}::${name}`;
+      const key = `${event.runId}::${workflow.operationId ?? name}::${name}`;
       const list = byToolOp.get(key) ?? [];
       list.push(event);
       byToolOp.set(key, list);
@@ -455,7 +570,7 @@ export function evaluateRetrySafetyRules(
   }
 
   if (rules.requireRecoveredFailureVisible) {
-    for (const [operationId, members] of byOperation) {
+    for (const { operationId, members } of byOperation.values()) {
       const ordered = sortByTime(members);
       const toolish = ordered.filter(
         (event) =>

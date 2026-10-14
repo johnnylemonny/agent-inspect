@@ -197,4 +197,233 @@ describe("retry-safety identical redelivery", () => {
       result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
     ).toBe(false);
   });
+
+  it("A03: opaque numeric eventId suffixes are not stripped (execution:1 vs execution:2)", () => {
+    const events = [
+      tool("execution:1", "native-run", "retrieve", "2026-10-11T00:00:01.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+        attemptNumber: 1,
+      }),
+      tool("execution:2", "native-run", "retrieve", "2026-10-11T00:00:02.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+        attemptNumber: 1,
+      }),
+    ];
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const result = evaluateTraceContract({ read: readOf(events) }, contract);
+    expect(result.status).toBe("fail");
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(true);
+  });
+
+  it("A04: execution-A / execution-B control still fails duplicate-attempt-id", () => {
+    const events = [
+      tool("execution-A", "native-run", "retrieve", "2026-10-11T00:00:01.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+      }),
+      tool("execution-B", "native-run", "retrieve", "2026-10-11T00:00:02.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+      }),
+    ];
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const result = evaluateTraceContract({ read: readOf(events) }, contract);
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(true);
+  });
+
+  it("A05: same eventId with different args is a conflict", () => {
+    const events = [
+      persisted("execution-A", "native-run", {
+        kind: "TOOL",
+        name: "tool:retrieve",
+        startedAt: "2026-10-11T00:00:01.000Z",
+        timestamp: "2026-10-11T00:00:01.000Z",
+        attributes: {
+          toolName: "retrieve",
+          metadata: { operationId: "op1", attemptId: "a1", arguments: { tenant: "A" } },
+        },
+      }),
+      persisted("execution-A", "native-run", {
+        kind: "TOOL",
+        name: "tool:retrieve",
+        startedAt: "2026-10-11T00:00:02.000Z",
+        timestamp: "2026-10-11T00:00:02.000Z",
+        attributes: {
+          toolName: "retrieve",
+          metadata: { operationId: "op1", attemptId: "a1", arguments: { tenant: "B" } },
+        },
+      }),
+    ];
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const result = evaluateTraceContract({ read: readOf(events) }, contract);
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(true);
+  });
+
+  it("A06: same eventId with different status is a conflict", () => {
+    const events = [
+      persisted("execution-A", "native-run", {
+        kind: "TOOL",
+        name: "tool:retrieve",
+        status: "error",
+        startedAt: "2026-10-11T00:00:01.000Z",
+        timestamp: "2026-10-11T00:00:01.000Z",
+        attributes: {
+          toolName: "retrieve",
+          metadata: { operationId: "op1", attemptId: "a1" },
+        },
+      }),
+      persisted("execution-A", "native-run", {
+        kind: "TOOL",
+        name: "tool:retrieve",
+        status: "ok",
+        startedAt: "2026-10-11T00:00:01.000Z",
+        timestamp: "2026-10-11T00:00:01.000Z",
+        attributes: {
+          toolName: "retrieve",
+          metadata: { operationId: "op1", attemptId: "a1" },
+        },
+      }),
+    ];
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const result = evaluateTraceContract({ read: readOf(events) }, contract);
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(true);
+  });
+
+  it("A08: identical redelivery without attemptId collapses; partial identity fails strict gate", () => {
+    const a = persisted("manual:run:step_started:step_a:1", "run-1", {
+      kind: "TOOL",
+      name: "tool:retrieve",
+      startedAt: "2026-10-11T00:00:01.000Z",
+      timestamp: "2026-10-11T00:00:01.000Z",
+      attributes: {
+        toolName: "retrieve",
+        metadata: { operationId: "op1" },
+      },
+    });
+    const b = {
+      ...a,
+      eventId: "manual:run:step_started:step_a:9",
+    };
+    const contract = defineTraceContract({ retry: { maxAttempts: 1 } });
+    const identical = evaluateTraceContract({ read: readOf([a, b]) }, contract);
+    expect(identical.status).toBe("pass");
+
+    const mixed = [
+      tool("manual:run:step_started:step_a:1", "run-1", "retrieve", "2026-10-11T00:00:01.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+      }),
+      persisted("manual:run:step_started:step_b:3", "run-1", {
+        kind: "TOOL",
+        name: "tool:retrieve",
+        startedAt: "2026-10-11T00:00:02.000Z",
+        timestamp: "2026-10-11T00:00:02.000Z",
+        attributes: {
+          toolName: "retrieve",
+          metadata: { operationId: "op1" },
+        },
+      }),
+    ];
+    const partial = evaluateTraceContract({ read: readOf(mixed) }, contract);
+    expect(partial.status).toBe("fail");
+    expect(
+      partial.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity"),
+    ).toBe(true);
+  });
+
+  it("A07: reordered object keys still count as exact redelivery", () => {
+    const a = persisted("manual:run:step_started:step_a:1", "run-1", {
+      kind: "TOOL",
+      name: "tool:retrieve",
+      startedAt: "2026-10-11T00:00:01.000Z",
+      timestamp: "2026-10-11T00:00:01.000Z",
+      attributes: {
+        toolName: "retrieve",
+        metadata: {
+          operationId: "op1",
+          attemptId: "a1",
+          arguments: { a: 1, b: 2 },
+        },
+      },
+    });
+    const b = persisted("manual:run:step_started:step_a:9", "run-1", {
+      kind: "TOOL",
+      name: "tool:retrieve",
+      startedAt: "2026-10-11T00:00:01.000Z",
+      timestamp: "2026-10-11T00:00:01.000Z",
+      attributes: {
+        toolName: "retrieve",
+        metadata: {
+          operationId: "op1",
+          attemptId: "a1",
+          arguments: { b: 2, a: 1 },
+        },
+      },
+    });
+    const contract = defineTraceContract({ retry: { maxAttempts: 1 } });
+    const result = evaluateTraceContract({ read: readOf([a, b]) }, contract);
+    expect(result.status).toBe("pass");
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(false);
+  });
+
+  it("A10: same operationId/attemptId in distinct runs are not merged", () => {
+    const events = [
+      tool("execution-A", "run-a", "retrieve", "2026-10-11T00:00:01.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+      }),
+      tool("execution-B", "run-b", "retrieve", "2026-10-11T00:00:01.000Z", {
+        operationId: "op1",
+        attemptId: "a1",
+      }),
+    ];
+    const contract = defineTraceContract({ retry: { maxAttempts: 1 } });
+    const result = evaluateTraceContract({ read: readOf(events) }, contract);
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.max-attempts"),
+    ).toBe(false);
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+    ).toBe(false);
+  });
+
+  it("A14: direct vs nested identity conflict fails ambiguous-identity under maxAttempts", () => {
+    const event = persisted("e1", "run-1", {
+      kind: "TOOL",
+      name: "tool:retrieve",
+      startedAt: "2026-10-11T00:00:01.000Z",
+      timestamp: "2026-10-11T00:00:01.000Z",
+      attributes: {
+        toolName: "retrieve",
+        operationId: "op-direct",
+        attemptId: "a-direct",
+        attemptNumber: 1,
+        retryOf: "prior-direct",
+        metadata: {
+          operationId: "op-nested",
+          attemptId: "a-nested",
+          attemptNumber: 2,
+          retryOf: "prior-nested",
+        },
+      },
+    });
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const result = evaluateTraceContract({ read: readOf([event]) }, contract);
+    expect(result.status).toBe("fail");
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity"),
+    ).toBe(true);
+  });
 });

@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.21"
 publishedVersion: "6.31.21"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.22"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.21 published (MCP compose + SDK Client TS + Roy O05); 6.32 blocked"
+trainStatus: "Prompt A identity fidelity ready for 6.31.22; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.21 — partner holds; no empty patch"
-lastConfirmedCommit: "3f68dc81"
-lastValidationLevel: "npm 6.31.21 ×18; Publish 38204663903 green; PR #499 merged"
-nextAction: "Hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "6.31.22 Prompt A identity fidelity (#484)"
+lastConfirmedCommit: "732fa61e"
+lastValidationLevel: "focused vitest+f04 green; full core/runtime gate green for Prompt A"
+nextAction: "Commit → push → Version Packages → Trusted Publish 6.31.22"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -24,7 +24,7 @@ githubIssues:
   "483": "closed — W01 kit resolved pin"
   "490": "closed — W23A ROADMAP/COMPARE sync"
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
-  "484": "open — W04 OTLP operation/attempt identity"
+  "484": "open — W04 identity; Prompt A matrix shipping in 6.31.22; partner packet remains"
   "485": "open — W05 browser observer binding"
   "486": "open — W06 paired captures"
   "487": "open — W27 private Promptfoo deps"
@@ -47,7 +47,8 @@ completedChunks:
   - "W23A #490 ROADMAP/COMPARE/active-plan pointer sync"
   - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery (7e385c16 → #499 → Publish)"
 queuedChunks:
-  - "W04/#484 identity packet + Robb/Roy drafts after artifacts"
+  - "6.31.22 Prompt A identity fidelity (#484 matrix)"
+  - "W04/#484 residual partner packet after 6.31.22"
   - "W05/#485 browser observer controls"
   - "W06/#486 paired captures"
   - "W15/#491 valid-variable-path matrix"
@@ -66,10 +67,10 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.21
-  ACTIVE: stability holds; no empty patch
-  NEXT: partner holds; no 6.32 without EVIDENCE_GATE
+  ACTIVE: 6.31.22 Prompt A identity fidelity
+  NEXT: Version Packages → Trusted Publish; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-12"
+updatedAt: "2026-10-14"
 ```

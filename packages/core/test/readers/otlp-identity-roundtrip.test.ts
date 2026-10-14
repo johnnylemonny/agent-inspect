@@ -133,6 +133,72 @@ describe("OTLP identity round-trip", () => {
     ).toBe(true);
   });
 
+  it("A14: direct/nested conflict survives export→read and fails strict identity", async () => {
+    const tree = {
+      runId: "run_dn",
+      name: "dn",
+      status: "ok" as const,
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_dn",
+            kind: "TOOL" as const,
+            name: "retrieve",
+            status: "ok" as const,
+            timestamp: 1,
+            confidence: "explicit" as const,
+            source: { type: "manual" as const },
+            attributes: {
+              operationId: "op-direct",
+              attemptId: "a-direct",
+              attemptNumber: 1,
+              metadata: {
+                operationId: "op-nested",
+                attemptId: "a-nested",
+                attemptNumber: 2,
+              },
+            },
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const maxTwo = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const otlp = exportOtlpJson(tree);
+    const roundtrip = await openTraceText(otlp.content);
+    const tool = roundtrip.events.find((e) => e.kind === "TOOL");
+    expect(tool).toBeDefined();
+    expect(tool!.attributes?.operationId).toBe("op-direct");
+    const nested = tool!.attributes?.metadata as Record<string, unknown> | undefined;
+    expect(nested?.operationId).toBe("op-nested");
+    expect(roundtrip.warnings.some((w) => w.code === "otlp_identity_conflict")).toBe(true);
+    const result = evaluateTraceContract({ read: roundtrip }, maxTwo);
+    expect(result.status).toBe("fail");
+    expect(
+      result.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity"),
+    ).toBe(true);
+  });
+
   it("warns on camelCase vs dotted identity conflicts without overwriting", async () => {
     const otlp = {
       resourceSpans: [

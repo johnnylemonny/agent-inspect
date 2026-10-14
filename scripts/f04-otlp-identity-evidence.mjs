@@ -370,6 +370,140 @@ const o05collision = await capture("O05-identity-collision", async () => {
   }
 }
 
+// A03: opaque native eventId suffixes must not collapse conflicting attemptId reuse
+{
+  const lines = [
+    {
+      schemaVersion: "0.2",
+      eventId: "execution:1",
+      runId: "native-run",
+      kind: "TOOL",
+      name: "tool:retrieve",
+      status: "ok",
+      timestamp: "2026-10-14T00:00:01.000Z",
+      startedAt: "2026-10-14T00:00:01.000Z",
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: {
+        toolName: "retrieve",
+        metadata: { operationId: "op1", attemptId: "a1", attemptNumber: 1 },
+      },
+    },
+    {
+      schemaVersion: "0.2",
+      eventId: "execution:2",
+      runId: "native-run",
+      kind: "TOOL",
+      name: "tool:retrieve",
+      status: "ok",
+      timestamp: "2026-10-14T00:00:02.000Z",
+      startedAt: "2026-10-14T00:00:02.000Z",
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: {
+        toolName: "retrieve",
+        metadata: { operationId: "op1", attemptId: "a1", attemptNumber: 1 },
+      },
+    },
+  ];
+  const text = lines.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  const sourcePath = path.join(outRoot, "A03-opaque-eventid-suffix.source.jsonl");
+  fs.writeFileSync(sourcePath, text);
+  const sourceRead = await openTraceFile(sourcePath);
+  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxTwo);
+  const tree = sourceRead.runs[0];
+  if (!tree) {
+    fail("A03: missing run tree from source read");
+  }
+  const otlp = exportOtlpJson(tree);
+  fs.writeFileSync(path.join(outRoot, "A03-opaque-eventid-suffix.default-otlp.json"), otlp.content);
+  const otlpRead = await openTraceText(otlp.content);
+  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxTwo);
+  fs.writeFileSync(
+    path.join(outRoot, "A03-opaque-eventid-suffix.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Native opaque eventId suffixes (execution:1 / execution:2) must not be stripped; duplicate-attempt-id on both formats.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+        sourceFindings: sourceEval.findings.map((f) => f.ruleId),
+        otlpFindings: otlpEval.findings.map((f) => f.ruleId),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (!sourceEval.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id")) {
+    fail("A03: source missing duplicate-attempt-id");
+  }
+  if (!otlpEval.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id")) {
+    fail("A03: OTLP missing duplicate-attempt-id");
+  }
+}
+
+// A14: direct vs nested identity conflict must not silently pass after OTLP round-trip
+{
+  const event = {
+    schemaVersion: "0.2",
+    eventId: "e-conflict",
+    runId: "run-conflict",
+    kind: "TOOL",
+    name: "tool:retrieve",
+    status: "ok",
+    timestamp: "2026-10-14T00:00:01.000Z",
+    startedAt: "2026-10-14T00:00:01.000Z",
+    confidence: "explicit",
+    source: { type: "manual" },
+    attributes: {
+      toolName: "retrieve",
+      operationId: "op-direct",
+      attemptId: "a-direct",
+      attemptNumber: 1,
+      retryOf: "prior-direct",
+      metadata: {
+        operationId: "op-nested",
+        attemptId: "a-nested",
+        attemptNumber: 2,
+        retryOf: "prior-nested",
+      },
+    },
+  };
+  const text = JSON.stringify(event) + "\n";
+  const sourcePath = path.join(outRoot, "A14-direct-nested-conflict.source.jsonl");
+  fs.writeFileSync(sourcePath, text);
+  const sourceRead = await openTraceFile(sourcePath);
+  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxTwo);
+  const tree = sourceRead.runs[0];
+  const otlp = exportOtlpJson(tree);
+  fs.writeFileSync(path.join(outRoot, "A14-direct-nested-conflict.default-otlp.json"), otlp.content);
+  const otlpRead = await openTraceText(otlp.content);
+  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxTwo);
+  fs.writeFileSync(
+    path.join(outRoot, "A14-direct-nested-conflict.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Direct/nested identity disagreement must fail ambiguous-identity on source and OTLP; not a silent PASS.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+        sourceFindings: sourceEval.findings.map((f) => f.ruleId),
+        otlpFindings: otlpEval.findings.map((f) => f.ruleId),
+        otlpWarnings: (otlpRead.warnings ?? []).map((w) => w.code),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (!sourceEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity")) {
+    fail("A14: source missing ambiguous-identity");
+  }
+  if (!otlpEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity")) {
+    fail("A14: OTLP missing ambiguous-identity");
+  }
+  if (sourceEval.status === "pass" || otlpEval.status === "pass") {
+    fail("A14: conflicting identity must not pass strict maxAttempts gate");
+  }
+}
+
 // O06 missing/partial identities remain unknown (no operationId → maxAttempts unevaluable)
 const o06 = await capture("O06-partial-identity", async () => {
   await toolAttempt("retrieve_policy", { attemptNumber: 1 });
@@ -560,6 +694,8 @@ Default output directory: \`tmp/f04-otlp-identity-evidence\` (or caller-specifie
 | O04 | Separate physical run reusing local labels |
 | O05-identity-collision | Two executions, same attemptId (negative) |
 | O05-repeated-delivery | Same persisted events replayed (no second handler) |
+| A03 | Opaque eventId suffixes execution:1/:2 must fail duplicate-attempt-id |
+| A14 | Direct vs nested identity conflict fails ambiguous-identity both formats |
 | O06 | Partial/missing identities (packet unknown_unverifiable) |
 | O07 | Equal tool/args, distinct operationIds |
 

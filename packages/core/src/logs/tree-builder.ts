@@ -1,3 +1,8 @@
+import {
+  deliverySemanticFingerprint,
+  identityFieldsFromAttributes,
+  stampDeliveryConflict,
+} from "../persisted/delivery-identity.js";
 import type {
   InspectEvent,
   InspectNode,
@@ -177,7 +182,56 @@ export class TreeBuilder {
 
       const nodes = new Map<string, InspectNode>();
       for (const e of sorted) {
-        nodes.set(e.eventId, { event: e, children: [], depth: 0 });
+        const existing = nodes.get(e.eventId);
+        if (!existing) {
+          nodes.set(e.eventId, { event: e, children: [], depth: 0 });
+          continue;
+        }
+        const existingAttrs =
+          existing.event.attributes && typeof existing.event.attributes === "object"
+            ? (existing.event.attributes as Record<string, unknown>)
+            : undefined;
+        const nextAttrs =
+          e.attributes && typeof e.attributes === "object"
+            ? (e.attributes as Record<string, unknown>)
+            : undefined;
+        const existingIdentity = identityFieldsFromAttributes(existingAttrs);
+        const nextIdentity = identityFieldsFromAttributes(nextAttrs);
+        const existingFp = deliverySemanticFingerprint({
+          eventId: existing.event.eventId,
+          runId: existing.event.runId,
+          kind: existing.event.kind,
+          name: existing.event.name,
+          status: existing.event.status,
+          parentId: existing.event.parentId,
+          timestamp: existing.event.timestamp,
+          sourceType: existing.event.source?.type,
+          attributes: existingAttrs,
+          ...existingIdentity,
+        });
+        const nextFp = deliverySemanticFingerprint({
+          eventId: e.eventId,
+          runId: e.runId,
+          kind: e.kind,
+          name: e.name,
+          status: e.status,
+          parentId: e.parentId,
+          timestamp: e.timestamp,
+          sourceType: e.source?.type,
+          attributes: nextAttrs,
+          ...nextIdentity,
+        });
+        if (existingFp === nextFp) {
+          // Identical redelivery: keep the first tree node.
+          continue;
+        }
+        // Conflicting same-eventId evidence cannot both live in the id-keyed
+        // tree; stamp an explicit marker so export/re-read cannot silently pass.
+        nodes.set(e.eventId, {
+          event: stampDeliveryConflict(e),
+          children: [],
+          depth: 0,
+        });
       }
 
       const { roots, summary } = linkNodesVisibilityFirst(nodes);

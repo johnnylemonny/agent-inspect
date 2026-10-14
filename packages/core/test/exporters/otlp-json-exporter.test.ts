@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import type { TraceEvent } from "../../src/types.js";
+import type { InspectRunTree } from "../../src/types/inspect-event.js";
 
 import { exportOtlpJson } from "../../src/exporters/otlp-json-exporter.js";
 import { manualTraceEventsToRunTree } from "../../src/exporters/manual-trace-adapter.js";
+import { IDENTITY_CONFLICT_ATTR } from "../../src/persisted/delivery-identity.js";
 
 function treeWithTokens(): TraceEvent[] {
   return [
@@ -223,5 +225,120 @@ describe("exportOtlpJson", () => {
     const span = parsed.resourceSpans[0]!.scopeSpans[0]!.spans[0]!;
     expect(span.kind).toBe(1);
     expect(span.status.code).toBe(1);
+  });
+
+  it("A14: emits identity_conflict.* when direct and nested disagree", () => {
+    const tree: InspectRunTree = {
+      runId: "run_conflict",
+      name: "conflict",
+      status: "ok",
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_conflict",
+            kind: "TOOL",
+            name: "retrieve",
+            status: "ok",
+            timestamp: 1,
+            confidence: "explicit",
+            source: { type: "manual" },
+            attributes: {
+              operationId: "op-direct",
+              attemptId: "a-direct",
+              attemptNumber: 1,
+              retryOf: "prior-direct",
+              metadata: {
+                operationId: "op-nested",
+                attemptId: "a-nested",
+                attemptNumber: 2,
+                retryOf: "prior-nested",
+              },
+            },
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const r = exportOtlpJson(tree);
+    const byKey = Object.fromEntries(attrsOf(r.content).map((a) => [a.key, a.value]));
+    expect(byKey["agent_inspect.operation_id"]).toEqual({ stringValue: "op-direct" });
+    expect(byKey[IDENTITY_CONFLICT_ATTR.operationId]).toEqual({ stringValue: "op-nested" });
+    expect(byKey["agent_inspect.attempt_id"]).toEqual({ stringValue: "a-direct" });
+    expect(byKey[IDENTITY_CONFLICT_ATTR.attemptId]).toEqual({ stringValue: "a-nested" });
+    expect(byKey["agent_inspect.retry_of"]).toEqual({ stringValue: "prior-direct" });
+    expect(byKey[IDENTITY_CONFLICT_ATTR.retryOf]).toEqual({ stringValue: "prior-nested" });
+    expect(byKey["agent_inspect.attempt_number"]).toEqual({ intValue: "1" });
+    expect(byKey[IDENTITY_CONFLICT_ATTR.attemptNumber]).toEqual({ intValue: "2" });
+    expect(r.warnings.some((w) => w.includes("Identity representation conflict"))).toBe(true);
+  });
+
+  it("A15: agreeing dual representation does not emit conflict attrs", () => {
+    const tree: InspectRunTree = {
+      runId: "run_agree",
+      name: "agree",
+      status: "ok",
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_agree",
+            kind: "TOOL",
+            name: "retrieve",
+            status: "ok",
+            timestamp: 1,
+            confidence: "explicit",
+            source: { type: "manual" },
+            attributes: {
+              operationId: "op1",
+              attemptId: "a1",
+              metadata: { operationId: "op1", attemptId: "a1" },
+            },
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const attrs = attrsOf(exportOtlpJson(tree).content);
+    expect(attrs.some((a) => a.key === IDENTITY_CONFLICT_ATTR.operationId)).toBe(false);
+    expect(attrs.some((a) => a.key === "agent_inspect.operation_id")).toBe(true);
   });
 });
