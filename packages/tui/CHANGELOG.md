@@ -1,5 +1,13 @@
 # @agent-inspect/tui
 
+## 6.31.22
+
+### Patch Changes
+
+- 3f02b61: Treat native eventIds as opaque for retry redelivery fingerprints, retain conflicting same-ID evidence through tree/export, and surface direct vs nested identity disagreements on OTLP round-trip so source and OTLP strict retry gates agree (Prompt A / #484).
+- Updated dependencies [3f02b61]
+  - agent-inspect@6.31.22
+
 ## 6.31.21
 
 ### Patch Changes

@@ -5,8 +5,8 @@
 > **Canonical roadmap:** [ROADMAP.md](./ROADMAP.md)
 
 ```yaml
-baselineVersion: "6.31.21"
-publishedVersion: "6.31.21"
+baselineVersion: "6.31.22"
+publishedVersion: "6.31.22"
 pendingPublishVersion: "6.31.22"
 currentTrain: "stability-after-63111"
 trainStatus: "Prompt A identity fidelity ready for 6.31.22; 6.32 blocked"
