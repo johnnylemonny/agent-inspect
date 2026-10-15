@@ -1776,6 +1776,17 @@ function promoteAgentInspectWorkflowIdentity(
     }
   }
 
+  // Bounded field list survives when truncated conflict previews collide (AR01).
+  const conflictFields = attributes["agent_inspect.identity_conflict.fields"];
+  if (typeof conflictFields === "string" && conflictFields.trim() !== "") {
+    warnings.push({
+      code: "otlp_identity_conflict",
+      message: `Identity representation conflict fields retained after OTLP bounding: ${conflictFields.trim().slice(0, 200)}.`,
+      severity: "warning",
+      field: `${pathPrefix}.agent_inspect.identity_conflict.fields`,
+    });
+  }
+
   if (Object.keys(metadata).length > 0) {
     attributes.metadata = metadata;
   }

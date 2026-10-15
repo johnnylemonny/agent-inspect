@@ -13,6 +13,7 @@ import type { TraceContractRecoveryOperation } from "./recovery-operations.js";
 import {
   deliverySemanticFingerprint,
   hasDeliveryConflictMarker,
+  identityConflictFieldsFromAttributes,
 } from "../persisted/delivery-identity.js";
 import { extractSessionWorkflowMetadata } from "../sessions/metadata.js";
 import type { PersistedInspectEvent } from "../types/persisted-inspect-event.js";
@@ -296,6 +297,7 @@ function identityValuesEqual(a: unknown, b: unknown): boolean {
 
 /**
  * Direct vs nested metadata disagreement for supported identity fields.
+ * Also honors bounded export markers when lossy bounding hid the disagreement.
  */
 export function directNestedIdentityConflicts(
   event: PersistedInspectEvent,
@@ -306,13 +308,19 @@ export function directNestedIdentityConflicts(
     attrs.metadata && typeof attrs.metadata === "object" && !Array.isArray(attrs.metadata)
       ? (attrs.metadata as Record<string, unknown>)
       : undefined;
-  if (!nested) return [];
   const conflicts: string[] = [];
-  for (const key of IDENTITY_KEYS) {
-    const direct = attrs[key];
-    const nestedValue = nested[key];
-    if (direct === undefined || nestedValue === undefined) continue;
-    if (!identityValuesEqual(direct, nestedValue)) {
+  if (nested) {
+    for (const key of IDENTITY_KEYS) {
+      const direct = attrs[key];
+      const nestedValue = nested[key];
+      if (direct === undefined || nestedValue === undefined) continue;
+      if (!identityValuesEqual(direct, nestedValue)) {
+        conflicts.push(key);
+      }
+    }
+  }
+  for (const key of identityConflictFieldsFromAttributes(attrs)) {
+    if ((IDENTITY_KEYS as readonly string[]).includes(key) && !conflicts.includes(key)) {
       conflicts.push(key);
     }
   }

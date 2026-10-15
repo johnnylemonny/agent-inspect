@@ -6,6 +6,10 @@ import type {
   PersistedInspectEvent,
   PersistedTokenUsage,
 } from "../types/persisted-inspect-event.js";
+import {
+  DELIVERY_EVENT_BASE_ATTR,
+  deliveryEventBaseFromIndexedId,
+} from "./delivery-identity.js";
 import { normalizeTokenUsage } from "./token-usage.js";
 
 export interface InspectEventToPersistedOptions {
@@ -141,10 +145,12 @@ export function inspectEventToPersistedInspectEvent(
   options?: InspectEventToPersistedOptions,
 ): PersistedInspectEvent {
   const eventIndex = options?.eventIndex ?? 0;
-  const eventId =
+  const mintedFallback = !(
     typeof event.eventId === "string" && event.eventId.length > 0
-      ? event.eventId
-      : createFallbackEventId(event, eventIndex);
+  );
+  const eventId = mintedFallback
+    ? createFallbackEventId(event, eventIndex)
+    : event.eventId;
 
   const ts = toIsoTimestamp(event.timestamp);
   const { persistedSource, originalSourceType } = mapInspectSourceToPersisted(
@@ -154,6 +160,9 @@ export function inspectEventToPersistedInspectEvent(
 
   const attrsBase =
     event.attributes !== undefined ? { ...event.attributes } : {};
+  const deliveryBase = mintedFallback
+    ? deliveryEventBaseFromIndexedId(eventId)
+    : undefined;
 
   const attributes = compactAttributes({
     ...attrsBase,
@@ -161,6 +170,9 @@ export function inspectEventToPersistedInspectEvent(
     sourceLine: event.source.line,
     originalSourceType,
     invalidTimestamp: ts.invalidTimestamp ? true : undefined,
+    ...(deliveryBase !== undefined
+      ? { [DELIVERY_EVENT_BASE_ATTR]: deliveryBase }
+      : {}),
   });
 
   const tokenUsage = mapTokenUsageFromAttributes(event.attributes);

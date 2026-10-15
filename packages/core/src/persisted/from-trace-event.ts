@@ -13,6 +13,10 @@ import type {
   PersistedInspectEvent,
   PersistedTokenUsage,
 } from "../types/persisted-inspect-event.js";
+import {
+  DELIVERY_EVENT_BASE_ATTR,
+  deliveryEventBaseFromIndexedId,
+} from "./delivery-identity.js";
 import { normalizeTokenUsage } from "./token-usage.js";
 
 export interface TraceEventToPersistedOptions {
@@ -145,6 +149,16 @@ function compactAttributes(
   return Object.keys(out).length > 0 ? out : undefined;
 }
 
+/** Stamp converter provenance so redelivery can strip only minted indexes. */
+function stampDeliveryEventBase(
+  eventId: string,
+  attributes: Record<string, unknown> | undefined,
+): Record<string, unknown> | undefined {
+  const base = deliveryEventBaseFromIndexedId(eventId);
+  if (!base) return attributes;
+  return { ...(attributes ?? {}), [DELIVERY_EVENT_BASE_ATTR]: base };
+}
+
 /**
  * Maps one v0.1 {@link TraceEvent} to a v0.2 {@link PersistedInspectEvent}.
  * Does not mutate `event`.
@@ -185,7 +199,7 @@ export function traceEventToPersistedInspectEvent(
         startedAt: tsStart.iso,
         confidence: "explicit",
         source,
-        attributes,
+        attributes: stampDeliveryEventBase(eventId, attributes),
       };
     }
 
@@ -211,7 +225,7 @@ export function traceEventToPersistedInspectEvent(
         durationMs: event.durationMs,
         confidence: "explicit",
         source,
-        attributes,
+        attributes: stampDeliveryEventBase(eventId, attributes),
         error,
       };
     }
@@ -240,7 +254,7 @@ export function traceEventToPersistedInspectEvent(
         startedAt: tsStart.iso,
         confidence: "explicit",
         source,
-        attributes,
+        attributes: stampDeliveryEventBase(eventId, attributes),
       };
       if (event.parentId !== undefined) {
         out.parentId = event.parentId;
@@ -274,7 +288,7 @@ export function traceEventToPersistedInspectEvent(
         durationMs: event.durationMs,
         confidence: "explicit",
         source,
-        attributes,
+        attributes: stampDeliveryEventBase(eventId, attributes),
         error,
       };
     }
@@ -304,7 +318,7 @@ export function traceEventToPersistedInspectEvent(
         timestamp: tsMain.iso,
         confidence: "explicit",
         source,
-        attributes,
+        attributes: stampDeliveryEventBase(eventId, attributes),
       };
       if (event.parentId !== undefined) {
         out.parentId = event.parentId;

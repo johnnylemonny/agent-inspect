@@ -1,9 +1,9 @@
 /**
  * Physical delivery vs logical execution identity helpers.
  *
- * Reader/manual converters may append a trailing `:<index>` delivery
- * discriminator on synthetic eventIds (`manual:…`, `inspect:…`). Native
- * opaque eventIds must not be rewritten with a global trailing-digit strip.
+ * Converters may mint indexed synthetic eventIds (`manual:…`, `inspect:…`) and
+ * stamp `agent_inspect.delivery_event_base` when they do. Native opaque eventIds
+ * must not be rewritten from string shape alone.
  *
  * @internal
  */
@@ -13,24 +13,51 @@ import { encodeCanonicalStructured } from "../checks/canonical-equality.js";
 /** Bounded marker stamped when a tree collapses conflicting same-eventId rows. */
 export const DELIVERY_CONFLICT_ATTR = "agent_inspect.delivery_conflict";
 
+/**
+ * Converter-stamped base eventId (without trailing delivery index).
+ * Present only when AgentInspect minted the indexed synthetic id.
+ */
+export const DELIVERY_EVENT_BASE_ATTR = "agent_inspect.delivery_event_base";
+
 /** OTLP attrs carrying the non-preferred side of a direct/nested identity conflict. */
 export const IDENTITY_CONFLICT_ATTR = {
   operationId: "agent_inspect.identity_conflict.operation_id",
   attemptId: "agent_inspect.identity_conflict.attempt_id",
   retryOf: "agent_inspect.identity_conflict.retry_of",
   attemptNumber: "agent_inspect.identity_conflict.attempt_number",
+  /** Comma-separated field names when a conflict survives lossy bounding. */
+  fields: "agent_inspect.identity_conflict.fields",
 } as const;
 
-const SYNTHETIC_DELIVERY_ID =
-  /^(?:manual|inspect):[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:[A-Za-z0-9_-]+:\d+$/;
+const MAX_CONFLICT_FIELDS = 8;
+const MAX_DELIVERY_BASE_LEN = 500;
 
 /**
- * Strip a proven reader/manual delivery discriminator only.
- * Opaque native IDs (including trailing `:digits`) are preserved.
+ * Strip a proven converter delivery discriminator only.
+ * Requires `agent_inspect.delivery_event_base` provenance that matches the id.
+ * Opaque native IDs (including synthetic-looking shapes) stay intact.
  */
-export function stripReaderDeliveryDiscriminator(eventId: string): string {
-  if (!SYNTHETIC_DELIVERY_ID.test(eventId)) return eventId;
-  return eventId.replace(/:\d+$/, "");
+export function stripReaderDeliveryDiscriminator(
+  eventId: string,
+  attributes?: Record<string, unknown>,
+): string {
+  if (!eventId) return eventId;
+  const rawBase = attributes?.[DELIVERY_EVENT_BASE_ATTR];
+  if (typeof rawBase !== "string" || rawBase.trim() === "") return eventId;
+  const base = rawBase.trim().slice(0, MAX_DELIVERY_BASE_LEN);
+  if (eventId === base) return base;
+  const prefix = `${base}:`;
+  if (!eventId.startsWith(prefix)) return eventId;
+  const suffix = eventId.slice(prefix.length);
+  if (/^\d+$/.test(suffix)) return base;
+  return eventId;
+}
+
+/** Base id for a converter-minted `…:<index>` eventId (no provenance check). */
+export function deliveryEventBaseFromIndexedId(eventId: string): string | undefined {
+  if (!/:\d+$/.test(eventId)) return undefined;
+  const base = eventId.replace(/:\d+$/, "");
+  return base.length > 0 ? base.slice(0, MAX_DELIVERY_BASE_LEN) : undefined;
 }
 
 export interface DeliveryIdentityFields {
@@ -102,13 +129,13 @@ function timeKey(fields: DeliveryIdentityFields): string | null {
 
 /**
  * Fingerprint for identical-redelivery collapse vs conflicting reuse.
- * Includes run scope, opaque (or discriminator-stripped synthetic) eventId,
+ * Includes run scope, opaque (or provenance-stripped) eventId,
  * workflow identity, status/parent/source, time, and bounded captured content.
  */
 export function deliverySemanticFingerprint(fields: DeliveryIdentityFields): string {
   const content = capturedContentDigest(fields.attributes);
   return JSON.stringify({
-    stableEventId: stripReaderDeliveryDiscriminator(fields.eventId),
+    stableEventId: stripReaderDeliveryDiscriminator(fields.eventId, fields.attributes),
     runId: fields.runId,
     kind: fields.kind,
     name: fields.name,
@@ -173,6 +200,19 @@ export function identityFieldsFromAttributes(
     retryOf: pickString("retryOf"),
     attemptNumber: pickNumber(),
   };
+}
+
+/** Parse bounded export marker listing identity fields that conflicted. */
+export function identityConflictFieldsFromAttributes(
+  attributes: Record<string, unknown> | undefined,
+): string[] {
+  const raw = attributes?.[IDENTITY_CONFLICT_ATTR.fields];
+  if (typeof raw !== "string" || raw.trim() === "") return [];
+  return raw
+    .split(",")
+    .map((part) => part.trim())
+    .filter((part) => part.length > 0)
+    .slice(0, MAX_CONFLICT_FIELDS);
 }
 
 export function hasDeliveryConflictMarker(

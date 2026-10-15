@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.22"
 publishedVersion: "6.31.22"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.23"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.22 published (Prompt A identity fidelity); 6.32 blocked"
+trainStatus: "6.31.23 pending publish (Prompt A residuals); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.22 — next prompt D1; partner holds"
-lastConfirmedCommit: "5fce9a78"
-lastValidationLevel: "npm 6.31.22 ×18; Publish 38649811477 green; PR #502 merged"
-nextAction: "D1 MCP isError evidence; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-6.31.22 residuals — Version Packages → publish"
+lastConfirmedCommit: "716613ac"
+lastValidationLevel: "local core/runtime gate green; AR01/AR04 f04 failures:0; awaiting Version Packages"
+nextAction: "Merge Version Packages for 6.31.23; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -24,7 +24,7 @@ githubIssues:
   "483": "closed — W01 kit resolved pin"
   "490": "closed — W23A ROADMAP/COMPARE sync"
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
-  "484": "open — W04; Prompt A matrix shipped in 6.31.22; partner packet remains"
+  "484": "open — W04; Prompt A + residuals in 6.31.23 pending; partner packet remains"
   "485": "open — W05 browser observer binding"
   "486": "open — W06 paired captures"
   "487": "open — W27 private Promptfoo deps"
@@ -47,6 +47,7 @@ completedChunks:
   - "W23A #490 ROADMAP/COMPARE/active-plan pointer sync"
   - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery"
   - "6.31.22 Prompt A identity fidelity (#484 matrix) (3f02b619 → #502 → Publish)"
+  - "6.31.23 Prompt A residuals — compare-before-bound + delivery_event_base (pending publish)"
 queuedChunks:
   - "D1 MCP isError tool-result fidelity"
   - "W04/#484 residual partner packet"
@@ -69,10 +70,11 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.22
-  ACTIVE: next D1; partner holds
+  PENDING_PUBLISH: 6.31.23
+  ACTIVE: Version Packages → Trusted Publish; then D1
   NEXT: D1 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-14"
+updatedAt: "2026-10-15"
 ```

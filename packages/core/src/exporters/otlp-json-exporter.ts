@@ -5,6 +5,7 @@ import type { InspectRunTree } from "../types/inspect-event.js";
 
 import {
   DELIVERY_CONFLICT_ATTR,
+  DELIVERY_EVENT_BASE_ATTR,
   IDENTITY_CONFLICT_ATTR,
 } from "../persisted/delivery-identity.js";
 import type { ExportOptions, ExportResult } from "./types.js";
@@ -87,6 +88,8 @@ const STRUCTURAL_IDENTITY_KEYS = [
 type IdentityPickString = {
   value?: string;
   conflictAlternate?: string;
+  /** Full values disagreed but bounded previews collide. */
+  truncatedCollision?: boolean;
 };
 
 type IdentityPickNumber = {
@@ -102,9 +105,8 @@ function nestedBag(bag: Record<string, unknown> | undefined): Record<string, unk
 }
 
 /**
- * Prefer agreeing direct/nested values. On conflict, non-strict consumers get
- * the direct value; the nested alternate is emitted via identity_conflict.* so
- * round-trip checks can fail closed instead of silently selecting.
+ * Prefer agreeing direct/nested values. Equality/conflict uses full trimmed
+ * semantics before lossy bounding; wire values stay sliced to maxLen.
  */
 function pickBoundedIdentityString(
   bag: Record<string, unknown> | undefined,
@@ -114,16 +116,18 @@ function pickBoundedIdentityString(
   if (!bag || typeof bag !== "object") return {};
   const directRaw = bag[key];
   const nestedRaw = nestedBag(bag)?.[key];
-  const direct =
-    typeof directRaw === "string" && directRaw.trim() !== ""
-      ? directRaw.trim().slice(0, maxLen)
-      : undefined;
-  const nested =
-    typeof nestedRaw === "string" && nestedRaw.trim() !== ""
-      ? nestedRaw.trim().slice(0, maxLen)
-      : undefined;
-  if (direct !== undefined && nested !== undefined && direct !== nested) {
-    return { value: direct, conflictAlternate: nested };
+  const directFull =
+    typeof directRaw === "string" && directRaw.trim() !== "" ? directRaw.trim() : undefined;
+  const nestedFull =
+    typeof nestedRaw === "string" && nestedRaw.trim() !== "" ? nestedRaw.trim() : undefined;
+  const direct = directFull !== undefined ? directFull.slice(0, maxLen) : undefined;
+  const nested = nestedFull !== undefined ? nestedFull.slice(0, maxLen) : undefined;
+  if (directFull !== undefined && nestedFull !== undefined && directFull !== nestedFull) {
+    return {
+      value: direct,
+      conflictAlternate: nested,
+      truncatedCollision: direct === nested,
+    };
   }
   if (direct !== undefined) return { value: direct };
   if (nested !== undefined) return { value: nested };
@@ -160,32 +164,25 @@ function appendStructuralIdentityAttrs(
   maxLen: number,
 ): string[] {
   const conflicts: string[] = [];
-  const operationId = pickBoundedIdentityString(meta, "operationId", maxLen);
-  if (operationId.value !== undefined) {
-    attrs.push(stringAttr("agent_inspect.operation_id", operationId.value));
-  }
-  if (operationId.conflictAlternate !== undefined) {
-    attrs.push(
-      stringAttr(IDENTITY_CONFLICT_ATTR.operationId, operationId.conflictAlternate),
-    );
-    conflicts.push("operationId");
-  }
-  const attemptId = pickBoundedIdentityString(meta, "attemptId", maxLen);
-  if (attemptId.value !== undefined) {
-    attrs.push(stringAttr("agent_inspect.attempt_id", attemptId.value));
-  }
-  if (attemptId.conflictAlternate !== undefined) {
-    attrs.push(stringAttr(IDENTITY_CONFLICT_ATTR.attemptId, attemptId.conflictAlternate));
-    conflicts.push("attemptId");
-  }
-  const retryOf = pickBoundedIdentityString(meta, "retryOf", maxLen);
-  if (retryOf.value !== undefined) {
-    attrs.push(stringAttr("agent_inspect.retry_of", retryOf.value));
-  }
-  if (retryOf.conflictAlternate !== undefined) {
-    attrs.push(stringAttr(IDENTITY_CONFLICT_ATTR.retryOf, retryOf.conflictAlternate));
-    conflicts.push("retryOf");
-  }
+  const emitString = (
+    key: "operationId" | "attemptId" | "retryOf",
+    otlpKey: string,
+    conflictKey: string,
+  ): void => {
+    const picked = pickBoundedIdentityString(meta, key, maxLen);
+    if (picked.value !== undefined) {
+      attrs.push(stringAttr(otlpKey, picked.value));
+    }
+    if (picked.conflictAlternate !== undefined || picked.truncatedCollision) {
+      if (picked.conflictAlternate !== undefined) {
+        attrs.push(stringAttr(conflictKey, picked.conflictAlternate));
+      }
+      conflicts.push(key);
+    }
+  };
+  emitString("operationId", "agent_inspect.operation_id", IDENTITY_CONFLICT_ATTR.operationId);
+  emitString("attemptId", "agent_inspect.attempt_id", IDENTITY_CONFLICT_ATTR.attemptId);
+  emitString("retryOf", "agent_inspect.retry_of", IDENTITY_CONFLICT_ATTR.retryOf);
   const attemptNumberPrimary = pickBoundedIdentityNumber(meta, "attemptNumber");
   const attemptNumber =
     attemptNumberPrimary.value !== undefined ||
@@ -201,8 +198,17 @@ function appendStructuralIdentityAttrs(
     );
     conflicts.push("attemptNumber");
   }
+  if (conflicts.length > 0) {
+    attrs.push(
+      stringAttr(IDENTITY_CONFLICT_ATTR.fields, conflicts.join(",").slice(0, maxLen)),
+    );
+  }
   if (meta?.[DELIVERY_CONFLICT_ATTR] === true) {
     attrs.push(boolAttr(DELIVERY_CONFLICT_ATTR, true));
+  }
+  const deliveryBase = meta?.[DELIVERY_EVENT_BASE_ATTR];
+  if (typeof deliveryBase === "string" && deliveryBase.trim() !== "") {
+    attrs.push(stringAttr(DELIVERY_EVENT_BASE_ATTR, deliveryBase.trim().slice(0, maxLen)));
   }
   return conflicts;
 }

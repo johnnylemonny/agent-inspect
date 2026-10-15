@@ -133,6 +133,93 @@ describe("OTLP identity round-trip", () => {
     ).toBe(true);
   });
 
+  it("AR01: long attemptId conflict fails source and OTLP after bounding", async () => {
+    const longA = `${"x".repeat(500)}A`;
+    const longB = `${"x".repeat(500)}B`;
+    const attrs = {
+      operationId: "op1",
+      attemptId: longA,
+      attemptNumber: 1,
+      metadata: {
+        operationId: "op1",
+        attemptId: longB,
+        attemptNumber: 1,
+      },
+    };
+    const tree = {
+      runId: "run_long",
+      name: "long",
+      status: "ok" as const,
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_long",
+            kind: "TOOL" as const,
+            name: "retrieve",
+            status: "ok" as const,
+            timestamp: 1,
+            confidence: "explicit" as const,
+            source: { type: "manual" as const },
+            attributes: attrs,
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const maxTwo = defineTraceContract({ retry: { maxAttempts: 2 } });
+    const sourceEvents = [
+      {
+        schemaVersion: "0.2" as const,
+        eventId: "e1",
+        runId: "run_long",
+        kind: "TOOL" as const,
+        name: "tool:retrieve",
+        status: "ok" as const,
+        timestamp: "2026-10-15T00:00:01.000Z",
+        startedAt: "2026-10-15T00:00:01.000Z",
+        confidence: "explicit" as const,
+        source: { type: "manual" as const },
+        attributes: attrs,
+      },
+    ];
+    const sourceText = sourceEvents.map((e) => JSON.stringify(e)).join("\n") + "\n";
+    const sourceRead = await openTraceText(sourceText);
+    const sourceEval = evaluateTraceContract({ read: sourceRead }, maxTwo);
+    expect(
+      sourceEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity"),
+    ).toBe(true);
+    expect(sourceEval.status).not.toBe("pass");
+
+    const otlp = exportOtlpJson(tree);
+    const roundtrip = await openTraceText(otlp.content);
+    const otlpEval = evaluateTraceContract({ read: roundtrip }, maxTwo);
+    expect(
+      otlpEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity"),
+    ).toBe(true);
+    expect(otlpEval.status).not.toBe("pass");
+    expect(roundtrip.warnings.some((w) => w.code === "otlp_identity_conflict")).toBe(true);
+  });
+
   it("A14: direct/nested conflict survives export→read and fails strict identity", async () => {
     const tree = {
       runId: "run_dn",

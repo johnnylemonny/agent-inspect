@@ -504,6 +504,136 @@ const o05collision = await capture("O05-identity-collision", async () => {
   }
 }
 
+// AR01: long identity conflict must survive lossy OTLP bounding
+{
+  const longA = `${"x".repeat(500)}A`;
+  const longB = `${"x".repeat(500)}B`;
+  const event = {
+    schemaVersion: "0.2",
+    eventId: "e-long",
+    runId: "run-long",
+    kind: "TOOL",
+    name: "tool:retrieve",
+    status: "ok",
+    timestamp: "2026-10-15T00:00:01.000Z",
+    startedAt: "2026-10-15T00:00:01.000Z",
+    confidence: "explicit",
+    source: { type: "manual" },
+    attributes: {
+      toolName: "retrieve",
+      operationId: "op1",
+      attemptId: longA,
+      attemptNumber: 1,
+      metadata: {
+        operationId: "op1",
+        attemptId: longB,
+        attemptNumber: 1,
+      },
+    },
+  };
+  const text = JSON.stringify(event) + "\n";
+  const sourcePath = path.join(outRoot, "AR01-long-identity-collision.source.jsonl");
+  fs.writeFileSync(sourcePath, text);
+  const sourceRead = await openTraceFile(sourcePath);
+  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxTwo);
+  const tree = sourceRead.runs[0];
+  const otlp = exportOtlpJson(tree);
+  fs.writeFileSync(path.join(outRoot, "AR01-long-identity-collision.default-otlp.json"), otlp.content);
+  const otlpRead = await openTraceText(otlp.content);
+  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxTwo);
+  fs.writeFileSync(
+    path.join(outRoot, "AR01-long-identity-collision.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Full attemptId disagreement past 500 chars must FAIL/FAIL ambiguous-identity; no unbounded values in export.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+        sourceFindings: sourceEval.findings.map((f) => f.ruleId),
+        otlpFindings: otlpEval.findings.map((f) => f.ruleId),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (!sourceEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity")) {
+    fail("AR01: source missing ambiguous-identity");
+  }
+  if (!otlpEval.findings.some((f) => f.ruleId === "contract.retry.ambiguous-identity")) {
+    fail("AR01: OTLP missing ambiguous-identity");
+  }
+  if (otlp.content.includes(longA) || otlp.content.includes(longB)) {
+    fail("AR01: unbounded long identity values must not appear in OTLP export");
+  }
+}
+
+// AR04: native synthetic-shaped eventIds without delivery_event_base stay opaque
+{
+  const lines = [
+    {
+      schemaVersion: "0.2",
+      eventId: "manual:run1:tool:step1:1",
+      runId: "native-run",
+      kind: "TOOL",
+      name: "tool:retrieve",
+      status: "ok",
+      timestamp: "2026-10-15T00:00:01.000Z",
+      startedAt: "2026-10-15T00:00:01.000Z",
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: {
+        toolName: "retrieve",
+        metadata: { operationId: "op1", attemptId: "a1", attemptNumber: 1 },
+      },
+    },
+    {
+      schemaVersion: "0.2",
+      eventId: "manual:run1:tool:step1:2",
+      runId: "native-run",
+      kind: "TOOL",
+      name: "tool:retrieve",
+      status: "ok",
+      timestamp: "2026-10-15T00:00:01.000Z",
+      startedAt: "2026-10-15T00:00:01.000Z",
+      confidence: "explicit",
+      source: { type: "manual" },
+      attributes: {
+        toolName: "retrieve",
+        metadata: { operationId: "op1", attemptId: "a1", attemptNumber: 1 },
+      },
+    },
+  ];
+  const text = lines.map((e) => JSON.stringify(e)).join("\n") + "\n";
+  const sourcePath = path.join(outRoot, "AR04-native-synthetic-shaped.source.jsonl");
+  fs.writeFileSync(sourcePath, text);
+  const sourceRead = await openTraceFile(sourcePath);
+  const sourceEval = evaluateTraceContract({ read: sourceRead }, maxTwo);
+  const tree = sourceRead.runs[0];
+  const otlp = exportOtlpJson(tree);
+  fs.writeFileSync(path.join(outRoot, "AR04-native-synthetic-shaped.default-otlp.json"), otlp.content);
+  const otlpRead = await openTraceText(otlp.content);
+  const otlpEval = evaluateTraceContract({ read: otlpRead }, maxTwo);
+  fs.writeFileSync(
+    path.join(outRoot, "AR04-native-synthetic-shaped.contract-results.json"),
+    JSON.stringify(
+      {
+        note: "Native manual:…:1 / :2 without delivery_event_base must FAIL duplicate-attempt-id in both formats.",
+        sourceStatus: sourceEval.status,
+        otlpStatus: otlpEval.status,
+        sourceFindings: sourceEval.findings.map((f) => f.ruleId),
+        otlpFindings: otlpEval.findings.map((f) => f.ruleId),
+      },
+      null,
+      2,
+    ) + "\n",
+  );
+  if (!sourceEval.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id")) {
+    fail("AR04: source missing duplicate-attempt-id");
+  }
+  if (!otlpEval.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id")) {
+    fail("AR04: OTLP missing duplicate-attempt-id");
+  }
+}
+
 // O06 missing/partial identities remain unknown (no operationId → maxAttempts unevaluable)
 const o06 = await capture("O06-partial-identity", async () => {
   await toolAttempt("retrieve_policy", { attemptNumber: 1 });

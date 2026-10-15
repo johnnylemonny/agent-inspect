@@ -292,6 +292,116 @@ describe("exportOtlpJson", () => {
     expect(r.warnings.some((w) => w.includes("Identity representation conflict"))).toBe(true);
   });
 
+  it("AR01: long identity conflict detected before lossy bounding", () => {
+    const longA = `${"x".repeat(500)}A`;
+    const longB = `${"x".repeat(500)}B`;
+    const tree: InspectRunTree = {
+      runId: "run_long",
+      name: "long",
+      status: "ok",
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_long",
+            kind: "TOOL",
+            name: "retrieve",
+            status: "ok",
+            timestamp: 1,
+            confidence: "explicit",
+            source: { type: "manual" },
+            attributes: {
+              operationId: "op1",
+              attemptId: longA,
+              attemptNumber: 1,
+              metadata: {
+                operationId: "op1",
+                attemptId: longB,
+                attemptNumber: 1,
+              },
+            },
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const r = exportOtlpJson(tree, { maxAttributeLength: 500 });
+    const byKey = Object.fromEntries(attrsOf(r.content).map((a) => [a.key, a.value]));
+    expect(byKey["agent_inspect.attempt_id"]).toEqual({ stringValue: "x".repeat(500) });
+    expect(byKey[IDENTITY_CONFLICT_ATTR.fields]).toEqual({ stringValue: "attemptId" });
+    expect(r.warnings.some((w) => w.includes("Identity representation conflict"))).toBe(true);
+    expect(JSON.stringify(r.content).includes(longA)).toBe(false);
+    expect(JSON.stringify(r.content).includes(longB)).toBe(false);
+  });
+
+  it("AR03: equal long values do not emit conflict fields", () => {
+    const long = `${"y".repeat(500)}Z`;
+    const tree: InspectRunTree = {
+      runId: "run_eq",
+      name: "eq",
+      status: "ok",
+      children: [
+        {
+          depth: 0,
+          children: [],
+          event: {
+            eventId: "e1",
+            runId: "run_eq",
+            kind: "TOOL",
+            name: "retrieve",
+            status: "ok",
+            timestamp: 1,
+            confidence: "explicit",
+            source: { type: "manual" },
+            attributes: {
+              attemptId: long,
+              metadata: { attemptId: long },
+            },
+          },
+        },
+      ],
+      metadata: {
+        totalEvents: 1,
+        confidenceBreakdown: { explicit: 1, correlated: 0, heuristic: 0, unknown: 0 },
+        kinds: {
+          RUN: 0,
+          AGENT: 0,
+          LLM: 0,
+          TOOL: 1,
+          CHAIN: 0,
+          RETRIEVER: 0,
+          DECISION: 0,
+          RESULT: 0,
+          ERROR: 0,
+          LOGIC: 0,
+          LOG: 0,
+          OUTCOME: 0,
+        },
+      },
+    };
+    const attrs = attrsOf(exportOtlpJson(tree).content);
+    expect(attrs.some((a) => a.key === IDENTITY_CONFLICT_ATTR.fields)).toBe(false);
+  });
+
   it("A15: agreeing dual representation does not emit conflict attrs", () => {
     const tree: InspectRunTree = {
       runId: "run_agree",

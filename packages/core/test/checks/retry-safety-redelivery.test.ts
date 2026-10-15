@@ -4,6 +4,10 @@ import {
   defineTraceContract,
   evaluateTraceContract,
 } from "../../src/checks/contract.js";
+import {
+  DELIVERY_EVENT_BASE_ATTR,
+  deliveryEventBaseFromIndexedId,
+} from "../../src/persisted/delivery-identity.js";
 import type { TraceReadResult } from "../../src/readers/index.js";
 import type { InspectNode, InspectRunTree } from "../../src/types/inspect-event.js";
 import type { PersistedInspectEvent } from "../../src/types/persisted-inspect-event.js";
@@ -27,17 +31,25 @@ function persisted(
   };
 }
 
+/** Converter-minted synthetic id: stamp delivery_event_base for proven redelivery. */
 function tool(
   eventId: string,
   runId: string,
   name: string,
   startedAt: string,
   attributes: Record<string, unknown>,
+  options?: { stampDeliveryBase?: boolean },
 ): PersistedInspectEvent {
+  const stamp = options?.stampDeliveryBase !== false;
+  const base = stamp ? deliveryEventBaseFromIndexedId(eventId) : undefined;
   return persisted(eventId, runId, {
     kind: "TOOL",
     name: `tool:${name}`,
-    attributes: { toolName: name, metadata: attributes },
+    attributes: {
+      toolName: name,
+      metadata: attributes,
+      ...(base !== undefined ? { [DELIVERY_EVENT_BASE_ATTR]: base } : {}),
+    },
     timestamp: startedAt,
     startedAt,
     endedAt: startedAt,
@@ -300,6 +312,7 @@ describe("retry-safety identical redelivery", () => {
   });
 
   it("A08: identical redelivery without attemptId collapses; partial identity fails strict gate", () => {
+    const deliveryBase = "manual:run:step_started:step_a";
     const a = persisted("manual:run:step_started:step_a:1", "run-1", {
       kind: "TOOL",
       name: "tool:retrieve",
@@ -307,12 +320,17 @@ describe("retry-safety identical redelivery", () => {
       timestamp: "2026-10-11T00:00:01.000Z",
       attributes: {
         toolName: "retrieve",
+        [DELIVERY_EVENT_BASE_ATTR]: deliveryBase,
         metadata: { operationId: "op1" },
       },
     });
     const b = {
       ...a,
       eventId: "manual:run:step_started:step_a:9",
+      attributes: {
+        ...a.attributes,
+        [DELIVERY_EVENT_BASE_ATTR]: deliveryBase,
+      },
     };
     const contract = defineTraceContract({ retry: { maxAttempts: 1 } });
     const identical = evaluateTraceContract({ read: readOf([a, b]) }, contract);
@@ -341,7 +359,34 @@ describe("retry-safety identical redelivery", () => {
     ).toBe(true);
   });
 
+  it("AR04: native manual:/inspect:-shaped IDs stay opaque without delivery_event_base", () => {
+    const contract = defineTraceContract({ retry: { maxAttempts: 2 } });
+    for (const [id1, id2] of [
+      ["manual:run1:tool:step1:1", "manual:run1:tool:step1:2"],
+      ["inspect:run1:TOOL:retrieve:1", "inspect:run1:TOOL:retrieve:2"],
+    ] as const) {
+      const events = [
+        tool(id1, "native-run", "retrieve", "2026-10-11T00:00:01.000Z", {
+          operationId: "op1",
+          attemptId: "a1",
+          attemptNumber: 1,
+        }, { stampDeliveryBase: false }),
+        tool(id2, "native-run", "retrieve", "2026-10-11T00:00:01.000Z", {
+          operationId: "op1",
+          attemptId: "a1",
+          attemptNumber: 1,
+        }, { stampDeliveryBase: false }),
+      ];
+      const result = evaluateTraceContract({ read: readOf(events) }, contract);
+      expect(result.status).toBe("fail");
+      expect(
+        result.findings.some((f) => f.ruleId === "contract.retry.duplicate-attempt-id"),
+      ).toBe(true);
+    }
+  });
+
   it("A07: reordered object keys still count as exact redelivery", () => {
+    const base = "manual:run:step_started:step_a";
     const a = persisted("manual:run:step_started:step_a:1", "run-1", {
       kind: "TOOL",
       name: "tool:retrieve",
@@ -349,6 +394,7 @@ describe("retry-safety identical redelivery", () => {
       timestamp: "2026-10-11T00:00:01.000Z",
       attributes: {
         toolName: "retrieve",
+        [DELIVERY_EVENT_BASE_ATTR]: base,
         metadata: {
           operationId: "op1",
           attemptId: "a1",
@@ -363,6 +409,7 @@ describe("retry-safety identical redelivery", () => {
       timestamp: "2026-10-11T00:00:01.000Z",
       attributes: {
         toolName: "retrieve",
+        [DELIVERY_EVENT_BASE_ATTR]: base,
         metadata: {
           operationId: "op1",
           attemptId: "a1",
