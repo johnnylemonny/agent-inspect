@@ -1,5 +1,14 @@
 # @agent-inspect/mcp-server
 
+## 6.31.23
+
+### Patch Changes
+
+- 297b1f1: Compare full retry identity before OTLP length bounding and stamp converter delivery_event_base provenance so long collisions and native manual:/inspect:-shaped IDs cannot silently pass strict retry gates (Prompt A residuals / #484).
+- Updated dependencies [297b1f1]
+  - agent-inspect@6.31.23
+  - @agent-inspect/redact@6.31.23
+
 ## 6.31.22
 
 ### Patch Changes
