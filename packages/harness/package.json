@@ -1,6 +1,6 @@
 {
   "name": "@agent-inspect/harness",
-  "version": "6.31.24",
+  "version": "6.31.25",
   "license": "MIT",
   "type": "module",
   "description": "Local fixture runner for AgentInspect traces in real project integrations",
