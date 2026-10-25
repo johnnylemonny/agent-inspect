@@ -3,7 +3,7 @@
     "note": "Best-effort local safety verification only; not a compliance certification.",
     "status": "SAFE"
   },
-  "createdAt": "2026-10-25T17:14:16.435Z",
+  "createdAt": "2026-10-25T17:57:43.701Z",
   "evidenceFormatVersion": "1.0",
   "files": [
     {
@@ -14,7 +14,7 @@
     {
       "path": "evidence.html",
       "role": "report",
-      "sha256": "429e9077f7fc3557760401d8400fabb4c48f5c9e3153fba17f05a8f728574295"
+      "sha256": "758a5414c28fc41b6bc9d1435a88f1d3b7d9995193b9a24fe32bd0889230049f"
     },
     {
       "path": "trace.jsonl",
@@ -24,7 +24,7 @@
   ],
   "generator": {
     "name": "agent-inspect",
-    "version": "6.31.25"
+    "version": "6.31.26"
   },
   "policy": {
     "redactionProfile": "share",

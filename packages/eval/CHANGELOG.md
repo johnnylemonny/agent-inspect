@@ -1,5 +1,15 @@
 # @agent-inspect/eval
 
+## 6.31.26
+
+### Patch Changes
+
+- 4dc9588: Record an MCP SDK `isError: true` tool result as a failed outcome without throwing or changing the returned value.
+- Updated dependencies [4dc9588]
+  - agent-inspect@6.31.26
+  - @agent-inspect/guardrails@6.31.26
+  - @agent-inspect/circuit@6.31.26
+
 ## 6.31.25
 
 ### Patch Changes
