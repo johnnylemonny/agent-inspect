@@ -3,7 +3,7 @@
     "note": "Best-effort local safety verification only; not a compliance certification.",
     "status": "SAFE"
   },
-  "createdAt": "2026-10-25T18:27:43.485Z",
+  "createdAt": "2026-10-25T21:09:58.393Z",
   "evidenceFormatVersion": "1.0",
   "files": [
     {
@@ -14,17 +14,17 @@
     {
       "path": "evidence.html",
       "role": "report",
-      "sha256": "c1745dc0fac264ebd21ce99b7b2977a2c2437ac258772a7c8f34138a9f120729"
+      "sha256": "69c63dc0cfdd6a837137a4834fe6533cab96de91e697287583a8d9033f17697a"
     },
     {
       "path": "trace.jsonl",
       "role": "redacted-trace",
-      "sha256": "efa16d6811718b9628f14d0ba31d35eb018fd3ab88b7f6928d2d8f251e764be1"
+      "sha256": "8b7f48dbbfdfdf31e0006df796a7456ea5741d300c42b56b5ca61aa115efd05b"
     }
   ],
   "generator": {
     "name": "agent-inspect",
-    "version": "6.31.27"
+    "version": "6.31.28"
   },
   "policy": {
     "redactionProfile": "share",
@@ -37,7 +37,7 @@
     "sourceHashes": [
       {
         "algorithm": "sha256",
-        "hash": "efa16d6811718b9628f14d0ba31d35eb018fd3ab88b7f6928d2d8f251e764be1",
+        "hash": "8b7f48dbbfdfdf31e0006df796a7456ea5741d300c42b56b5ca61aa115efd05b",
         "runId": "demo-good"
       }
     ],
