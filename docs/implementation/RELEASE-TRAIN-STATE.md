@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.27"
 publishedVersion: "6.31.27"
-pendingPublishVersion: "6.31.27"
+pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.27 pending publish (timeout-ledger verifier); 6.32 blocked"
+trainStatus: "6.31.27 published (timeout-ledger verifier); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "03 timeout-ledger — Version Packages → publish"
-lastConfirmedCommit: "d36a5079"
-lastValidationLevel: "recipe timeout-ledger-effects exit 0; recipes:check OK"
-nextAction: "Merge Version Packages for 6.31.27; then item 04 starter order; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "04 starter order relation"
+lastConfirmedCommit: "044f54d9"
+lastValidationLevel: "npm 6.31.27 ×18; Publish 40222772749 green; PR #511 merged"
+nextAction: "Item 04 starter order relation; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -52,6 +52,7 @@ completedChunks:
   - "6.31.24 MCP runId and legacy slowest-path descriptions (9058e646 → #508 → Publish)"
   - "6.31.25 strict stack/errorStack/stackTrace redaction (67563a29 → #509 → Publish)"
   - "6.31.26 MCP isError tool-result outcome (4dc95886 → #510 → Publish)"
+  - "6.31.27 timeout-ledger saved-trace verifier (473c9188 → #511 → Publish)"
 queuedChunks:
   - "W04/#484 residual partner packet"
   - "W05/#485 browser observer controls"
@@ -72,13 +73,13 @@ amendments:
   - "2026-10-24 6.31.24 published (Trusted Publish 40165917348)"
   - "2026-10-25 6.31.25 published (Trusted Publish 40215892935)"
   - "2026-10-25 6.31.26 published (Trusted Publish 40219491873)"
+  - "2026-10-25 6.31.27 published (Trusted Publish 40222772749)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.26
-  PENDING_PUBLISH: 6.31.27
-  ACTIVE: Version Packages → Trusted Publish; then item 04
+  LAST_PUBLISHED_RELEASE: 6.31.27
+  ACTIVE: item 04 starter order; partner holds
   NEXT: item 04 starter order relation; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
