@@ -1,9 +1,16 @@
 timeout-ledger-effects:
-  T01-dedupe-ok: expected=pass observed=pass attempts=2 markers=1
-  T02-duplicate-markers: expected=fail observed=fail attempts=2 markers=2
-  T03-incomplete-window: expected=unknown observed=unknown attempts=1 markers=1
-  T04-contradictory-claim: expected=fail observed=fail attempts=1 markers=1
-  T05-wrong-join: expected=fail observed=fail attempts=2 markers=1
-  T06-honest-no-effect: expected=task-fail-safe observed=task-fail-safe attempts=1 markers=0
-classes: T01:pass,T02:fail,T03:unknown,T04:fail,T05:fail,T06:task-fail-safe
-evidence-table: .agent-inspect-runs/timeout-ledger-evidence-table.json
+  T01-dedupe-ok: expected=pass observed=pass attempts=2 markers=1 observation=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared
+  T02-duplicate-markers: expected=fail observed=fail attempts=2 markers=2 observation=passed effect=fail claim=unknown join=valid args=match fault=injected keyScope=undeclared
+  T03-incomplete-window: expected=unknown observed=unknown attempts=1 markers=1 observation=absent effect=pass claim=unknown join=unknown args=match fault=injected keyScope=undeclared
+  T04-contradictory-claim: expected=fail observed=fail attempts=1 markers=1 observation=passed effect=pass claim=fail join=valid args=match fault=none keyScope=undeclared
+  T05-wrong-join: expected=fail observed=fail attempts=2 markers=1 observation=passed effect=fail claim=unknown join=invalid args=mismatch fault=injected keyScope=undeclared
+  T06-honest-no-effect: expected=task-fail-safe observed=task-fail-safe attempts=1 markers=0 observation=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared
+  TE-amount-mismatch: expected=fail observed=fail attempts=2 markers=1 observation=passed effect=fail claim=fail join=valid args=mismatch fault=injected keyScope=undeclared
+  TF-wrong-operation-join: expected=fail observed=fail attempts=2 markers=1 observation=passed effect=pass claim=pass join=invalid args=match fault=none keyScope=undeclared
+  TG-independent-keys: expected=pass observed=pass attempts=2 markers=2 observation=passed effect=pass claim=pass join=valid args=match fault=none keyScope=undeclared
+  TG-no-reuse-policy: expected=fail observed=fail attempts=2 markers=2 observation=passed effect=pass claim=pass join=valid args=match fault=none keyScope=violation
+  TH-missing-report: expected=fail observed=fail attempts=2 markers=2 observation=passed effect=fail claim=unknown join=valid args=match fault=injected keyScope=undeclared
+  TJ-timeout-text-only: expected=unknown observed=unknown attempts=1 markers=0 observation=passed effect=pass claim=unknown join=valid args=match fault=unknown keyScope=undeclared
+  TK-tampered-claim: expected=fail observed=fail attempts=2 markers=1 observation=passed effect=pass claim=fail join=valid args=match fault=injected keyScope=undeclared
+  TL-fresh-process: expected=pass observed=pass attempts=2 markers=1 observation=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared
+classes: T01:pass,T02:fail,T03:unknown,T04:fail,T05:fail,T06:task-fail-safe,TE:fail,TF:fail,TG:pass,TG:fail,TH:fail,TJ:unknown,TK:fail,TL:pass
