@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.24"
 publishedVersion: "6.31.24"
-pendingPublishVersion: "6.31.24"
+pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.24 pending publish (MCP tool descriptions); 6.32 blocked"
+trainStatus: "6.31.24 published (MCP tool descriptions); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.23 descriptions — Version Packages → publish; then D1"
-lastConfirmedCommit: "0a646d90"
-lastValidationLevel: "mcp-server description tests green; pending Version Packages 6.31.24"
-nextAction: "Merge Version Packages for 6.31.24; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-6.31.24 — next prompt D1; partner holds"
+lastConfirmedCommit: "43f46bdf"
+lastValidationLevel: "npm 6.31.24 ×18; Publish 40165917348 green; PR #508 merged"
+nextAction: "D1 MCP isError evidence; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -48,6 +48,7 @@ completedChunks:
   - "6.31.21 MCP options+metadata compose; SDK Client TS; Roy O05 redelivery"
   - "6.31.22 Prompt A identity fidelity (#484 matrix) (3f02b619 → #502 → Publish)"
   - "6.31.23 Prompt A residuals — compare-before-bound + delivery_event_base (297b1f11 → #503 → Publish)"
+  - "6.31.24 MCP runId and legacy slowest-path descriptions (9058e646 → #508 → Publish)"
 queuedChunks:
   - "D1 MCP isError tool-result fidelity"
   - "W04/#484 residual partner packet"
@@ -66,13 +67,13 @@ amendments:
   - "2026-10-12 6.31.21 published (Trusted Publish 38204663903)"
   - "2026-10-14 6.31.22 published (Trusted Publish 38649811477)"
   - "2026-10-15 6.31.23 published (Trusted Publish 38810913852)"
+  - "2026-10-24 6.31.24 published (Trusted Publish 40165917348)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.23
-  PENDING_PUBLISH: 6.31.24
-  ACTIVE: Version Packages → Trusted Publish; then D1
+  LAST_PUBLISHED_RELEASE: 6.31.24
+  ACTIVE: next D1; partner holds
   NEXT: D1 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
