@@ -1,5 +1,11 @@
 # @agent-inspect/circuit
 
+## 6.31.27
+
+### Patch Changes
+
+- 473c918: Recompute timeout-ledger verdicts from saved traces so a corrected operation join cannot hide a changed retry amount.
+
 ## 6.31.26
 
 ### Patch Changes
