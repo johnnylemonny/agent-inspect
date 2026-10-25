@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.24"
 publishedVersion: "6.31.24"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.25"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.24 published (MCP tool descriptions); 6.32 blocked"
+trainStatus: "6.31.25 pending publish (strict stack redaction); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.24 — next prompt D1; partner holds"
-lastConfirmedCommit: "43f46bdf"
-lastValidationLevel: "npm 6.31.24 ×18; Publish 40165917348 green; PR #508 merged"
-nextAction: "D1 MCP isError evidence; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "01 strict stack redaction — Version Packages → publish"
+lastConfirmedCommit: "487cada4"
+lastValidationLevel: "local core/runtime gate green (GATE_EXIT:0); strict-stack canaries R01–R06"
+nextAction: "Merge Version Packages for 6.31.25; then item 02 MCP isError; hold Indu/Swapnil/João/#494/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -49,6 +49,7 @@ completedChunks:
   - "6.31.22 Prompt A identity fidelity (#484 matrix) (3f02b619 → #502 → Publish)"
   - "6.31.23 Prompt A residuals — compare-before-bound + delivery_event_base (297b1f11 → #503 → Publish)"
   - "6.31.24 MCP runId and legacy slowest-path descriptions (9058e646 → #508 → Publish)"
+  - "6.31.25 strict stack/errorStack/stackTrace redaction (pending publish)"
 queuedChunks:
   - "D1 MCP isError tool-result fidelity"
   - "W04/#484 residual partner packet"
@@ -73,8 +74,9 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.24
-  ACTIVE: next D1; partner holds
-  NEXT: D1 MCP isError evidence; no 6.32 without EVIDENCE_GATE
+  PENDING_PUBLISH: 6.31.25
+  ACTIVE: Version Packages → Trusted Publish; then item 02
+  NEXT: item 02 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
