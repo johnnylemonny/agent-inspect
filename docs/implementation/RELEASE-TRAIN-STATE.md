@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.25"
 publishedVersion: "6.31.25"
-pendingPublishVersion: "6.31.25"
+pendingPublishVersion: null
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.25 pending publish (strict stack redaction); 6.32 blocked"
+trainStatus: "6.31.25 published (strict stack redaction); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "01 strict stack redaction — Version Packages → publish"
-lastConfirmedCommit: "487cada4"
-lastValidationLevel: "local core/runtime gate green (GATE_EXIT:0); strict-stack canaries R01–R06"
-nextAction: "Merge Version Packages for 6.31.25; then item 02 MCP isError; hold Indu/Swapnil/João/#494/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "02 MCP isError tool-result fidelity"
+lastConfirmedCommit: "b610fe6c"
+lastValidationLevel: "npm 6.31.25 ×18; Publish 40215892935 green; PR #509 merged"
+nextAction: "Item 02 MCP isError evidence and #494 harness; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -49,7 +49,7 @@ completedChunks:
   - "6.31.22 Prompt A identity fidelity (#484 matrix) (3f02b619 → #502 → Publish)"
   - "6.31.23 Prompt A residuals — compare-before-bound + delivery_event_base (297b1f11 → #503 → Publish)"
   - "6.31.24 MCP runId and legacy slowest-path descriptions (9058e646 → #508 → Publish)"
-  - "6.31.25 strict stack/errorStack/stackTrace redaction (pending publish)"
+  - "6.31.25 strict stack/errorStack/stackTrace redaction (67563a29 → #509 → Publish)"
 queuedChunks:
   - "D1 MCP isError tool-result fidelity"
   - "W04/#484 residual partner packet"
@@ -69,16 +69,16 @@ amendments:
   - "2026-10-14 6.31.22 published (Trusted Publish 38649811477)"
   - "2026-10-15 6.31.23 published (Trusted Publish 38810913852)"
   - "2026-10-24 6.31.24 published (Trusted Publish 40165917348)"
+  - "2026-10-25 6.31.25 published (Trusted Publish 40215892935)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.24
-  PENDING_PUBLISH: 6.31.25
-  ACTIVE: Version Packages → Trusted Publish; then item 02
+  LAST_PUBLISHED_RELEASE: 6.31.25
+  ACTIVE: item 02 MCP isError; partner holds
   NEXT: item 02 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-24"
+updatedAt: "2026-10-25"
 ```
