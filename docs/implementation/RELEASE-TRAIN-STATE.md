@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.23"
 publishedVersion: "6.31.23"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.24"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.23 published (Prompt A residuals); 6.32 blocked"
+trainStatus: "6.31.24 pending publish (MCP tool descriptions); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-6.31.23 — next prompt D1; partner holds"
+currentChunk: "post-6.31.23 descriptions — Version Packages → publish; then D1"
 lastConfirmedCommit: "0a646d90"
-lastValidationLevel: "npm 6.31.23 ×18; Publish 38810913852 green; PR #503 merged"
-nextAction: "D1 MCP isError evidence; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
+lastValidationLevel: "mcp-server description tests green; pending Version Packages 6.31.24"
+nextAction: "Merge Version Packages for 6.31.24; hold Indu/Swapnil/João/#494/#98/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -71,10 +71,11 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.23
-  ACTIVE: next D1; partner holds
+  PENDING_PUBLISH: 6.31.24
+  ACTIVE: Version Packages → Trusted Publish; then D1
   NEXT: D1 MCP isError evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-15"
+updatedAt: "2026-10-24"
 ```
