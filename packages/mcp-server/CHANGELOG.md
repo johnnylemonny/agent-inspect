@@ -1,5 +1,14 @@
 # @agent-inspect/mcp-server
 
+## 6.31.25
+
+### Patch Changes
+
+- 67563a2: Replace serialized stack, errorStack, and stackTrace values under the strict profile, including nested copies, so private message text and absolute paths cannot survive derived strict artifacts while checks still report SAFE.
+- Updated dependencies [67563a2]
+  - agent-inspect@6.31.25
+  - @agent-inspect/redact@6.31.25
+
 ## 6.31.24
 
 ### Patch Changes
