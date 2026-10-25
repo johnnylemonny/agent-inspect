@@ -4,9 +4,9 @@
 executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
-trainStatus: "6.31.27 published; next item 04; 6.32 blocked"
-currentChunk: "04 starter order relation"
-nextAction: "Item 04 starter order relation; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+trainStatus: "6.31.28 pending publish (starter order relation); 6.32 blocked"
+currentChunk: "04 starter order — Version Packages → publish"
+nextAction: "Merge Version Packages for 6.31.28; then item 05 Gary cohort; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
 pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live; Collector Docker"
@@ -56,16 +56,23 @@ worktreeIgnoreOnly:
 | Saved-trace verdicts; amount mismatch stays fail when the join is valid | **published** | TE join=valid args=mismatch; TF join=invalid args=match |
 | Missing observer/claim stay unknown and do not hide a duplicate effect | **published** | T03, TH, TJ, TK, TL |
 
+## Pending 6.31.28 (starter order relation)
+
+| Chunk | Status | Proof |
+| --- | --- | --- |
+| Typed `steps.orderRelations` on the broken-agent starter | **code landed** | S01 pass; S02 only `contract.step.orderRelation.0`; S06 repeated retrieve pass |
+
 ## Honesty
 
-Full #484 issue closure still needs remaining W04 partner-packet acceptance beyond this matrix. #494 stays open; its Vercel check is an access decision. Next code chunk: item 04 starter order. No email / no 6.32.
+Full #484 issue closure still needs remaining W04 partner-packet acceptance beyond this matrix. #494 stays open; its Vercel check is an access decision. After 6.31.28 publish: item 05 Gary cohort. No email / no 6.32.
 
 ## Stop marker
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.27
-ACTIVE: item 04 starter order; partner holds
-NEXT: item 04 starter order relation; no 6.32 without EVIDENCE_GATE
+PENDING_PUBLISH: 6.31.28
+ACTIVE: Version Packages → Trusted Publish; then item 05
+NEXT: item 05 comparable cohort; no 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded

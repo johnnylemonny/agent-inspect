@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.27"
 publishedVersion: "6.31.27"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.28"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.27 published (timeout-ledger verifier); 6.32 blocked"
+trainStatus: "6.31.28 pending publish (starter order relation); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "04 starter order relation"
-lastConfirmedCommit: "044f54d9"
-lastValidationLevel: "npm 6.31.27 ×18; Publish 40222772749 green; PR #511 merged"
-nextAction: "Item 04 starter order relation; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "04 starter order — Version Packages → publish"
+lastConfirmedCommit: "495e9f3d"
+lastValidationLevel: "starter prove-same-output-wrong-path S01–S06 exit 0"
+nextAction: "Merge Version Packages for 6.31.28; then item 05 Gary cohort; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -79,8 +79,9 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.27
-  ACTIVE: item 04 starter order; partner holds
-  NEXT: item 04 starter order relation; no 6.32 without EVIDENCE_GATE
+  PENDING_PUBLISH: 6.31.28
+  ACTIVE: Version Packages → Trusted Publish; then item 05
+  NEXT: item 05 comparable cohort; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
