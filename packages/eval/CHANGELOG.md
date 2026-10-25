@@ -1,5 +1,15 @@
 # @agent-inspect/eval
 
+## 6.31.24
+
+### Patch Changes
+
+- 9058e64: Describe MCP runId as an existing local run from the listing tools, and describe find_slowest_path as the legacy alias of get_slowest_path.
+- Updated dependencies [9058e64]
+  - agent-inspect@6.31.24
+  - @agent-inspect/guardrails@6.31.24
+  - @agent-inspect/circuit@6.31.24
+
 ## 6.31.23
 
 ### Patch Changes

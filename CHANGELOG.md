@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.31.24
+
+### Patch Changes
+
+- 9058e64: Describe MCP runId as an existing local run from the listing tools, and describe find_slowest_path as the legacy alias of get_slowest_path.
+
 ## 6.31.23
 
 ### Patch Changes
