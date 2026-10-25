@@ -1,5 +1,11 @@
 # @agent-inspect/redact
 
+## 6.31.26
+
+### Patch Changes
+
+- 4dc9588: Record an MCP SDK `isError: true` tool result as a failed outcome without throwing or changing the returned value.
+
 ## 6.31.25
 
 ### Patch Changes
