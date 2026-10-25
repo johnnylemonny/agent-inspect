@@ -1,6 +1,9 @@
 /**
  * Packed MCP consumer E2E with a real `@modelcontextprotocol/sdk` Client
  * (#488 / Mikhail). Plain-object fakes do not prove Proxy/prototype bounds.
+ * Tool-result `isError` persistence lives here (the shape from johnnylemonny
+ * in #494) so the mock harness stays a single script and does not grow a
+ * second packed SDK consumer.
  *
  * Run from repo root after build: node scripts/packed-mcp-sdk-e2e.mjs
  *
@@ -152,6 +155,11 @@ async function createLinked(options = {}) {
         inputSchema: { type: "object", properties: {} },
       },
       {
+        name: "fail",
+        description: "returns isError",
+        inputSchema: { type: "object", properties: {} },
+      },
+      {
         name: "slow",
         description: "slow then ok",
         inputSchema: { type: "object", properties: {} },
@@ -162,6 +170,12 @@ async function createLinked(options = {}) {
     callCount += 1;
     if (req.params.name === "boom") {
       throw new Error("mcp boom");
+    }
+    if (req.params.name === "fail") {
+      return {
+        content: [{ type: "text", text: "tool-private-sentence" }],
+        isError: true,
+      };
     }
     if (req.params.name === "slow" || (req.params.name === "echo" && slowEchoMs > 0)) {
       await new Promise((r) => setTimeout(r, slowEchoMs || 80));
@@ -264,6 +278,54 @@ async function main() {
     const boomOk =
       thrown instanceof Error && /mcp boom/i.test(String(thrown.message));
     check("M07-error-preserved-" + ${JSON.stringify(kind)}, "pass", boomOk ? "pass" : "fail");
+
+    // Persisted semantic failure for an SDK isError result (#494 shape).
+    // Transport success stays a successful step; the failed outcome is the fact.
+    const failed = await inspectRun(
+      "mcp-sdk-tool-error-" + ${JSON.stringify(kind)},
+      async () =>
+        wrapped.callTool(
+          { name: "fail", arguments: {} },
+          undefined,
+          { metadata: { operationId: "op-fail", attemptId: "1" } },
+        ),
+      { silent: true, traceDir: ${JSON.stringify(traceDirName)} },
+    );
+    const files = readdirSync(${JSON.stringify(traceDirName)}).filter((f) =>
+      f.endsWith(".jsonl"),
+    );
+    const lines = files.flatMap((f) =>
+      readFileSync(path.join(${JSON.stringify(traceDirName)}, f), "utf8")
+        .split("\\n")
+        .filter(Boolean)
+        .map((line) => JSON.parse(line)),
+    );
+    const toolStep = lines.find(
+      (event) => event && event.event === "step_started" && event.name === "mcp:fail",
+    );
+    const completed = lines.find(
+      (event) =>
+        event &&
+        event.event === "step_completed" &&
+        event.stepId === toolStep?.stepId,
+    );
+    const outcome = lines.find(
+      (event) => event && event.event === "outcome_observed" && event.status === "failed",
+    );
+    const toolErrorOk =
+      failed?.isError === true &&
+      completed?.status === "success" &&
+      outcome?.parentId === toolStep?.stepId &&
+      outcome?.evidence?.toolFailure === true &&
+      outcome?.evidence?.toolName === "fail" &&
+      outcome?.evidence?.operationId === "op-fail" &&
+      outcome?.evidence?.attemptId === "1" &&
+      !JSON.stringify(outcome ?? {}).includes("tool-private-sentence");
+    check(
+      "M13-tool-error-persisted-" + ${JSON.stringify(kind)},
+      "pass",
+      toolErrorOk ? "pass" : "fail",
+    );
 
     // M08: close/flush bounded — no throw; idle close is not failure
     await wrapped.close();

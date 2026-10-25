@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.25"
 publishedVersion: "6.31.25"
-pendingPublishVersion: null
+pendingPublishVersion: "6.31.26"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.25 published (strict stack redaction); 6.32 blocked"
+trainStatus: "6.31.26 pending publish (MCP isError outcome); 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "02 MCP isError tool-result fidelity"
-lastConfirmedCommit: "b610fe6c"
-lastValidationLevel: "npm 6.31.25 ×18; Publish 40215892935 green; PR #509 merged"
-nextAction: "Item 02 MCP isError evidence and #494 harness; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "02 MCP isError — Version Packages → publish"
+lastConfirmedCommit: "d9b8f6f9"
+lastValidationLevel: "local core/runtime gate green (GATE_EXIT:0); MCP isError M01–M08 and packed M13 ESM/CJS"
+nextAction: "Merge Version Packages for 6.31.26; then item 03 timeout ledger; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -28,7 +28,8 @@ githubIssues:
   "485": "open — W05 browser observer binding"
   "486": "open — W06 paired captures"
   "487": "open — W27 private Promptfoo deps"
-  "488": "open — W18 MCP SDK packed consumer"
+  "488": "open — W18 MCP SDK packed consumer; isError outcome in 6.31.26"
+  "494": "open — packed harness PR; canonical script is packed-mcp-sdk-e2e; do not merge a second harness"
   "489": "open — W28 effect-label fixture"
   "491": "open — W15 valid variable paths"
   "492": "open — W10 timeout-after-commit"
@@ -75,8 +76,9 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.25
-  ACTIVE: item 02 MCP isError; partner holds
-  NEXT: item 02 MCP isError evidence; no 6.32 without EVIDENCE_GATE
+  PENDING_PUBLISH: 6.31.26
+  ACTIVE: Version Packages → Trusted Publish; then item 03
+  NEXT: item 03 timeout-ledger evidence; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
