@@ -4,9 +4,9 @@
 executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
-trainStatus: "6.31.29 published; chunk 03 Nest consumption on main pending publish; 6.32 blocked"
-currentChunk: "04 HTML lifecycle + CLI steps docs — next"
-nextAction: "Implement chunk 04 HTML lifecycle reproduce/fix + CLI steps docs; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+trainStatus: "6.31.29 published; chunks 03–04 on main pending publish; 6.32 blocked"
+currentChunk: "05 Om observed readiness/wait diagnostics — next"
+nextAction: "Implement chunk 05 Om readiness/wait diagnostics; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
 pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; C10 Elastic --live; Collector Docker"
@@ -25,27 +25,19 @@ worktreeIgnoreOnly:
 
 | Chunk | Status | Proof |
 | --- | --- | --- |
-| Nest SupportService consumption from saved evidence | **code ready** | N01–N08; N02 structure pass + consumption fail; verify-cli; tamper |
-
-## Shipped in 6.31.29 (recipe evidence integrity)
-
-| Chunk | Status | Proof |
-| --- | --- | --- |
-| #492 same-run windows/claims, marker-id equality, twelve saved probes | **published** | recipe start; probes non-pass |
-| #486 one-pass 13 executions + independent verify-saved/tampers | **published** | G01–G07; fresh-process verify |
-| Nest opaque `op-ref`/`tref`/`rref`; privacy N07 | **published** | N01–N07 |
-| Canonical roadmap pointer sync | **published** | ROADMAP / NEXT-RELEASES / EXECUTION-PLAN |
+| Nest SupportService consumption from saved evidence | **code ready** | N01–N08; verify-cli; tamper |
+| HTML lifecycle presentation join + CLI `steps.orderRelations` docs | **code ready** | html-exporter tests; CLI.md |
 
 ## Honesty
 
-#492 / #486 stay open until partner acceptance beyond the recipe matrix. #494 stays open. Next: chunk 04. No email / no 6.32.
+#492 / #486 stay open until partner acceptance. #494 stays open. Next: chunk 05. No email / no 6.32.
 
 ## Stop marker
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.29
-PENDING_PUBLISH: nest consumption verifier (chunk 03)
-ACTIVE: chunk 04 HTML lifecycle + CLI steps docs
+PENDING_PUBLISH: chunks 03–04 (Nest consumption; HTML lifecycle + CLI steps docs)
+ACTIVE: chunk 05 Om observed readiness/wait diagnostics
 NEXT: residual partner packets; no 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved

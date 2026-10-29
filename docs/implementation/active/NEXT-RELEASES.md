@@ -14,10 +14,11 @@
 5. **6.31.28** — starter `steps.orderRelations` tool-before-answer — **published**
 6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — **published**
 7. **Chunk 03** — Nest SupportService consumption from saved evidence — **implemented** (pending Version Packages)
-8. **Chunk 04+** — HTML lifecycle / Om readiness / #492 gaps / #494 / #484 / Indu v3 / Swapnil #437 — artifact-first
-9. **W22** — C10 Elastic / Collector Docker — credential/environment gated
-10. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
-11. **v7** — NO-GO
+8. **Chunk 04** — HTML lifecycle presentation join + CLI `steps.orderRelations` docs — **implemented** (pending Version Packages)
+9. **Chunk 05+** — Om readiness / #492 gaps / #494 / #484 / Indu v3 / Swapnil #437 — artifact-first
+10. **W22** — C10 Elastic / Collector Docker — credential/environment gated
+11. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
+12. **v7** — NO-GO
 
 ## Claim discipline
 
@@ -38,8 +39,8 @@
 
 ```text
 LAST_PUBLISHED_RELEASE: 6.31.29
-PENDING_PUBLISH: nest consumption verifier (chunk 03)
-ACTIVE: chunk 04 HTML lifecycle + CLI steps docs
+PENDING_PUBLISH: chunks 03–04 (Nest consumption; HTML lifecycle + CLI steps)
+ACTIVE: chunk 05 Om observed readiness/wait diagnostics
 NEXT: residual partner packets; no 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
