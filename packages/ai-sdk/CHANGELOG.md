@@ -1,5 +1,13 @@
 # @agent-inspect/ai-sdk
 
+## 6.31.29
+
+### Patch Changes
+
+- dcd714d: Tighten saved-evidence recipe controls: timeout-ledger same-run/marker/claim coverage, comparable-cohort one-pass reopen verification, and Nest opaque tenant/operation refs.
+- Updated dependencies [dcd714d]
+  - agent-inspect@6.31.29
+
 ## 6.31.28
 
 ### Patch Changes

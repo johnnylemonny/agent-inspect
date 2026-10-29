@@ -1,5 +1,11 @@
 # @agent-inspect/redact
 
+## 6.31.29
+
+### Patch Changes
+
+- dcd714d: Tighten saved-evidence recipe controls: timeout-ledger same-run/marker/claim coverage, comparable-cohort one-pass reopen verification, and Nest opaque tenant/operation refs.
+
 ## 6.31.28
 
 ### Patch Changes
