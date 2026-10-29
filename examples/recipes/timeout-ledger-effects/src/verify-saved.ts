@@ -24,6 +24,7 @@ interface Row {
   event?: string;
   name?: string;
   status?: string;
+  runId?: string;
   stepId?: string;
   error?: { message?: string };
   evidence?: Record<string, unknown>;
@@ -99,6 +100,23 @@ export function argsFingerprint(args: Record<string, string>): string {
   return JSON.stringify(keys.map((key) => [key, args[key]]));
 }
 
+function sameIdSet(observed: string[], known: Set<string>): boolean {
+  const unique = new Set(observed);
+  if (unique.size !== observed.length || unique.size !== known.size) return false;
+  for (const id of unique) {
+    if (!known.has(id)) return false;
+  }
+  return true;
+}
+
+function markerIdsFor(attempts: Attempt[], operationId: string): Set<string> {
+  return new Set(
+    attempts
+      .filter((attempt) => attempt.operationId === operationId && attempt.markerId)
+      .map((attempt) => attempt.markerId as string),
+  );
+}
+
 export function verifySaved(traceDir: string): SavedVerdict {
   const rows = readRows(traceDir);
   const attempts = attemptsFrom(rows);
@@ -117,29 +135,54 @@ export function verifySaved(traceDir: string): SavedVerdict {
     attempts.map((attempt) => attempt.markerId).filter((id): id is string => id !== undefined),
   ).size;
 
-  let observation: SavedVerdict["observation"] = windows.length === 0 ? "absent" : "passed";
-  if (windows.some((row) => row.status === "unknown" || row.evidence?.window === "incomplete")) {
-    observation = "unknown";
+  const traceRunIds = new Set(
+    rows
+      .filter((row) => row.event === "run_started")
+      .map((row) => text(row.runId))
+      .filter((id): id is string => id !== undefined),
+  );
+  const sameRun = (row: Row): boolean => {
+    const runId = text(row.runId);
+    return runId !== undefined && traceRunIds.has(runId);
+  };
+  const sameWindows = windows.filter(sameRun);
+  const sameClaims = claims.filter(sameRun);
+
+  let observation: SavedVerdict["observation"] =
+    sameWindows.length === 0 ? "absent" : "unknown";
+  if (
+    sameWindows.length > 0 &&
+    sameWindows.every(
+      (row) => row.status === "passed" && row.evidence?.window === "closed",
+    )
+  ) {
+    observation = "passed";
   }
 
-  let join: SavedVerdict["join"] = windows.length === 0 ? "unknown" : "valid";
-  for (const window of windows) {
+  let join: SavedVerdict["join"] = sameWindows.length === 0 ? "unknown" : "valid";
+  for (const window of sameWindows) {
     const evidence = window.evidence;
     const observedOperationId = text(evidence?.operationId);
     if (!observedOperationId || !operations.includes(observedOperationId)) {
       join = "invalid";
       continue;
     }
-    const observedIds = Array.isArray(evidence?.markerIds)
-      ? evidence.markerIds.filter((id): id is string => typeof id === "string")
-      : [];
-    const known = new Set(
-      attempts
-        .filter((attempt) => attempt.operationId === observedOperationId)
-        .map((attempt) => attempt.markerId)
-        .filter((id): id is string => id !== undefined),
-    );
-    if (observedIds.some((id) => !known.has(id))) join = "invalid";
+    if (!Array.isArray(evidence?.markerIds)) {
+      if (join !== "invalid") join = "unknown";
+      continue;
+    }
+    const observedIds = evidence.markerIds.filter((id): id is string => typeof id === "string");
+    if (!sameIdSet(observedIds, markerIdsFor(attempts, observedOperationId))) {
+      join = "invalid";
+    }
+  }
+  if (join !== "invalid") {
+    for (const operationId of operations) {
+      const covered = sameWindows.some(
+        (window) => text(window.evidence?.operationId) === operationId,
+      );
+      if (!covered) join = "unknown";
+    }
   }
 
   const fingerprintsByOp = new Map<string, Set<string>>();
@@ -165,30 +208,35 @@ export function verifySaved(traceDir: string): SavedVerdict {
   }
   if (args === "mismatch") effect = "fail";
 
-  let claim: SavedVerdict["claim"] = claims.length === 0 ? "unknown" : "pass";
+  let claim: SavedVerdict["claim"] = "unknown";
   let failedClaim = false;
-  if (claims.length > 0) {
-    for (const row of claims) {
-      const evidence = row.evidence;
-      const operationId = text(evidence?.operationId);
-      const label = text(evidence?.claim);
-      const ids = new Set(
-        attempts
-          .filter((attempt) => attempt.operationId === operationId && attempt.markerId)
-          .map((attempt) => attempt.markerId),
-      );
+  let claimsFail = false;
+  let everyOperationClaimed = operations.length > 0;
+  for (const operationId of operations) {
+    const opClaims = sameClaims.filter(
+      (row) => text(row.evidence?.operationId) === operationId,
+    );
+    if (opClaims.length === 0) {
+      everyOperationClaimed = false;
+      continue;
+    }
+    const ids = markerIdsFor(attempts, operationId);
+    for (const row of opClaims) {
+      const label = text(row.evidence?.claim);
       if (label === "failed") {
         failedClaim = true;
-        if (ids.size > 1) claim = "fail";
+        if (ids.size > 1) claimsFail = true;
       } else if (label === "no_effect") {
-        if (ids.size !== 0) claim = "fail";
+        if (ids.size !== 0) claimsFail = true;
       } else if (label === "effect_present") {
-        if (ids.size !== 1 || args === "mismatch") claim = "fail";
+        if (ids.size !== 1 || args === "mismatch") claimsFail = true;
       } else {
-        claim = "unknown";
+        everyOperationClaimed = false;
       }
     }
   }
+  if (claimsFail) claim = "fail";
+  else if (everyOperationClaimed) claim = "pass";
 
   const applied = attempts.some((attempt) => attempt.injectionApplied);
   const planned = attempts.some(

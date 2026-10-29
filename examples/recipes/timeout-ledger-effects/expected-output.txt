@@ -14,3 +14,17 @@ timeout-ledger-effects:
   TK-tampered-claim: expected=fail observed=fail attempts=2 markers=1 observation=passed effect=pass claim=fail join=valid args=match fault=injected keyScope=undeclared
   TL-fresh-process: expected=pass observed=pass attempts=2 markers=1 observation=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared
 classes: T01:pass,T02:fail,T03:unknown,T04:fail,T05:fail,T06:task-fail-safe,TE:fail,TF:fail,TG:pass,TG:fail,TH:fail,TJ:unknown,TK:fail,TL:pass
+  probe-healthy: expected=pass observed=pass OK
+  probe-changed-amount: expected=fail observed=fail OK
+  probe-claim-contradiction: expected=fail observed=fail OK
+  probe-observer-absent: expected=non-pass observed=unknown OK
+  probe-marker-ids-missing: expected=non-pass observed=unknown OK
+  probe-zero-markers: expected=fail observed=fail OK
+  probe-window-missing: expected=non-pass observed=unknown OK
+  probe-observer-failed: expected=non-pass observed=unknown OK
+  probe-observer-other-run: expected=non-pass observed=unknown OK
+  probe-claim-other-run: expected=non-pass observed=unknown OK
+  probe-claim-unexecuted: expected=non-pass observed=unknown OK
+  probe-second-operation-missing: expected=non-pass observed=unknown OK
+  probe-marker-ids-missing-cli: exit=0 class=unknown OK
+  probe-observer-other-run-cli: exit=0 class=unknown OK

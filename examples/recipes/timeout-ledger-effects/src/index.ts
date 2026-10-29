@@ -426,7 +426,7 @@ await runCase("TF-wrong-operation-join", "fail", async () => {
   await recordWindow({ operationId: "op-OTHER", markerIds: ["m1"], complete: true });
 });
 
-await runCase("TG-independent-keys", "pass", async () => {
+const tgDir = await runCase("TG-independent-keys", "pass", async () => {
   const ledger = createLedger();
   for (const operationId of ["op1", "op2"]) {
     await recordAttempt(ledger, {
@@ -552,6 +552,186 @@ console.log(
 console.log(
   `classes: ${results.map((result) => `${result.id.split("-")[0]}:${result.observed}`).join(",")}`,
 );
+
+function loadRows(dir: string): Array<Record<string, unknown>> {
+  const rows: Array<Record<string, unknown>> = [];
+  for (const file of readdirSync(dir)) {
+    if (!file.endsWith(".jsonl")) continue;
+    for (const line of readFileSync(path.join(dir, file), "utf8").split("\n")) {
+      if (line.trim() !== "") rows.push(JSON.parse(line) as Record<string, unknown>);
+    }
+  }
+  return rows;
+}
+
+function outcomesNamed(rows: Array<Record<string, unknown>>, name: string): Array<Record<string, unknown>> {
+  return rows.filter((row) => row.event === "outcome_observed" && row.name === name);
+}
+
+function writeProbe(id: string, sourceDir: string, mutate: (rows: Array<Record<string, unknown>>) => void): string {
+  const dir = path.join(baseDir, id);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const rows = loadRows(sourceDir);
+  mutate(rows);
+  writeFileSync(path.join(dir, "trace.jsonl"), `${rows.map((row) => JSON.stringify(row)).join("\n")}\n`);
+  return dir;
+}
+
+const probes: Array<{
+  id: string;
+  source: string;
+  expected: string;
+  accept: (verdict: ReturnType<typeof verifySaved>) => boolean;
+  mutate: (rows: Array<Record<string, unknown>>) => void;
+}> = [
+  {
+    id: "probe-healthy",
+    source: t01Dir,
+    expected: "pass",
+    accept: (verdict) => verdict.class === "pass",
+    mutate: () => undefined,
+  },
+  {
+    id: "probe-changed-amount",
+    source: path.join(baseDir, "TE-amount-mismatch"),
+    expected: "fail",
+    accept: (verdict) => verdict.class === "fail",
+    mutate: () => undefined,
+  },
+  {
+    id: "probe-claim-contradiction",
+    source: t01Dir,
+    expected: "fail",
+    accept: (verdict) => verdict.class === "fail",
+    mutate: (rows) => {
+      const claim = outcomesNamed(rows, "report-claim")[0];
+      (claim?.evidence as Record<string, unknown>).claim = "no_effect";
+    },
+  },
+  {
+    id: "probe-observer-absent",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const kept = rows.filter((row) => !(row.event === "outcome_observed" && row.name === "ledger-window"));
+      rows.splice(0, rows.length, ...kept);
+    },
+  },
+  {
+    id: "probe-marker-ids-missing",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const evidence = outcomesNamed(rows, "ledger-window")[0]?.evidence as Record<string, unknown>;
+      delete evidence.markerIds;
+    },
+  },
+  {
+    id: "probe-zero-markers",
+    source: t01Dir,
+    expected: "fail",
+    accept: (verdict) => verdict.class === "fail",
+    mutate: (rows) => {
+      const evidence = outcomesNamed(rows, "ledger-window")[0]?.evidence as Record<string, unknown>;
+      evidence.markerIds = [];
+    },
+  },
+  {
+    id: "probe-window-missing",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const evidence = outcomesNamed(rows, "ledger-window")[0]?.evidence as Record<string, unknown>;
+      delete evidence.window;
+    },
+  },
+  {
+    id: "probe-observer-failed",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const window = outcomesNamed(rows, "ledger-window")[0];
+      if (window) window.status = "failed";
+    },
+  },
+  {
+    id: "probe-observer-other-run",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const window = outcomesNamed(rows, "ledger-window")[0];
+      if (window) window.runId = "foreign-run";
+    },
+  },
+  {
+    id: "probe-claim-other-run",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const claim = outcomesNamed(rows, "report-claim")[0];
+      if (claim) claim.runId = "foreign-run";
+    },
+  },
+  {
+    id: "probe-claim-unexecuted",
+    source: t01Dir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const evidence = outcomesNamed(rows, "report-claim")[0]?.evidence as Record<string, unknown>;
+      evidence.operationId = "op-OTHER";
+      evidence.claim = "no_effect";
+    },
+  },
+  {
+    id: "probe-second-operation-missing",
+    source: tgDir,
+    expected: "non-pass",
+    accept: (verdict) => verdict.class !== "pass",
+    mutate: (rows) => {
+      const kept = rows.filter((row) => {
+        if (row.event !== "outcome_observed") return true;
+        if (row.name !== "ledger-window" && row.name !== "report-claim") return true;
+        return (row.evidence as Record<string, unknown> | undefined)?.operationId !== "op2";
+      });
+      rows.splice(0, rows.length, ...kept);
+    },
+  },
+];
+
+for (const probe of probes) {
+  const verdict = verifySaved(writeProbe(probe.id, probe.source, probe.mutate));
+  const ok = probe.accept(verdict);
+  console.log(
+    `  ${probe.id}: expected=${probe.expected} observed=${verdict.class} ${ok ? "OK" : "ACCEPTANCE GAP"}`,
+  );
+  if (!ok) process.exitCode = 1;
+}
+
+for (const id of ["probe-marker-ids-missing", "probe-observer-other-run"]) {
+  const cli = spawnSync(
+    process.execPath,
+    ["--import", "tsx", path.join(here, "verify-cli.ts"), path.join(baseDir, id)],
+    { encoding: "utf8", cwd: process.cwd() },
+  );
+  let cliClass = "";
+  try {
+    cliClass = JSON.parse(cli.stdout.trim()).class as string;
+  } catch {
+    cliClass = "";
+  }
+  const liveClass = verifySaved(path.join(baseDir, id)).class;
+  const cliOk = cli.status === 0 && cliClass === liveClass && liveClass !== "pass";
+  console.log(`  ${id}-cli: exit=${cli.status ?? "none"} class=${cliClass || "unparsed"} ${cliOk ? "OK" : "ACCEPTANCE GAP"}`);
+  if (!cliOk) process.exitCode = 1;
+}
 
 const mismatch = results.filter((result) => result.expected !== result.observed);
 if (mismatch.length > 0) {

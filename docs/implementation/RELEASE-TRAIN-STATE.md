@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.28"
 publishedVersion: "6.31.28"
-pendingPublishVersion: "6.31.28"
+pendingPublishVersion: "6.31.29"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.28 pending publish (starter order relation); 6.32 blocked"
+trainStatus: "6.31.28 published; 6.31.29 recipe evidence integrity pending Version Packages; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "04 starter order — Version Packages → publish"
-lastConfirmedCommit: "495e9f3d"
-lastValidationLevel: "starter prove-same-output-wrong-path S01–S06 exit 0"
-nextAction: "Merge Version Packages for 6.31.28; then item 05 Gary cohort; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "recipe evidence integrity (#492/#486/Nest privacy) → changeset → Version Packages"
+lastConfirmedCommit: "d17618d9"
+lastValidationLevel: "Publish 40939596146 success; npm agent-inspect@6.31.28"
+nextAction: "Push recipe evidence patch + changeset; merge Version Packages for 6.31.29; then chunk 03 Nest consumption; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -26,13 +26,13 @@ githubIssues:
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
   "484": "open — W04; Prompt A + residuals shipped in 6.31.23; partner packet remains"
   "485": "open — W05 browser observer binding"
-  "486": "open — W06 paired captures"
+  "486": "open — W06 paired captures; one-pass verifier in pending 6.31.29"
   "487": "open — W27 private Promptfoo deps"
   "488": "open — W18 MCP SDK packed consumer; isError outcome in 6.31.26"
   "494": "open — packed harness PR; canonical script is packed-mcp-sdk-e2e; do not merge a second harness"
   "489": "open — W28 effect-label fixture"
   "491": "open — W15 valid variable paths"
-  "492": "open — W10 timeout-after-commit"
+  "492": "open — W10 timeout-after-commit; saved-probe verifier in pending 6.31.29"
   "450": "open — W09 permission granted; partner Revera pending"
   "437": "open — W20A receipt/idempotency; later evidence train"
 canonicalRoadmap: "docs/implementation/ROADMAP.md"
@@ -53,12 +53,13 @@ completedChunks:
   - "6.31.25 strict stack/errorStack/stackTrace redaction (67563a29 → #509 → Publish)"
   - "6.31.26 MCP isError tool-result outcome (4dc95886 → #510 → Publish)"
   - "6.31.27 timeout-ledger saved-trace verifier (473c9188 → #511 → Publish)"
+  - "6.31.28 starter tool-before-answer orderRelations (e65e9445 → #512 → Publish 40939596146)"
 queuedChunks:
+  - "6.31.29 recipe evidence integrity (#492 probes, #486 one-pass, Nest opaque refs)"
   - "W04/#484 residual partner packet"
   - "W05/#485 browser observer controls"
-  - "W06/#486 paired captures"
+  - "chunk 03 Nest consumption from saved evidence"
   - "W15/#491 valid-variable-path matrix"
-  - "W10/#492 timeout-after-commit"
   - "W22 C10 Elastic / Collector Docker when credentials"
   - "6.32.0 external-evidence gate (BLOCKED)"
 blockedTrains:
@@ -74,16 +75,17 @@ amendments:
   - "2026-10-25 6.31.25 published (Trusted Publish 40215892935)"
   - "2026-10-25 6.31.26 published (Trusted Publish 40219491873)"
   - "2026-10-25 6.31.27 published (Trusted Publish 40222772749)"
+  - "2026-10-29 6.31.28 published (Trusted Publish 40939596146)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.27
-  PENDING_PUBLISH: 6.31.28
-  ACTIVE: Version Packages → Trusted Publish; then item 05
-  NEXT: item 05 comparable cohort; no 6.32 without EVIDENCE_GATE
+  LAST_PUBLISHED_RELEASE: 6.31.28
+  PENDING_PUBLISH: 6.31.29
+  ACTIVE: recipe evidence integrity changeset → Version Packages → Trusted Publish
+  NEXT: chunk 03 Nest consumption; residual partner packets; no 6.32 without EVIDENCE_GATE
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-25"
+updatedAt: "2026-10-29"
 ```

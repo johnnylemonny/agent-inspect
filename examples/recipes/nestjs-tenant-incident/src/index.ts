@@ -1,21 +1,32 @@
 /**
- * Uduak / W14 — real NestJS paired incident (good vs wrong-tenant bind).
+ * Uduak / W14 — NestJS paired incident with opaque capture refs (chunk 02).
  * Keyless stubs only. One supported claim: answer consumes requested-tenant policy.
+ * Raw tenant names are not encoded in operation/tenant identifiers.
  */
 import "reflect-metadata";
 
-import { mkdirSync, readdirSync, rmSync } from "node:fs";
+import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import path from "node:path";
 
 import { Test } from "@nestjs/testing";
 import { inspectRun, step } from "agent-inspect";
+import { resolveRedactionProfile } from "agent-inspect/advanced";
 import {
   defineTraceContract,
   evaluateTraceContractRead,
 } from "agent-inspect/checks";
+import { Redactor } from "agent-inspect/logs";
 import { openTraceFile } from "agent-inspect/readers";
 
 import { PolicyService, SupportModule, SupportService } from "./app.js";
+import {
+  classifyOpaqueJoin,
+  FORBIDDEN_SHARE_TOKENS,
+  nextOperationRef,
+  nextResultRef,
+  TENANT_ALPHA,
+  TENANT_BETA,
+} from "./refs.js";
 
 const silent = process.env.AGENT_INSPECT_SILENT === "true";
 const baseDir = path.join(process.cwd(), ".agent-inspect-runs");
@@ -40,7 +51,6 @@ const contract = defineTraceContract({
 });
 
 async function bootstrap() {
-  // TestingModule only — no HTTP platform (avoids @nestjs/platform-express).
   const moduleRef = await Test.createTestingModule({
     imports: [SupportModule],
   }).compile();
@@ -58,8 +68,8 @@ async function bootstrap() {
 async function captureAsk(
   id: string,
   opts: {
-    requestedTenantId: string;
-    bindTenantId?: string;
+    requestedTenantRef: string;
+    bindTenantRef?: string;
     skipTool?: boolean;
     skipLlm?: boolean;
     throwInApp?: boolean;
@@ -72,6 +82,8 @@ async function captureAsk(
   const { support, policies, close } = await bootstrap();
   let thrown: Error | undefined;
   let result: unknown;
+  const operationRef = nextOperationRef();
+  const resultRef = nextResultRef();
 
   try {
     result = await inspectRun(
@@ -82,26 +94,28 @@ async function captureAsk(
         }
 
         let policy:
-          | { policyId: string; tenantId: string; text: string }
+          | { policyId: string; tenantRef: string; text: string }
           | undefined;
 
         if (!opts.skipTool) {
           policy = await step(
             "retrieve_policy",
             async () => {
-              const lookup = opts.bindTenantId ?? opts.requestedTenantId;
+              const lookup = opts.bindTenantRef ?? opts.requestedTenantRef;
               return policies.retrieve(lookup);
             },
             {
               type: "tool",
               metadata: {
                 toolName: "retrieve_policy",
-                operationId: `op-${opts.requestedTenantId}`,
+                operationId: operationRef,
                 attemptId: "a1",
                 attemptNumber: 1,
                 arguments: {
-                  tenantId: opts.bindTenantId ?? opts.requestedTenantId,
+                  tenantRef: opts.bindTenantRef ?? opts.requestedTenantRef,
                 },
+                requestedTenantRef: opts.requestedTenantRef,
+                resultRef,
               },
             },
           );
@@ -116,23 +130,32 @@ async function captureAsk(
               if (!policy) {
                 return {
                   answer: "no policy",
-                  requestedTenantId: opts.requestedTenantId,
+                  requestedTenantRef: opts.requestedTenantRef,
+                  resultRef,
                 };
               }
+              const join = classifyOpaqueJoin({
+                requestedTenantRef: opts.requestedTenantRef,
+                policyTenantRef: policy.tenantRef,
+              });
               return {
                 answer: `Q → ${policy.text}`,
                 policyId: policy.policyId,
-                policyTenantId: policy.tenantId,
-                requestedTenantId: opts.requestedTenantId,
-                joinOk: policy.tenantId === opts.requestedTenantId,
+                policyTenantRef: policy.tenantRef,
+                requestedTenantRef: opts.requestedTenantRef,
+                resultRef,
+                join,
+                joinOk: join === "match",
               };
             },
             {
               type: "llm",
               metadata: {
                 model: "stub-answer",
-                requestedTenantId: opts.requestedTenantId,
-                policyTenantId: policy?.tenantId,
+                requestedTenantRef: opts.requestedTenantRef,
+                policyTenantRef: policy?.tenantRef,
+                resultRef,
+                operationId: operationRef,
               },
             },
           );
@@ -158,12 +181,42 @@ async function captureAsk(
 
 function tenantJoinOk(result: unknown): boolean {
   if (!result || typeof result !== "object") return false;
-  const r = result as { joinOk?: boolean; policyTenantId?: string; requestedTenantId?: string };
+  const r = result as {
+    joinOk?: boolean;
+    join?: string;
+    policyTenantRef?: string;
+    requestedTenantRef?: string;
+  };
+  if (r.join === "unknown") return false;
   if (typeof r.joinOk === "boolean") return r.joinOk;
   return (
-    typeof r.policyTenantId === "string" &&
-    r.policyTenantId === r.requestedTenantId
+    classifyOpaqueJoin({
+      requestedTenantRef: r.requestedTenantRef,
+      policyTenantRef: r.policyTenantRef,
+    }) === "match"
   );
+}
+
+function profileRedactor(profile: "local" | "share" | "strict"): Redactor | null {
+  if (profile === "local") return null;
+  const resolved = resolveRedactionProfile(profile);
+  return new Redactor({ extraKeys: [...resolved.extraKeys] });
+}
+
+function redactJsonl(text: string, profile: "local" | "share" | "strict"): string {
+  const redactor = profileRedactor(profile);
+  if (!redactor) return text;
+  const out: string[] = [];
+  for (const line of text.split("\n")) {
+    if (line.trim() === "") continue;
+    const row = JSON.parse(line) as Record<string, unknown>;
+    out.push(JSON.stringify(redactor.redactRecord(row)));
+  }
+  return `${out.join("\n")}\n`;
+}
+
+function containsForbidden(text: string): string[] {
+  return FORBIDDEN_SHARE_TOKENS.filter((token) => text.includes(token));
 }
 
 async function evalCase(
@@ -182,20 +235,18 @@ async function evalCase(
     const read = await openTraceFile(tracePath);
     contractStatus = evaluateTraceContractRead(read, contract).status;
   }
-  // Recipe oracle: wrong-tenant bind fails even if TraceContract result-ref passes
-  // (referencedEventIds can be present while tenant join is wrong).
   const observed = classify({ contractStatus, result, thrown });
   results.push({ id, expected, observed });
   console.log(`  ${id}: expected=${expected} observed=${observed}`);
 }
 
 console.log("nestjs-tenant-incident:");
-console.log("  note: real NestJS TestingModule; stubbed tools/model; keyless");
+console.log("  note: real NestJS TestingModule; opaque tenant/operation refs; keyless");
 
 await evalCase(
   "N01-good-tenant-a",
   "pass",
-  { requestedTenantId: "tenant-A" },
+  { requestedTenantRef: TENANT_ALPHA },
   ({ contractStatus, result }) =>
     contractStatus === "pass" && tenantJoinOk(result) ? "pass" : "fail",
 );
@@ -203,27 +254,26 @@ await evalCase(
 await evalCase(
   "N02-wrong-tenant-bind",
   "fail",
-  { requestedTenantId: "tenant-A", bindTenantId: "tenant-B" },
+  { requestedTenantRef: TENANT_ALPHA, bindTenantRef: TENANT_BETA },
   ({ result }) => (tenantJoinOk(result) ? "pass" : "fail"),
 );
 
 await evalCase(
   "N03-absent-capture",
   "fail",
-  { requestedTenantId: "tenant-A", skipTool: true },
+  { requestedTenantRef: TENANT_ALPHA, skipTool: true },
   ({ contractStatus }) => (contractStatus === "pass" ? "pass" : "fail"),
 );
 
-// N04: overlapping requests keep context separate
 {
-  const a = captureAsk("N04-overlap-a", { requestedTenantId: "tenant-A" });
-  const b = captureAsk("N04-overlap-b", { requestedTenantId: "tenant-B" });
+  const a = captureAsk("N04-overlap-a", { requestedTenantRef: TENANT_ALPHA });
+  const b = captureAsk("N04-overlap-b", { requestedTenantRef: TENANT_BETA });
   const [ra, rb] = await Promise.all([a, b]);
   const ok =
     tenantJoinOk(ra.result) &&
     tenantJoinOk(rb.result) &&
-    (ra.result as { policyTenantId: string }).policyTenantId === "tenant-A" &&
-    (rb.result as { policyTenantId: string }).policyTenantId === "tenant-B";
+    (ra.result as { policyTenantRef: string }).policyTenantRef === TENANT_ALPHA &&
+    (rb.result as { policyTenantRef: string }).policyTenantRef === TENANT_BETA;
   results.push({
     id: "N04-overlap-isolated",
     expected: "pass",
@@ -237,12 +287,11 @@ await evalCase(
 await evalCase(
   "N05-app-error-preserved",
   "pass",
-  { requestedTenantId: "tenant-A", throwInApp: true },
+  { requestedTenantRef: TENANT_ALPHA, throwInApp: true },
   ({ thrown }) =>
     thrown?.message === "fixture: nest application error" ? "pass" : "fail",
 );
 
-// N06: bootstrap + close leaves no open handles (TestingModule.close)
 {
   const { close } = await bootstrap();
   await close();
@@ -250,11 +299,107 @@ await evalCase(
   console.log("  N06-close-no-handles: expected=pass observed=pass");
 }
 
+// Privacy surfaces: same synthetic runs, local / share / strict projections.
+{
+  const privacyDir = path.join(baseDir, "N07-privacy-surfaces");
+  rmSync(privacyDir, { recursive: true, force: true });
+  mkdirSync(privacyDir, { recursive: true });
+
+  const good = await captureAsk("N07-privacy-good", {
+    requestedTenantRef: TENANT_ALPHA,
+  });
+  const wrong = await captureAsk("N07-privacy-wrong", {
+    requestedTenantRef: TENANT_ALPHA,
+    bindTenantRef: TENANT_BETA,
+  });
+  if (!good.tracePath || !wrong.tracePath) {
+    throw new Error("privacy probe missing traces");
+  }
+
+  const localGood = readFileSync(good.tracePath, "utf8");
+  const localWrong = readFileSync(wrong.tracePath, "utf8");
+  const shareGood = redactJsonl(localGood, "share");
+  const shareWrong = redactJsonl(localWrong, "share");
+  const strictGood = redactJsonl(localGood, "strict");
+  const strictWrong = redactJsonl(localWrong, "strict");
+
+  writeFileSync(path.join(privacyDir, "local-good.jsonl"), localGood);
+  writeFileSync(path.join(privacyDir, "share-good.jsonl"), shareGood);
+  writeFileSync(path.join(privacyDir, "strict-good.jsonl"), strictGood);
+  writeFileSync(path.join(privacyDir, "share-wrong.jsonl"), shareWrong);
+  writeFileSync(path.join(privacyDir, "strict-wrong.jsonl"), strictWrong);
+
+  const forbiddenHits = [
+    ...containsForbidden(localGood),
+    ...containsForbidden(localWrong),
+    ...containsForbidden(shareGood),
+    ...containsForbidden(shareWrong),
+    ...containsForbidden(strictGood),
+    ...containsForbidden(strictWrong),
+  ];
+  const noForbidden = forbiddenHits.length === 0;
+
+  const localJoinGood = classifyOpaqueJoin({
+    requestedTenantRef: (good.result as { requestedTenantRef?: string }).requestedTenantRef,
+    policyTenantRef: (good.result as { policyTenantRef?: string }).policyTenantRef,
+  });
+  const localJoinWrong = classifyOpaqueJoin({
+    requestedTenantRef: (wrong.result as { requestedTenantRef?: string }).requestedTenantRef,
+    policyTenantRef: (wrong.result as { policyTenantRef?: string }).policyTenantRef,
+  });
+  const distinguishableLocal =
+    localJoinGood === "match" && localJoinWrong === "mismatch";
+
+  // If share collapses distinct tenantId keys to [REDACTED], that is unknown — not equality.
+  const redactedPairJoin = classifyOpaqueJoin({
+    requestedTenantRef: "[REDACTED]",
+    policyTenantRef: "[REDACTED]",
+  });
+  const redactedNotEqualEvidence = redactedPairJoin === "unknown";
+
+  // operationId must be opaque (op-ref-*), not tenant-derived.
+  const opaqueOps =
+    /"operationId":"op-ref-\d+"/.test(localGood) &&
+    /"operationId":"op-ref-\d+"/.test(localWrong) &&
+    !localGood.includes("op-tenant-") &&
+    !localWrong.includes("op-tenant-");
+
+  const privacyOk =
+    noForbidden &&
+    distinguishableLocal &&
+    redactedNotEqualEvidence &&
+    opaqueOps &&
+    localGood.includes(TENANT_ALPHA) &&
+    localWrong.includes(TENANT_BETA);
+
+  results.push({
+    id: "N07-privacy-surfaces",
+    expected: "pass",
+    observed: privacyOk ? "pass" : "fail",
+  });
+  console.log(
+    `  N07-privacy-surfaces: expected=pass observed=${privacyOk ? "pass" : "fail"} profiles=local,share,strict`,
+  );
+  console.log(
+    `    note: SAFE is not a privacy certificate; checked local/share/strict JSONL projections`,
+  );
+  if (!privacyOk) {
+    console.error("privacy probe detail", {
+      forbiddenHits: [...new Set(forbiddenHits)],
+      distinguishableLocal,
+      redactedNotEqualEvidence,
+      opaqueOps,
+      localJoinGood,
+      localJoinWrong,
+    });
+  }
+}
+
 console.log(
   `classes: ${results.map((r) => `${r.id.slice(0, 3)}:${r.observed}`).join(",")}`,
 );
 console.log(
-  "claim: answer must consume policy for the requested tenant (explicit join)",
+  "claim: answer must consume policy for the requested tenant (opaque ref join)",
 );
 
 const mismatch = results.filter((r) => r.expected !== r.observed);
