@@ -8,14 +8,27 @@ export type Class = "pass" | "fail" | "unknown" | "task-fail-safe";
 
 export interface SavedVerdict {
   class: Class;
+  /**
+   * Ledger-window check completion only (`passed` = same-run windows closed
+   * with passed status). Not proof the task, effect, or claim is acceptable.
+   * Recipe logs may label this `windowCheck=` for clarity; the core
+   * observation enum is unchanged.
+   */
   observation: "passed" | "absent" | "unknown";
+  /** Duplicate-marker / args consistency from handler attempt records. */
   effect: "pass" | "fail" | "unknown";
+  /** Report-boundary claim vs attempt markers; unknown when no report. */
   claim: "pass" | "fail" | "unknown";
+  /**
+   * Observer `ledger-window.markerIds` must exactly match attempt `markerId`s
+   * for the operation (not a subset).
+   */
   join: "valid" | "invalid" | "unknown";
   args: "match" | "mismatch" | "unknown";
   faultProvenance: "injected" | "none" | "unknown";
   keyScope: "ok" | "violation" | "undeclared";
   attemptCount: number;
+  /** Distinct handler-attempt `markerId`s — not observer-reported IDs. */
   distinctMarkers: number;
   operations: string[];
 }

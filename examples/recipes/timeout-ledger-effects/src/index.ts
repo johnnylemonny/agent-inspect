@@ -249,7 +249,7 @@ async function runCase(id: string, expected: Class, fn: () => Promise<void>): Pr
   const verdict = verifySaved(traceDir);
   results.push({ id, expected, observed: verdict.class });
   console.log(
-    `  ${id}: expected=${expected} observed=${verdict.class} attempts=${verdict.attemptCount} markers=${verdict.distinctMarkers} observation=${verdict.observation} effect=${verdict.effect} claim=${verdict.claim} join=${verdict.join} args=${verdict.args} fault=${verdict.faultProvenance} keyScope=${verdict.keyScope}`,
+    `  ${id}: expected=${expected} observed=${verdict.class} attempts=${verdict.attemptCount} handlerMarkers=${verdict.distinctMarkers} windowCheck=${verdict.observation} effect=${verdict.effect} claim=${verdict.claim} join=${verdict.join} args=${verdict.args} fault=${verdict.faultProvenance} keyScope=${verdict.keyScope}`,
   );
   return traceDir;
 }
@@ -524,7 +524,7 @@ const tampered = verifySaved(tamperDir);
 const tamperOk = tampered.class !== "pass";
 results.push({ id: "TK-tampered-claim", expected: "fail", observed: tamperOk ? "fail" : "pass" });
 console.log(
-  `  TK-tampered-claim: expected=fail observed=${tamperOk ? "fail" : tampered.class} attempts=${tampered.attemptCount} markers=${tampered.distinctMarkers} observation=${tampered.observation} effect=${tampered.effect} claim=${tampered.claim} join=${tampered.join} args=${tampered.args} fault=${tampered.faultProvenance} keyScope=${tampered.keyScope}`,
+  `  TK-tampered-claim: expected=fail observed=${tamperOk ? "fail" : tampered.class} attempts=${tampered.attemptCount} handlerMarkers=${tampered.distinctMarkers} windowCheck=${tampered.observation} effect=${tampered.effect} claim=${tampered.claim} join=${tampered.join} args=${tampered.args} fault=${tampered.faultProvenance} keyScope=${tampered.keyScope}`,
 );
 
 const child = spawnSync(
@@ -546,7 +546,7 @@ results.push({
   observed: reproOk ? "pass" : "fail",
 });
 console.log(
-  `  TL-fresh-process: expected=pass observed=${reproOk ? "pass" : "fail"} attempts=2 markers=1 observation=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared`,
+  `  TL-fresh-process: expected=pass observed=${reproOk ? "pass" : "fail"} attempts=2 handlerMarkers=1 windowCheck=passed effect=pass claim=pass join=valid args=match fault=injected keyScope=undeclared`,
 );
 
 console.log(
