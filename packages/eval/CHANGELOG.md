@@ -1,5 +1,16 @@
 # @agent-inspect/eval
 
+## 6.31.30
+
+### Patch Changes
+
+- Updated dependencies [35923dd]
+- Updated dependencies [f1c1752]
+- Updated dependencies [f664b85]
+  - agent-inspect@6.31.30
+  - @agent-inspect/guardrails@6.31.30
+  - @agent-inspect/circuit@6.31.30
+
 ## 6.31.29
 
 ### Patch Changes

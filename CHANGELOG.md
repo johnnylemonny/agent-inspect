@@ -1,5 +1,13 @@
 # Changelog
 
+## 6.31.30
+
+### Patch Changes
+
+- 35923dd: Join sibling start/complete lifecycle rows in HTML/Markdown presentation and coalesce bundle HTML trees so completed steps are not shown as still running.
+- f1c1752: Nest tenant recipe now executes real SupportService/PolicyService seams and scores consumption from reopened saved outcomes (N01–N08), not in-memory joinOk.
+- f664b85: Om browser recipe records injected-clock wait/readiness diagnostics (document, in-flight, obstruction, elapsed/budget/remaining, stop reason) without inventing overlay from LocatorNotFound.
+
 ## 6.31.29
 
 ### Patch Changes

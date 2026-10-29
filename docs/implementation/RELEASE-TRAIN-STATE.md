@@ -5,8 +5,8 @@
 > **Canonical roadmap:** [ROADMAP.md](./ROADMAP.md)
 
 ```yaml
-baselineVersion: "6.31.29"
-publishedVersion: "6.31.29"
+baselineVersion: "6.31.30"
+publishedVersion: "6.31.30"
 pendingPublishVersion: "pending changesets nest + html-lifecycle + om-wait"
 currentTrain: "stability-after-63111"
 trainStatus: "6.31.29 published; Oct 29 chunks 03–12 executed; Version Packages pending; 6.32 blocked"
