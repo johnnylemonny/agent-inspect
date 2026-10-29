@@ -55,9 +55,10 @@ completedChunks:
   - "6.31.27 timeout-ledger saved-trace verifier (473c9188 → #511 → Publish)"
   - "6.31.28 starter tool-before-answer orderRelations (e65e9445 → #512 → Publish 40939596146)"
   - "6.31.29 recipe evidence integrity (dcd714dc → #514 → Publish 40943406555)"
-  - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08; pending publish)"
-  - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs (pending publish)"
-  - "chunk 05 Om wait/readiness diagnostics (pending publish)"
+  - "6.31.30 Oct 29 Nest/HTML/Om + evidence packets (#515 → Publish 40965172063)"
+  - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08)"
+  - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs"
+  - "chunk 05 Om wait/readiness diagnostics"
   - "chunk 06 timeout-ledger terminology"
   - "chunk 07 #494 packed-mcp-sdk reconcile note (do not merge #494)"
   - "chunk 08 Roy -003 OTLP identity packet"
@@ -66,7 +67,6 @@ completedChunks:
   - "chunk 11 #487 dependency decision — no safe slice"
   - "chunk 12A #491 audit — ready for maintainer closure review"
 queuedChunks:
-  - "Version Packages for pending recipe/HTML/Om changesets"
   - "W04/#484 partner acceptance of -003 packet"
   - "W05/#485 residual if any after Om diagnostics"
   - "W22 C10 Elastic / Collector Docker when credentials"
@@ -86,13 +86,14 @@ amendments:
   - "2026-10-25 6.31.27 published (Trusted Publish 40222772749)"
   - "2026-10-29 6.31.28 published (Trusted Publish 40939596146)"
   - "2026-10-29 6.31.29 published (Trusted Publish 40943406555)"
+  - "2026-10-29 6.31.30 published (Trusted Publish 40965172063)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.29
-  PENDING_PUBLISH: changesets from chunks 03–05
-  ACTIVE: Version Packages + residual partner acceptance
+  LAST_PUBLISHED_RELEASE: 6.31.30
+  PENDING_PUBLISH: none
+  ACTIVE: residual partner acceptance
   NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved

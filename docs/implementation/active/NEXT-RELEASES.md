@@ -1,9 +1,9 @@
 # Active execution plan — after 6.31.27
 
 **Authority:** [../ROADMAP.md](../ROADMAP.md)
-**Baseline:** **published** `agent-inspect@6.31.29` (all 18)
+**Baseline:** **published** `agent-inspect@6.31.30` (all 18)
 **Named train:** `stability-after-63111`
-**Program status:** recipe evidence integrity **published**; Nest consumption verifier **implemented** (pending publish); chunk 04+ residual partner packets next; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
+**Program status:** Oct 29 chunks 03–12 **executed**; **6.31.30 published**; residual partner acceptance; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
 
 ## Sequence
 
@@ -13,12 +13,11 @@
 4. **6.31.27** — timeout-ledger saved-trace verifier — **published**
 5. **6.31.28** — starter `steps.orderRelations` tool-before-answer — **published**
 6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — **published**
-7. **Chunk 03** — Nest SupportService consumption from saved evidence — **implemented** (pending Version Packages)
-8. **Chunk 04** — HTML lifecycle presentation join + CLI `steps.orderRelations` docs — **implemented** (pending Version Packages)
-9. **Chunk 05+** — Om readiness / #492 gaps / #494 / #484 / Indu v3 / Swapnil #437 — artifact-first
-10. **W22** — C10 Elastic / Collector Docker — credential/environment gated
-11. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
-12. **v7** — NO-GO
+7. **6.31.30** — Nest consumption; HTML lifecycle join; Om wait diagnostics (+ evidence/docs for 06–12) — **published**
+8. **Residual** — #484 partner acceptance of -003; #494 close with reconcile note; #491 maintainer closure; Swapnil #437 field decision; Indu v3 **blocked**
+9. **W22** — C10 Elastic / Collector Docker — credential/environment gated
+10. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
+11. **v7** — NO-GO
 
 ## Claim discipline
 
@@ -38,11 +37,12 @@
 ## External stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.29
-PENDING_PUBLISH: chunks 03–04 (Nest consumption; HTML lifecycle + CLI steps)
-ACTIVE: chunk 05 Om observed readiness/wait diagnostics
-NEXT: residual partner packets; no 6.32 without EVIDENCE_GATE
+LAST_PUBLISHED_RELEASE: 6.31.30
+PENDING_PUBLISH: none
+ACTIVE: residual partner acceptance
+NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded
 ```
+
