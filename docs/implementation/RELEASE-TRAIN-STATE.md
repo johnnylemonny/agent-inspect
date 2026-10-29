@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.29"
 publishedVersion: "6.31.29"
-pendingPublishVersion: "pending changesets nest-consumption + html-lifecycle"
+pendingPublishVersion: "pending changesets nest + html-lifecycle + om-wait"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.29 published; chunks 03–04 pending publish; 6.32 blocked"
+trainStatus: "6.31.29 published; Oct 29 chunks 03–12 executed; Version Packages pending; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "05 Om observed readiness/wait diagnostics — next"
-lastConfirmedCommit: "f1c17520"
-lastValidationLevel: "Nest N01–N08; html-exporter lifecycle join tests; typecheck"
-nextAction: "Chunk 05 Om readiness/wait diagnostics; hold Indu/Swapnil/João/email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "release — Version Packages for pending changesets"
+lastConfirmedCommit: "cb74e6b1"
+lastValidationLevel: "chunks 03–12 local; Indu v3 blocked; #494 do-not-merge"
+nextAction: "Merge Version Packages when CI green; hold Indu v3 / Swapnil approval / email; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -57,11 +57,18 @@ completedChunks:
   - "6.31.29 recipe evidence integrity (dcd714dc → #514 → Publish 40943406555)"
   - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08; pending publish)"
   - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs (pending publish)"
+  - "chunk 05 Om wait/readiness diagnostics (pending publish)"
+  - "chunk 06 timeout-ledger terminology"
+  - "chunk 07 #494 packed-mcp-sdk reconcile note (do not merge #494)"
+  - "chunk 08 Roy -003 OTLP identity packet"
+  - "chunk 09 PROPOSED #437 receipt contract (awaiting maintainer fields)"
+  - "chunk 10 Indu v3 BLOCKED — exact artifact missing"
+  - "chunk 11 #487 dependency decision — no safe slice"
+  - "chunk 12A #491 audit — ready for maintainer closure review"
 queuedChunks:
-  - "chunk 05 Om observed readiness/wait diagnostics"
-  - "W04/#484 residual partner packet"
-  - "W05/#485 browser observer controls"
-  - "W15/#491 valid-variable-path matrix"
+  - "Version Packages for pending recipe/HTML/Om changesets"
+  - "W04/#484 partner acceptance of -003 packet"
+  - "W05/#485 residual if any after Om diagnostics"
   - "W22 C10 Elastic / Collector Docker when credentials"
   - "6.32.0 external-evidence gate (BLOCKED)"
 blockedTrains:
@@ -84,9 +91,9 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.29
-  PENDING_PUBLISH: chunks 03–04 (Nest consumption; HTML lifecycle + CLI steps)
-  ACTIVE: chunk 05 Om observed readiness/wait diagnostics
-  NEXT: residual partner packets; no 6.32 without EVIDENCE_GATE
+  PENDING_PUBLISH: changesets from chunks 03–05
+  ACTIVE: Version Packages + residual partner acceptance
+  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
