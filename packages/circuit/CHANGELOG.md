@@ -1,5 +1,7 @@
 # @agent-inspect/circuit
 
+## 6.31.30
+
 ## 6.31.29
 
 ### Patch Changes
