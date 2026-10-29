@@ -1,9 +1,9 @@
 # Active execution plan — after 6.31.27
 
 **Authority:** [../ROADMAP.md](../ROADMAP.md)
-**Baseline:** **published** `agent-inspect@6.31.28` (all 18)
+**Baseline:** **published** `agent-inspect@6.31.29` (all 18)
 **Named train:** `stability-after-63111`
-**Program status:** **6.31.29** recipe evidence integrity pending Version Packages; residual partner packets / Nest consumption; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
+**Program status:** recipe evidence integrity **published**; Nest consumption + residual partner packets next; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
 
 ## Sequence
 
@@ -12,7 +12,7 @@
 3. **6.31.24**–**6.31.26** — MCP descriptions; strict stack redaction; MCP isError outcome — **published**
 4. **6.31.27** — timeout-ledger saved-trace verifier — **published**
 5. **6.31.28** — starter `steps.orderRelations` tool-before-answer — **published**
-6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — Version Packages → Trusted Publish
+6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — **published**
 7. **Chunk 03+** — Nest consumption from saved evidence; residual W04+ / #484 / #494 / Indu v3 / Swapnil #437 — artifact-first
 8. **W22** — C10 Elastic / Collector Docker — credential/environment gated
 9. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
@@ -36,10 +36,10 @@
 ## External stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.28
-PENDING_PUBLISH: 6.31.29
-ACTIVE: Version Packages → Trusted Publish for recipe evidence integrity
-NEXT: chunk 03 Nest consumption; residual partner packets; no 6.32 without EVIDENCE_GATE
+LAST_PUBLISHED_RELEASE: 6.31.29
+PENDING_PUBLISH: none
+ACTIVE: chunk 03 Nest consumption from saved evidence
+NEXT: residual partner packets; no 6.32 without EVIDENCE_GATE
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded
