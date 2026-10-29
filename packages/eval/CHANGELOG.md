@@ -1,5 +1,15 @@
 # @agent-inspect/eval
 
+## 6.31.28
+
+### Patch Changes
+
+- e65e944: Check the broken-agent starter with the typed tool-before-answer order relation, including a reversed path that fails only that relation.
+- Updated dependencies [e65e944]
+  - agent-inspect@6.31.28
+  - @agent-inspect/guardrails@6.31.28
+  - @agent-inspect/circuit@6.31.28
+
 ## 6.31.27
 
 ### Patch Changes
