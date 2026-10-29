@@ -1,12 +1,20 @@
 nestjs-tenant-incident:
-  note: real NestJS TestingModule; opaque tenant/operation refs; keyless
-  N01-good-tenant-a: expected=pass observed=pass
-  N02-wrong-tenant-bind: expected=fail observed=fail
-  N03-absent-capture: expected=fail observed=fail
-  N04-overlap-isolated: expected=pass observed=pass
-  N05-app-error-preserved: expected=pass observed=pass
+  note: real Nest SupportService/PolicyService path; verdicts from reopened saved evidence
+  N01-good-tenant-a: expected=pass observed=pass consumption=pass contract=pass
+    note: structural TraceContract is not a tenant-consumption oracle
+  N02-wrong-tenant-bind: expected=fail observed=fail consumption=fail contract=pass
+    note: structural TraceContract is not a tenant-consumption oracle
+  N03-absent-capture: expected=fail observed=fail consumption=fail contract=fail
+    note: structural TraceContract is not a tenant-consumption oracle
+  N03b-stale-result-ref: expected=fail observed=fail consumption=fail contract=pass
+    note: structural TraceContract is not a tenant-consumption oracle
+  N04-overlap-isolated: expected=pass observed=pass consumption=pass
+  N05-app-error-preserved: expected=pass observed=pass consumption=unknown contract=fail
+    note: structural TraceContract is not a tenant-consumption oracle
   N06-close-no-handles: expected=pass observed=pass
   N07-privacy-surfaces: expected=pass observed=pass profiles=local,share,strict
     note: SAFE is not a privacy certificate; checked local/share/strict JSONL projections
-classes: N01:pass,N02:fail,N03:fail,N04:pass,N05:pass,N06:pass,N07:pass
-claim: answer must consume policy for the requested tenant (opaque ref join)
+  N08-saved-relation-tamper: expected=pass observed=pass before=pass after=fail
+classes: N01:pass,N02:fail,N03:fail,N03b:fail,N04:pass,N05:pass,N06:pass,N07:pass,N08:pass
+claim: answer must consume Nest-retrieved policy for the requested tenant (saved evidence)
+note: structural TraceContract is not a tenant-consumption oracle; N02 can pass structure and still fail consumption

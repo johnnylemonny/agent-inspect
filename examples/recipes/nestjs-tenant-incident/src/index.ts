@@ -1,15 +1,22 @@
 /**
- * Uduak / W14 — NestJS paired incident with opaque capture refs (chunk 02).
- * Keyless stubs only. One supported claim: answer consumes requested-tenant policy.
- * Raw tenant names are not encoded in operation/tenant identifiers.
+ * Uduak / W14 — NestJS paired incident: real SupportService path + saved consumption.
+ * Declared tenant context, retrieval, and answer-boundary consumption are persisted
+ * separately; final verdicts reopen JSONL (verify-saved), not in-memory joinOk.
  */
 import "reflect-metadata";
 
-import { mkdirSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import {
+  copyFileSync,
+  mkdirSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from "node:fs";
 import path from "node:path";
 
 import { Test } from "@nestjs/testing";
-import { inspectRun, step } from "agent-inspect";
+import { inspectRun, observeOutcome, step } from "agent-inspect";
 import { resolveRedactionProfile } from "agent-inspect/advanced";
 import {
   defineTraceContract,
@@ -18,7 +25,13 @@ import {
 import { Redactor } from "agent-inspect/logs";
 import { openTraceFile } from "agent-inspect/readers";
 
-import { PolicyService, SupportModule, SupportService } from "./app.js";
+import {
+  policyCommitment,
+  SupportModule,
+  SupportService,
+  type AskResult,
+  type Policy,
+} from "./app.js";
 import {
   classifyOpaqueJoin,
   FORBIDDEN_SHARE_TOKENS,
@@ -27,15 +40,22 @@ import {
   TENANT_ALPHA,
   TENANT_BETA,
 } from "./refs.js";
+import { verifyConsumption, type ConsumptionClass } from "./verify-saved.js";
 
 const silent = process.env.AGENT_INSPECT_SILENT === "true";
 const baseDir = path.join(process.cwd(), ".agent-inspect-runs");
 
 type Class = "pass" | "fail";
-type CaseResult = { id: string; expected: Class; observed: Class };
+type CaseResult = {
+  id: string;
+  expected: Class;
+  observed: Class;
+  consumption?: ConsumptionClass;
+  contractStatus?: string;
+};
 const results: CaseResult[] = [];
 
-/** Completeness/order contract. Tenant join is a separate Nest-path oracle. */
+/** Completeness/order only — not a tenant-consumption oracle. */
 const contract = defineTraceContract({
   run: { requireCompleted: true, allowedStatuses: ["ok"] },
   tools: { required: ["retrieve_policy"] },
@@ -58,7 +78,6 @@ async function bootstrap() {
   return {
     moduleRef,
     support: moduleRef.get(SupportService),
-    policies: moduleRef.get(PolicyService),
     close: async () => {
       await moduleRef.close();
     },
@@ -73,15 +92,26 @@ async function captureAsk(
     skipTool?: boolean;
     skipLlm?: boolean;
     throwInApp?: boolean;
+    /** Force a resultRef at answer that does not match the declared one. */
+    staleResultRef?: string;
   },
-): Promise<{ tracePath: string; thrown?: Error; result?: unknown }> {
+): Promise<{
+  tracePath: string;
+  traceDir: string;
+  thrown?: Error;
+  result?: AskResult | { skipped: true } | { answer: string; requestedTenantRef: string; resultRef: string };
+}> {
   const traceDir = path.join(baseDir, id);
   rmSync(traceDir, { recursive: true, force: true });
   mkdirSync(traceDir, { recursive: true });
 
-  const { support, policies, close } = await bootstrap();
+  const { support, close } = await bootstrap();
   let thrown: Error | undefined;
-  let result: unknown;
+  let result:
+    | AskResult
+    | { skipped: true }
+    | { answer: string; requestedTenantRef: string; resultRef: string }
+    | undefined;
   const operationRef = nextOperationRef();
   const resultRef = nextResultRef();
 
@@ -93,16 +123,25 @@ async function captureAsk(
           throw new Error("fixture: nest application error");
         }
 
-        let policy:
-          | { policyId: string; tenantRef: string; text: string }
-          | undefined;
+        await observeOutcome("declared-tenant-context", {
+          expectation: "answer consumes policy for declared tenant ref",
+          status: "passed",
+          method: "custom",
+          evidence: {
+            requestedTenantRef: opts.requestedTenantRef,
+            resultRef,
+            operationId: operationRef,
+          },
+        });
+
+        let policy: Policy | undefined;
 
         if (!opts.skipTool) {
           policy = await step(
             "retrieve_policy",
             async () => {
               const lookup = opts.bindTenantRef ?? opts.requestedTenantRef;
-              return policies.retrieve(lookup);
+              return support.retrievePolicy(lookup);
             },
             {
               type: "tool",
@@ -119,8 +158,19 @@ async function captureAsk(
               },
             },
           );
-          // Exercise Nest DI resolve path for SupportService as well.
-          void support;
+
+          await observeOutcome("policy-retrieval", {
+            expectation: "Nest PolicyService returned a policy object",
+            status: "passed",
+            method: "custom",
+            evidence: {
+              policyId: policy.policyId,
+              policyTenantRef: policy.tenantRef,
+              policyCommitment: policyCommitment(policy),
+              resultRef,
+              operationId: operationRef,
+            },
+          });
         }
 
         if (!opts.skipLlm) {
@@ -134,19 +184,27 @@ async function captureAsk(
                   resultRef,
                 };
               }
-              const join = classifyOpaqueJoin({
-                requestedTenantRef: opts.requestedTenantRef,
-                policyTenantRef: policy.tenantRef,
+              const answerResultRef = opts.staleResultRef ?? resultRef;
+              const askResult = await support.answerWithPolicy(
+                opts.requestedTenantRef,
+                "refund window?",
+                policy,
+                answerResultRef,
+              );
+              await observeOutcome("policy-consumption", {
+                expectation: "answer assembly consumed the retrieved policy object",
+                status: "passed",
+                method: "custom",
+                evidence: {
+                  policyId: askResult.policyId,
+                  policyTenantRef: askResult.policyTenantRef,
+                  requestedTenantRef: askResult.requestedTenantRef,
+                  resultRef: askResult.resultRef,
+                  consumedPolicyCommitment: askResult.consumedPolicyCommitment,
+                  operationId: operationRef,
+                },
               });
-              return {
-                answer: `Q → ${policy.text}`,
-                policyId: policy.policyId,
-                policyTenantRef: policy.tenantRef,
-                requestedTenantRef: opts.requestedTenantRef,
-                resultRef,
-                join,
-                joinOk: join === "match",
-              };
+              return askResult;
             },
             {
               type: "llm",
@@ -154,7 +212,7 @@ async function captureAsk(
                 model: "stub-answer",
                 requestedTenantRef: opts.requestedTenantRef,
                 policyTenantRef: policy?.tenantRef,
-                resultRef,
+                resultRef: opts.staleResultRef ?? resultRef,
                 operationId: operationRef,
               },
             },
@@ -174,27 +232,10 @@ async function captureAsk(
   if (!files[0] && !opts.throwInApp) throw new Error(`no trace for ${id}`);
   return {
     tracePath: files[0] ? path.join(traceDir, files[0]) : "",
+    traceDir,
     thrown,
     result,
   };
-}
-
-function tenantJoinOk(result: unknown): boolean {
-  if (!result || typeof result !== "object") return false;
-  const r = result as {
-    joinOk?: boolean;
-    join?: string;
-    policyTenantRef?: string;
-    requestedTenantRef?: string;
-  };
-  if (r.join === "unknown") return false;
-  if (typeof r.joinOk === "boolean") return r.joinOk;
-  return (
-    classifyOpaqueJoin({
-      requestedTenantRef: r.requestedTenantRef,
-      policyTenantRef: r.policyTenantRef,
-    }) === "match"
-  );
 }
 
 function profileRedactor(profile: "local" | "share" | "strict"): Redactor | null {
@@ -219,68 +260,99 @@ function containsForbidden(text: string): string[] {
   return FORBIDDEN_SHARE_TOKENS.filter((token) => text.includes(token));
 }
 
+function consumptionToObserved(c: ConsumptionClass): Class {
+  return c === "pass" ? "pass" : "fail";
+}
+
 async function evalCase(
   id: string,
   expected: Class,
   opts: Parameters<typeof captureAsk>[1],
   classify: (input: {
     contractStatus: string;
-    result: unknown;
+    consumption: ReturnType<typeof verifyConsumption>;
     thrown?: Error;
   }) => Class,
 ) {
-  const { tracePath, thrown, result } = await captureAsk(id, opts);
+  const { tracePath, thrown } = await captureAsk(id, opts);
   let contractStatus = "fail";
   if (tracePath) {
     const read = await openTraceFile(tracePath);
     contractStatus = evaluateTraceContractRead(read, contract).status;
   }
-  const observed = classify({ contractStatus, result, thrown });
-  results.push({ id, expected, observed });
-  console.log(`  ${id}: expected=${expected} observed=${observed}`);
+  const consumption = verifyConsumption(tracePath || path.join(baseDir, id));
+  const observed = classify({ contractStatus, consumption, thrown });
+  results.push({
+    id,
+    expected,
+    observed,
+    consumption: consumption.class,
+    contractStatus,
+  });
+  console.log(
+    `  ${id}: expected=${expected} observed=${observed} consumption=${consumption.class} contract=${contractStatus}`,
+  );
+  console.log(`    note: ${consumption.contractNote}`);
 }
 
 console.log("nestjs-tenant-incident:");
-console.log("  note: real NestJS TestingModule; opaque tenant/operation refs; keyless");
+console.log(
+  "  note: real Nest SupportService/PolicyService path; verdicts from reopened saved evidence",
+);
 
 await evalCase(
   "N01-good-tenant-a",
   "pass",
   { requestedTenantRef: TENANT_ALPHA },
-  ({ contractStatus, result }) =>
-    contractStatus === "pass" && tenantJoinOk(result) ? "pass" : "fail",
+  ({ contractStatus, consumption }) =>
+    contractStatus === "pass" && consumption.class === "pass" ? "pass" : "fail",
 );
 
 await evalCase(
   "N02-wrong-tenant-bind",
   "fail",
   { requestedTenantRef: TENANT_ALPHA, bindTenantRef: TENANT_BETA },
-  ({ result }) => (tenantJoinOk(result) ? "pass" : "fail"),
+  ({ consumption }) => consumptionToObserved(consumption.class),
 );
 
 await evalCase(
   "N03-absent-capture",
   "fail",
   { requestedTenantRef: TENANT_ALPHA, skipTool: true },
-  ({ contractStatus }) => (contractStatus === "pass" ? "pass" : "fail"),
+  ({ consumption }) => consumptionToObserved(consumption.class),
+);
+
+await evalCase(
+  "N03b-stale-result-ref",
+  "fail",
+  {
+    requestedTenantRef: TENANT_ALPHA,
+    staleResultRef: "rref-future-stale",
+  },
+  ({ consumption }) => consumptionToObserved(consumption.class),
 );
 
 {
   const a = captureAsk("N04-overlap-a", { requestedTenantRef: TENANT_ALPHA });
   const b = captureAsk("N04-overlap-b", { requestedTenantRef: TENANT_BETA });
   const [ra, rb] = await Promise.all([a, b]);
+  const va = verifyConsumption(ra.tracePath);
+  const vb = verifyConsumption(rb.tracePath);
   const ok =
-    tenantJoinOk(ra.result) &&
-    tenantJoinOk(rb.result) &&
-    (ra.result as { policyTenantRef: string }).policyTenantRef === TENANT_ALPHA &&
-    (rb.result as { policyTenantRef: string }).policyTenantRef === TENANT_BETA;
+    va.class === "pass" &&
+    vb.class === "pass" &&
+    va.consumedTenantRef === TENANT_ALPHA &&
+    vb.consumedTenantRef === TENANT_BETA &&
+    va.declaredTenantRef === TENANT_ALPHA &&
+    vb.declaredTenantRef === TENANT_BETA;
   results.push({
     id: "N04-overlap-isolated",
     expected: "pass",
     observed: ok ? "pass" : "fail",
+    consumption: ok ? "pass" : "fail",
   });
   console.log(
-    `  N04-overlap-isolated: expected=pass observed=${ok ? "pass" : "fail"}`,
+    `  N04-overlap-isolated: expected=pass observed=${ok ? "pass" : "fail"} consumption=${ok ? "pass" : "fail"}`,
   );
 }
 
@@ -339,25 +411,17 @@ await evalCase(
   ];
   const noForbidden = forbiddenHits.length === 0;
 
-  const localJoinGood = classifyOpaqueJoin({
-    requestedTenantRef: (good.result as { requestedTenantRef?: string }).requestedTenantRef,
-    policyTenantRef: (good.result as { policyTenantRef?: string }).policyTenantRef,
-  });
-  const localJoinWrong = classifyOpaqueJoin({
-    requestedTenantRef: (wrong.result as { requestedTenantRef?: string }).requestedTenantRef,
-    policyTenantRef: (wrong.result as { policyTenantRef?: string }).policyTenantRef,
-  });
+  const goodV = verifyConsumption(good.tracePath);
+  const wrongV = verifyConsumption(wrong.tracePath);
   const distinguishableLocal =
-    localJoinGood === "match" && localJoinWrong === "mismatch";
+    goodV.class === "pass" && wrongV.class === "fail" && wrongV.join === "mismatch";
 
-  // If share collapses distinct tenantId keys to [REDACTED], that is unknown — not equality.
   const redactedPairJoin = classifyOpaqueJoin({
     requestedTenantRef: "[REDACTED]",
     policyTenantRef: "[REDACTED]",
   });
   const redactedNotEqualEvidence = redactedPairJoin === "unknown";
 
-  // operationId must be opaque (op-ref-*), not tenant-derived.
   const opaqueOps =
     /"operationId":"op-ref-\d+"/.test(localGood) &&
     /"operationId":"op-ref-\d+"/.test(localWrong) &&
@@ -389,17 +453,75 @@ await evalCase(
       distinguishableLocal,
       redactedNotEqualEvidence,
       opaqueOps,
-      localJoinGood,
-      localJoinWrong,
+      goodV,
+      wrongV,
     });
   }
 }
 
+// Tamper: change saved tenant/result relation; fresh-process verifier must fail.
+{
+  const good = await captureAsk("N08-tamper-source", {
+    requestedTenantRef: TENANT_ALPHA,
+  });
+  if (!good.tracePath) throw new Error("tamper source missing");
+  const before = verifyConsumption(good.tracePath);
+  if (before.class !== "pass") {
+    throw new Error(`tamper baseline not pass: ${before.detail}`);
+  }
+
+  const tamperDir = path.join(baseDir, "N08-tamper-copy");
+  rmSync(tamperDir, { recursive: true, force: true });
+  mkdirSync(tamperDir, { recursive: true });
+  const tamperFile = path.join(tamperDir, "tampered.jsonl");
+  copyFileSync(good.tracePath, tamperFile);
+
+  const raw = readFileSync(tamperFile, "utf8");
+  const lines = raw.split("\n").filter((l) => l.trim() !== "");
+  const rewritten = lines.map((line) => {
+    const row = JSON.parse(line) as {
+      event?: string;
+      name?: string;
+      evidence?: Record<string, unknown>;
+    };
+    if (row.event === "outcome_observed" && row.name === "policy-consumption" && row.evidence) {
+      row.evidence.policyTenantRef = TENANT_BETA;
+      row.evidence.consumedPolicyCommitment = policyCommitment({
+        policyId: "pol-beta",
+        tenantRef: TENANT_BETA,
+        text: "Refund window is 7 days.",
+      });
+    }
+    return JSON.stringify(row);
+  });
+  writeFileSync(tamperFile, `${rewritten.join("\n")}\n`);
+
+  const after = verifyConsumption(tamperFile);
+  const tamperOk = before.class === "pass" && after.class === "fail";
+  results.push({
+    id: "N08-saved-relation-tamper",
+    expected: "pass",
+    observed: tamperOk ? "pass" : "fail",
+    consumption: after.class,
+  });
+  console.log(
+    `  N08-saved-relation-tamper: expected=pass observed=${tamperOk ? "pass" : "fail"} before=${before.class} after=${after.class}`,
+  );
+}
+
 console.log(
-  `classes: ${results.map((r) => `${r.id.slice(0, 3)}:${r.observed}`).join(",")}`,
+  `classes: ${results
+    .map((r) => {
+      const tag = r.id.match(/^N\d+[a-z]?/)?.[0] ?? r.id.slice(0, 3);
+      return `${tag}:${r.observed}`;
+    })
+    .join(",")}`,
 );
 console.log(
-  "claim: answer must consume policy for the requested tenant (opaque ref join)",
+  "claim: answer must consume Nest-retrieved policy for the requested tenant (saved evidence)",
+);
+console.log(
+  "note: structural TraceContract is not a tenant-consumption oracle; N02 can pass structure and still fail consumption",
 );
 
 const mismatch = results.filter((r) => r.expected !== r.observed);
