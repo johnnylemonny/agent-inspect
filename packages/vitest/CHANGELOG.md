@@ -1,5 +1,12 @@
 # @agent-inspect/vitest
 
+## 6.31.32
+
+### Patch Changes
+
+- Updated dependencies [d9ab3e9]
+  - agent-inspect@6.31.32
+
 ## 6.31.31
 
 ### Patch Changes
