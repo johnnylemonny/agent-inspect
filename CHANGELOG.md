@@ -1,5 +1,11 @@
 # Changelog
 
+## 6.31.33
+
+### Patch Changes
+
+- b2adf03: Fail requiredOrder when a before tool starts but never finishes while after runs (#521). Escape mixed-script lookalike tool names in tool.usage findings and sort allowlist causes first (#522).
+
 ## 6.31.32
 
 ### Patch Changes
