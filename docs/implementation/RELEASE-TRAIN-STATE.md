@@ -9,14 +9,14 @@ baselineVersion: "6.31.33"
 publishedVersion: "6.31.33"
 pendingPublishVersion: ""
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.33 published; #521/#522 closed; 6.32 blocked"
+trainStatus: "6.31.33 published; shipped-recipe closures + docs sync; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-63133 partner acceptance"
-lastConfirmedCommit: "e3c2d198"
-lastValidationLevel: "Publish 41226295704 success; npm agent-inspect@6.31.33"
-nextAction: "Partner acceptance; hold Indu v3 / Swapnil fields / email; Jan Windows PENDING; no 6.32 without EVIDENCE_GATE"
+currentChunk: "residual closures + partner hold"
+lastConfirmedCommit: "b8fcc7d4"
+lastValidationLevel: "Publish 41226295704 success; npm agent-inspect@6.31.33; recipes verified locally"
+nextAction: "Partner acceptance #484/#494; hold Indu v3 / Swapnil #437 / email; Jan Windows PENDING; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -26,13 +26,13 @@ githubIssues:
   "209": "open — packed OS/Node matrix; keep open; 6.31.17 includes #473"
   "484": "open — W04; Prompt A + residuals shipped in 6.31.23; partner packet remains"
   "485": "open — W05 browser observer binding"
-  "486": "open — W06 paired captures; one-pass verifier shipped in 6.31.29"
+  "486": "closed — W06 one-pass verifier + recipe shipped in 6.31.29"
   "487": "open — W27 private Promptfoo deps"
-  "488": "open — W18 MCP SDK packed consumer; isError outcome in 6.31.26"
+  "488": "closed — satisfied by scripts/packed-mcp-sdk-e2e.mjs; do not merge #494"
   "494": "open — packed harness PR; canonical script is packed-mcp-sdk-e2e; do not merge a second harness"
   "489": "open — W28 effect-label fixture"
-  "491": "open — W15 valid variable paths"
-  "492": "open — W10 timeout-after-commit; saved-probe verifier shipped in 6.31.29"
+  "491": "closed — valid-variable-paths recipe verified + indexed"
+  "492": "closed — timeout-ledger recipe + saved probes shipped 6.31.27–6.31.29"
   "450": "open — W09 permission granted; partner Revera pending"
   "437": "open — W20A receipt/idempotency; later evidence train"
 canonicalRoadmap: "docs/implementation/ROADMAP.md"
@@ -99,8 +99,8 @@ worktreeIgnoreOnly:
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.33
   PENDING_PUBLISH: none
-  ACTIVE: residual partner acceptance
-  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision; Jan Windows PENDING
+  ACTIVE: residual partner acceptance (#484/#494/#437); Indu v3 blocked
+  NEXT: no 6.32 without EVIDENCE_GATE; Swapnil design awaiting decision; Jan Windows PENDING
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded

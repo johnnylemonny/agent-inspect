@@ -92,8 +92,10 @@ pointed at something real, per NETWORK-BEHAVIOR.md.
 | [runtime-and-ingestion](runtime-and-ingestion) | Ingest traces from any format | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-runtime-and-ingestion start` |
 | [shareable-bundle-basic](shareable-bundle-basic) | Build a shareable bundle | `agent-inspect` | No | No network | Supported <sup>Workspace / bundles / observed outcomes / Evidence v2</sup> | `pnpm --filter agent-inspect-recipe-shareable-bundle-basic start` |
 | [test-reporter-artifacts](test-reporter-artifacts) | Attach traces to test runs | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-test-reporter-artifacts start` |
+| [timeout-ledger-effects](timeout-ledger-effects) | Distinguish timeout-after-commit retries vs observed effects (#492) | `agent-inspect` | No | Synthetic fixtures only | Beta <sup>TraceContract API</sup> | `pnpm --filter agent-inspect-recipe-timeout-ledger-effects start` |
 | [tool-failure-retry](tool-failure-retry) | Understand tool retries | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-tool-failure-retry start` |
 | [trace-suite-basic](trace-suite-basic) | Run a trace suite | `agent-inspect` (CLI only) | No | No network | Beta <sup>Suites / cohorts / gates</sup> | `pnpm --filter agent-inspect-recipe-trace-suite-basic start` |
+| [valid-variable-paths](valid-variable-paths) | One TraceContract with legitimate path variation (#491) | `agent-inspect` | No | Synthetic fixtures only | Beta <sup>TraceContract API</sup> | `pnpm --filter agent-inspect-recipe-valid-variable-paths start` |
 | [what-report-inspect](what-report-inspect) | Inspect a failed run | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-what-report-inspect start` |
 | [winston-json-logs](winston-json-logs) | Turn existing logs into a tree | `agent-inspect` | No | No network | Stable | `pnpm --filter agent-inspect-recipe-winston-json-logs start` |
 | [workspace-basic](workspace-basic) | Organise runs in a workspace | `agent-inspect` | No | No network | Supported <sup>Workspace / bundles / observed outcomes / Evidence v2</sup> | `pnpm --filter agent-inspect-recipe-workspace-basic start` |
@@ -110,6 +112,8 @@ each package README's `**Support level:**` line, except where a recipe uses a fe
 | [rag-pipeline](rag-pipeline) | Mock RAG-style pipeline | `inspectRun`, `step`, `step.tool`, `step.llm`, `traceDir` | yes | no |
 | [bounded-read-recovery](bounded-read-recovery) | Read-only retrieve_policy recovery oracle | TraceContract `retry.operations[]` (6.27) | yes | no |
 | [tool-failure-retry](tool-failure-retry) | Flaky tool → retry succeeds | `step.tool`, error then success in trace | yes | no |
+| [timeout-ledger-effects](timeout-ledger-effects) | Timeout-after-commit ledger + saved probes (#492) | TraceContract, effect/claim/join probes | yes | no |
+| [valid-variable-paths](valid-variable-paths) | Two valid paths + negatives under one contract (#491) | TraceContract, `orderRelations`, `retry.operations` | yes | no |
 | [multi-agent-handoff](multi-agent-handoff) | Coordinator + specialist steps | Nested steps, `metadata` for handoff | yes | no |
 | [promptfoo-use-together](promptfoo-use-together) | Local Promptfoo + TraceContract pattern | `defineTraceContract`, `alternatives.anyOf` | yes | no |
 | [sensitive-read-outbound-write-anyof](sensitive-read-outbound-write-anyof) | Sensitive-read vs outbound-write branches | `alternatives.anyOf`, `retry.operations` | yes | no |

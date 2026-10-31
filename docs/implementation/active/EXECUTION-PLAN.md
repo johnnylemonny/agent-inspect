@@ -1,13 +1,13 @@
-# Active execution plan — post-6.31.31
+# Active execution plan — post-6.31.33
 
 **Train:** `stability-after-63111`
 **Authority:** [../ROADMAP.md](../ROADMAP.md) · [NEXT-RELEASES.md](./NEXT-RELEASES.md)
-**Baseline:** published `agent-inspect@6.31.31` (all 18) · **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE** · **V7_DECISION: NO-GO**
+**Baseline:** published `agent-inspect@6.31.33` (all 18) · **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE** · **V7_DECISION: NO-GO**
 
 ## Scope
 
-1. Partner acceptance follow-through (#484 path-scrubbed `-003`, #494 Windows rerun **PENDING**, #491 closure, #437 fields) without fabricating results
-2. Skip empty **6.31.32+** unless a public defect reproduces
+1. Partner acceptance follow-through (#484 path-scrubbed `-003`, #494 Windows rerun **PENDING**, #437 fields) without fabricating results
+2. Skip empty **6.31.34+** unless a public defect reproduces
 3. Conditional **6.32.0** only with approved [EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md)
 4. v7 assessment only — no implementation
 
@@ -20,6 +20,7 @@
 - Implementing v7
 - Blast email sends (artifact-first drafts only when authorized)
 - Blindly merging docs PRs that stop at an older baseline (e.g. #505 → 6.31.23)
+- Merging #494 as a second packed MCP harness (canonical: `scripts/packed-mcp-sdk-e2e.mjs`)
 
 ## Chunks
 
