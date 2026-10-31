@@ -683,10 +683,20 @@ function contractToRules(contract: TraceContractBody): TraceCheckRule[] {
             (event) => event.status === "running",
           );
           if (running.length > 0) {
+            const labels = running.map((event) => {
+              if (event.kind === "TOOL") {
+                return `tool ${resolveCanonicalToolName(event)}`;
+              }
+              return `${event.kind} ${event.name}`;
+            });
+            const message =
+              labels.length === 1
+                ? `Run contains incomplete running events: ${labels[0]} never completed.`
+                : `Run contains incomplete running events: ${labels.join("; ")}.`;
             findings.push(
               contractFailFinding(
                 "contract.run.allowedStatuses",
-                "Run contains incomplete running events.",
+                message,
                 running.map((event) => ({
                   runId: event.runId,
                   eventId: event.eventId,
@@ -695,7 +705,10 @@ function contractToRules(contract: TraceContractBody): TraceCheckRule[] {
                   status: event.status,
                 })),
                 "no running events",
-                running.length,
+                {
+                  count: running.length,
+                  unfinished: labels,
+                },
               ),
             );
           }

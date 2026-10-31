@@ -729,6 +729,80 @@ describe("built-in run, tool, and LLM checks", () => {
     }
   });
 
+  it("fails order when before is still running and after finished (#521)", () => {
+    const runningLookup = persisted("running-lookup", {
+      kind: "TOOL",
+      name: "tool:lookup_order",
+      status: "running",
+      attributes: { toolName: "lookup_order" },
+      timestamp: "2026-06-26T00:00:00.000Z",
+      startedAt: "2026-06-26T00:00:00.000Z",
+    });
+    const refund = persisted("finished-refund", {
+      kind: "TOOL",
+      name: "tool:issue_refund",
+      attributes: { toolName: "issue_refund" },
+      timestamp: "2026-06-26T00:00:01.000Z",
+      startedAt: "2026-06-26T00:00:01.000Z",
+      endedAt: "2026-06-26T00:00:02.000Z",
+    });
+
+    for (const mode of ["first-occurrence", "happens-before", "all-occurrences"] as const) {
+      const result = runTraceChecks(
+        { read: readResult([runningLookup, refund]) },
+        {
+          rules: [
+            createToolOrderingRule({ before: "lookup_order", after: "issue_refund", mode }),
+            createRunStatusRule(),
+          ],
+        },
+      );
+      expect(result.status).toBe("fail");
+      expect(result.findings).toEqual(
+        expect.arrayContaining([
+          expect.objectContaining({
+            ruleId: "tool.order",
+            message: expect.stringContaining("never finished"),
+            actual: expect.objectContaining({
+              code: "tool.order.interval-unresolved",
+              unfinishedBefore: true,
+            }),
+          }),
+          expect.objectContaining({
+            ruleId: "run.status",
+            message: expect.stringContaining("lookup_order"),
+          }),
+        ]),
+      );
+    }
+  });
+
+  it("escapes mixed-script tool names in allowlist findings (#522)", () => {
+    const lookalike = "issue_r\u0435fund";
+    const shadow = persisted("shadow-refund", {
+      kind: "TOOL",
+      name: `tool:${lookalike}`,
+      attributes: { toolName: lookalike },
+    });
+    const result = runTraceChecks(
+      { read: readResult([shadow]) },
+      {
+        rules: [
+          createToolUsageRule({
+            allowed: ["lookup_order", "issue_refund"],
+            required: ["issue_refund"],
+          }),
+        ],
+      },
+    );
+    expect(result.status).toBe("fail");
+    expect(result.findings[0]?.message).toContain("U+0435 at index 7");
+    expect(result.findings[0]?.message).toContain("not in the allowed tool set");
+    expect(result.findings.map((finding) => finding.message).join("\n")).toContain(
+      "Required tool issue_refund did not appear",
+    );
+  });
+
   it("reports required, forbidden, allowed, ordered, failed, and retried tool violations", () => {
     const forbidden = persisted("event-a", {
       kind: "TOOL",

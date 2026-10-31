@@ -1010,6 +1010,13 @@ function compareFindings(
     if (STATUS_RANK[a.status] !== STATUS_RANK[b.status]) {
       return STATUS_RANK[a.status] - STATUS_RANK[b.status];
     }
+    // For tool.usage, prefer event-backed allowlist/denylist findings over
+    // run-only "required missing" so the cause sorts first (#522).
+    if (a.ruleId === "tool.usage") {
+      const aHasEvent = a.evidence[0]?.eventId !== undefined;
+      const bHasEvent = b.evidence[0]?.eventId !== undefined;
+      if (aHasEvent !== bHasEvent) return aHasEvent ? -1 : 1;
+    }
     const byRun = compareStrings(a.evidence[0]?.runId, b.evidence[0]?.runId);
     if (byRun !== 0) return byRun;
     const byTime = eventTimestamp(a, eventById).localeCompare(eventTimestamp(b, eventById));
@@ -1181,6 +1188,44 @@ function failFinding(
 
 function toolName(event: PersistedInspectEvent): string {
   return resolveCanonicalToolName(event);
+}
+
+/** Escape non-ASCII code points in tool names so mixed-script lookalikes are visible (#522). */
+function formatToolNameForMessage(name: string): string {
+  const details: string[] = [];
+  for (let index = 0; index < name.length; ) {
+    const codePoint = name.codePointAt(index)!;
+    const width = codePoint > 0xffff ? 2 : 1;
+    if (codePoint > 0x7f) {
+      details.push(
+        `U+${codePoint.toString(16).toUpperCase().padStart(4, "0")} at index ${index}`,
+      );
+    }
+    index += width;
+  }
+  if (details.length === 0) return name;
+  return `"${name}" (contains ${details.join("; ")})`;
+}
+
+function describeRunningEvent(event: PersistedInspectEvent): string {
+  if (event.kind === "TOOL") {
+    return `tool ${formatToolNameForMessage(resolveCanonicalToolName(event))}`;
+  }
+  if (event.kind === "LLM") {
+    return `llm ${stepEndpointName(event, "LLM")}`;
+  }
+  return `${event.kind} ${event.name}`;
+}
+
+function incompleteRunningMessage(
+  prefix: string,
+  running: readonly PersistedInspectEvent[],
+): string {
+  const labels = running.map(describeRunningEvent);
+  if (labels.length === 1) {
+    return `${prefix}: ${labels[0]} never completed.`;
+  }
+  return `${prefix}: ${labels.join("; ")}.`;
 }
 
 /**
@@ -1713,10 +1758,13 @@ export function createRunStatusRule(options: RunStatusRuleOptions = {}): TraceCh
           findings.push(
             failFinding(
               "run.status",
-              "Run contains incomplete running events.",
+              incompleteRunningMessage("Run contains incomplete running events", running),
               running.map((event) => eventEvidence(event)),
               "no running events",
-              running.length,
+              {
+                count: running.length,
+                unfinished: running.map(describeRunningEvent),
+              },
             ),
           );
         }
@@ -1965,6 +2013,38 @@ export function createToolUsageRule(options: ToolUsageRuleOptions): TraceCheckRu
       const nameSet = new Set(names);
       const findings: TraceCheckFinding[] = [];
 
+      const forbidden = new Set(options.forbidden ?? []);
+      // Empty allowlist means "no restriction", not "reject everything".
+      const allowed = options.allowed?.length ? new Set(options.allowed) : undefined;
+      // Emit allowlist/denylist findings first so the cause precedes secondary
+      // missing-required / argument failures when names look identical (#522).
+      for (const event of tools) {
+        const name = toolName(event);
+        const display = formatToolNameForMessage(name);
+        if (forbidden.has(name)) {
+          findings.push(
+            failFinding(
+              "tool.usage",
+              `Forbidden tool ${display} appeared.`,
+              [eventEvidence(event)],
+              "tool absent",
+              name,
+            ),
+          );
+        }
+        if (allowed && !allowed.has(name)) {
+          findings.push(
+            failFinding(
+              "tool.usage",
+              `Tool ${display} is not in the allowed tool set.`,
+              [eventEvidence(event)],
+              [...allowed].sort(),
+              name,
+            ),
+          );
+        }
+      }
+
       for (const required of options.required ?? []) {
         if (!nameSet.has(required)) {
           const otherKinds = [
@@ -1992,28 +2072,11 @@ export function createToolUsageRule(options: ToolUsageRuleOptions): TraceCheckRu
           findings.push(
             failFinding(
               "tool.usage",
-              `Required tool ${required} did not appear.${hint}`,
+              `Required tool ${formatToolNameForMessage(required)} did not appear.${hint}`,
               runEvidence(context.selectedRun),
               required,
               names,
             ),
-          );
-        }
-      }
-
-      const forbidden = new Set(options.forbidden ?? []);
-      // Empty allowlist means "no restriction", not "reject everything".
-      const allowed = options.allowed?.length ? new Set(options.allowed) : undefined;
-      for (const event of tools) {
-        const name = toolName(event);
-        if (forbidden.has(name)) {
-          findings.push(
-            failFinding("tool.usage", `Forbidden tool ${name} appeared.`, [eventEvidence(event)], "tool absent", name),
-          );
-        }
-        if (allowed && !allowed.has(name)) {
-          findings.push(
-            failFinding("tool.usage", `Tool ${name} is not in the allowed tool set.`, [eventEvidence(event)], [...allowed].sort(), name),
           );
         }
       }
@@ -2066,6 +2129,38 @@ export function createStepOrderingRule(options: StepOrderingRuleOptions): TraceC
       const afterEvents = finishedEvents(context, options.after.kind).filter(
         (event) => stepEndpointName(event, options.after.kind) === options.after.name,
       );
+      const beforeRunning = semanticEvents(context).filter(
+        (event) =>
+          event.kind === options.before.kind &&
+          event.status === "running" &&
+          stepEndpointName(event, options.before.kind) === options.before.name,
+      );
+
+      // Started-but-never-finished before + finished after: unfinished interval,
+      // not a missing endpoint (presence still counts the running invocation) (#521).
+      if (beforeEvents.length === 0 && afterEvents.length > 0 && beforeRunning.length > 0) {
+        const endpointExpected = bothTools
+          ? { before: options.before.name, after: options.after.name }
+          : { before: options.before, after: options.after };
+        return [
+          failFinding(
+            ruleId,
+            `${subject} ${beforeLabel} started but never finished before ${afterLabel} ran.`,
+            [
+              ...beforeRunning.map((event) => eventEvidence(event)),
+              eventEvidence(afterEvents[0]!),
+            ],
+            { ...endpointExpected, mode },
+            {
+              code: bothTools
+                ? "tool.order.interval-unresolved"
+                : "step.order.interval-unresolved",
+              unfinishedBefore: true,
+              beforeStatus: "running",
+            },
+          ),
+        ];
+      }
 
       if (beforeEvents.length === 0 || afterEvents.length === 0) {
         if (!requireEndpoints) return [];
@@ -2556,10 +2651,13 @@ export function createStructureIncompleteRule(
           findings.push(
             failFinding(
               "structure.incomplete",
-              "Trace contains incomplete running events.",
+              incompleteRunningMessage("Trace contains incomplete running events", running),
               running.map((event) => eventEvidence(event, "status")),
               "no running events",
-              running.length,
+              {
+                count: running.length,
+                unfinished: running.map(describeRunningEvent),
+              },
             ),
           );
         }

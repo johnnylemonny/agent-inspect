@@ -45,6 +45,7 @@ Contracts compile to deterministic check rules for common cases:
 - `all-occurrences` requires every `before` occurrence to finish before every `after` occurrence starts (`max(before.end) <= min(after.start)`);
 - causal modes fail when a required interval boundary cannot be resolved instead of falling back to encounter order.
 - when the boundary timestamps tie at millisecond resolution (for example scripted or mocked tools that start and finish inside one millisecond), causal modes decide by recorded event order: the before event must have been recorded as finished before the after event was recorded as started. Such findings carry `resolvedBy: "recorded-order"`.
+- a `before` tool that starts but never finishes (`status: "running"`) while a later `after` tool finishes fails the order rule in every mode with `tool.order.interval-unresolved` (unfinished before), naming the abandoned tool — not only the generic incomplete-running `run.status` finding.
 
 Examples for `requiredOrder: ["retrieve_policy", "send_email"]` (both TOOL-typed):
 
@@ -120,6 +121,7 @@ The evaluator expands each list into adjacent pairs and applies one `requiredOrd
 - `requiredOrderMode: "all-occurrences"` requires every before to end before every after starts; any cross-boundary overlap or later before fails.
 - Missing interval boundaries fail closed in the two causal modes.
 - Millisecond timestamp ties are decided by recorded event order in the two causal modes.
+- A started-but-never-finished `before` tool (running, no completion) fails order in every mode when `after` has finished, with `tool.order.interval-unresolved`.
 
 ### `alternatives.anyOf` (shipped)
 

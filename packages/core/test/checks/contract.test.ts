@@ -354,6 +354,77 @@ describe("trace contract", () => {
       }
     });
 
+    it("fails requiredOrder when before starts but never finishes (#521)", () => {
+      const abandonedLookup = persisted("lookup-running", {
+        kind: "TOOL",
+        name: "tool:lookup_order",
+        status: "running",
+        attributes: { toolName: "lookup_order" },
+        timestamp: "2026-07-11T00:00:00.000Z",
+        startedAt: "2026-07-11T00:00:00.000Z",
+      });
+      const refund = tool(
+        "refund-1",
+        "issue_refund",
+        "2026-07-11T00:00:01.000Z",
+        "2026-07-11T00:00:02.000Z",
+      );
+
+      for (const mode of [
+        "first-occurrence",
+        "happens-before",
+        "all-occurrences",
+      ] as const) {
+        const result = evaluateTraceContract(
+          { read: readResult("ok", [abandonedLookup, refund]) },
+          defineTraceContract({
+            tools: {
+              requiredOrder: ["lookup_order", "issue_refund"],
+              requiredOrderMode: mode,
+            },
+          }),
+        );
+        expect(result.status).toBe("fail");
+        const order = failFindings(result).find(
+          (finding) => finding.ruleId === "contract.tool.order.0",
+        );
+        expect(order?.message).toContain("lookup_order");
+        expect(order?.message).toContain("never finished");
+        expect(order?.message).toContain("issue_refund");
+        expect(order?.actual).toMatchObject({
+          code: "tool.order.interval-unresolved",
+          unfinishedBefore: true,
+        });
+        const runStatus = failFindings(result).find((finding) => finding.ruleId === "run.status");
+        expect(runStatus?.message).toContain("lookup_order");
+      }
+    });
+
+    it("surfaces mixed-script lookalike tool names in allowlist findings (#522)", () => {
+      // Cyrillic small ie (U+0435) in place of Latin e.
+      const lookalike = "issue_r\u0435fund";
+      const read = readResult("ok", [
+        tool("lookup-1", "lookup_order", "2026-07-11T00:00:00.000Z", "2026-07-11T00:00:01.000Z"),
+        tool("shadow-1", lookalike, "2026-07-11T00:00:02.000Z", "2026-07-11T00:00:03.000Z"),
+      ]);
+      const result = evaluateTraceContract(
+        { read },
+        defineTraceContract({
+          tools: {
+            allowed: ["lookup_order", "issue_refund"],
+            requiredOrder: ["lookup_order", "issue_refund"],
+          },
+        }),
+      );
+      expect(result.status).toBe("fail");
+      const usage = failFindings(result).filter((finding) => finding.ruleId === "tool.usage");
+      expect(usage[0]?.message).toContain("U+0435 at index 7");
+      expect(usage[0]?.message).toContain("not in the allowed tool set");
+      expect(usage.map((finding) => finding.message).join("\n")).toContain(
+        "Required tool issue_refund did not appear",
+      );
+    });
+
     it("does not let causal modes pass a reversed v0.1 trace whose steps share one millisecond", async () => {
       // Instant manual tool steps (scripted or mocked tools in CI) write every row
       // with the same millisecond timestamp; only row order records what happened.
