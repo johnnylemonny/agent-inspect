@@ -30,3 +30,18 @@ Full detail: [mapping-and-loss-table.json](mapping-and-loss-table.json).
 - **Git SHA:** `cb74e6b1d6d749fc6fcc01d00e4a18bca7d494e5`
 - **Date:** 2026-10-29
 - Re-running on another Node/OS may change nanoid `runId` values and trace timestamps; contract statuses and rule IDs should remain stable if core behavior is unchanged.
+
+## Shareable path sanitization (2026-10-30)
+
+This directory is the **shareable** `-003` derivative. Absolute capture-host workspace roots in error stacks were replaced with the token `<repo>` in:
+
+- `O02-roy-three-attempts.source.jsonl`
+- `traces/O02-roy-three-attempts/run_fFpT56jY9c.jsonl`
+
+Identity fields (`runId`, `stepId`, `attemptId`, `operationId`, contract results, OTLP attributes) were not altered. Manifest SHA-256 / byte sizes were regenerated after scrubbing (`manifest.pathSanitization`). Verify with:
+
+```bash
+node scripts/check-otlp-identity-003-shareable.mjs
+```
+
+Prior `-002` / October 22 historical observations remain frozen and are not rewritten by this scrub.

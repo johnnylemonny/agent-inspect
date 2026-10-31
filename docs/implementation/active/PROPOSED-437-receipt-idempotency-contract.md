@@ -167,8 +167,9 @@ Controls the **next agreed fixture** must exercise (synthetic labels only):
 | 2 | **Same key, distinct operations, same scope** — two `operationId`s share one `idempotencyKey` | `key_reuse_across_operations` (same scope) |
 | 3 | **Same key, different scopes** | No automatic misuse; both may `join_matched` under respective scopes |
 | 4 | **Absent / mismatched join** — key or secondary join dimension wrong | `join_absent` or `join_unmatched` |
-| 5 | **Duplicate / conflicting receipts** — duplicate `receiptId` or same key+scope incompatible `status`/digest | `duplicate_receipt` / `conflicting_receipt_status` / `conflicting_receipt_digest` |
+| 5 | **Duplicate / conflicting receipts** — duplicate `receiptId` or same key+scope incompatible `status`/digest | `duplicate_receipt` / `conflicting_receipt_status` / `conflicting_receipt_digest` → metering attribution **UNPROVABLE** (both deliveries retained; no guessed billable winner). Synthetic: [`docs/evidence/roy-437-unprovable-2026-10-30/A-duplicate-receipt-delivery.json`](../../evidence/roy-437-unprovable-2026-10-30/A-duplicate-receipt-delivery.json) |
 | 6 | **Missing scope** | `scope_unknown` / unverifiable; must not default to global match |
+| 7 | **Missing attempt identity** — operation-grain attribution requested without `attemptId` | Attribution **UNPROVABLE** (do not invent `attemptId`). Complete-identity control stays attributable. Synthetic: [`docs/evidence/roy-437-unprovable-2026-10-30/B-missing-attempt-identity.json`](../../evidence/roy-437-unprovable-2026-10-30/B-missing-attempt-identity.json) |
 
 ---
 

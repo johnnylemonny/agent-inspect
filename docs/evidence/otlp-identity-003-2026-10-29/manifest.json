@@ -86,13 +86,13 @@
     },
     {
       "path": "INDEX.md",
-      "bytes": 2824,
-      "sha256": "657673d6e550009e44c08f2559f4d5d91fd6c9e03826cc573824ccab2031b663"
+      "bytes": 2994,
+      "sha256": "f55f091c0d918072c88982b3ebf3ac377ad72f81ddc946d5027c8bcd378d3f70"
     },
     {
       "path": "LIMITS.md",
-      "bytes": 2213,
-      "sha256": "1f778e047ddbf78f84d1740e3f0973dcfb30826c933db37854ae022458802440"
+      "bytes": 2897,
+      "sha256": "0e30cf7f4705cec9d77a2d8effcb525437ff0ac6ed9ee050355f1ac633880e55"
     },
     {
       "path": "MAPPING-NOTES.md",
@@ -126,8 +126,8 @@
     },
     {
       "path": "O02-roy-three-attempts.source.jsonl",
-      "bytes": 3672,
-      "sha256": "4e57c745ed94dea9fda292a89443f4fa9e7863e1f21146542216d117f19fd623"
+      "bytes": 3304,
+      "sha256": "1225ebf0cdac87239a9d68b7e91c67b70fc30a4f9c0d4e62d6fe239fd978c1b0"
     },
     {
       "path": "O03-two-ops-four-attempts.contract-results.json",
@@ -241,8 +241,8 @@
     },
     {
       "path": "traces/O02-roy-three-attempts/run_fFpT56jY9c.jsonl",
-      "bytes": 3672,
-      "sha256": "4e57c745ed94dea9fda292a89443f4fa9e7863e1f21146542216d117f19fd623"
+      "bytes": 3304,
+      "sha256": "1225ebf0cdac87239a9d68b7e91c67b70fc30a4f9c0d4e62d6fe239fd978c1b0"
     },
     {
       "path": "traces/O03-two-ops-four-attempts/run_U0WeCSZrwN.jsonl",
@@ -274,5 +274,14 @@
       "bytes": 1319,
       "sha256": "4b5e863336b725983d8d38152b000e9c88922011e11ed8f30a3dbf5df2a182f1"
     }
-  ]
+  ],
+  "pathSanitization": {
+    "appliedAt": "2026-10-30",
+    "rule": "Replace absolute capture-host workspace roots in shareable JSONL error stacks with the token <repo>",
+    "filesTouched": [
+      "O02-roy-three-attempts.source.jsonl",
+      "traces/O02-roy-three-attempts/run_fFpT56jY9c.jsonl"
+    ],
+    "note": "Identity fields (runId/stepId/attemptId/operationId) unchanged; original capture SHA preserved in sourceGitSha; this is a shareable derivative scrub of stack strings only."
+  }
 }

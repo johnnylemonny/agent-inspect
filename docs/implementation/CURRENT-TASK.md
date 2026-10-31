@@ -4,12 +4,12 @@
 executionMode: maintainer-reviewed
 namedTrain: stability-after-63111
 currentTrain: stability-after-63111
-trainStatus: "6.31.30 published; Oct 29 chunks 03–12 executed; 6.32 blocked"
-currentChunk: "residual partner acceptance — hold Indu v3 / Swapnil fields / email"
-nextAction: "Partner acceptance for #484/#491/#494 close recommendations; hold Indu v3 artifact; no 6.32 without EVIDENCE_GATE"
+trainStatus: "6.31.30 published; Oct 30 residual queue (R1–R6/N1–N2) implemented locally; release pending maintainer"
+currentChunk: "oct-30-residuals — R1–R6 + N1 + N2 complete in worktree; email gated"
+nextAction: "Maintainer review/commit; optional patch release; partner emails only when asked; no 6.32 without EVIDENCE_GATE"
 canonicalRoadmap: docs/implementation/ROADMAP.md
 activePlan: docs/implementation/active/NEXT-RELEASES.md
-pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; Indu v3 artifact missing; C10 Elastic --live; Collector Docker"
+pendingManualGate: "EVIDENCE_GATE not approved — blocks 6.32.0; Indu v3 artifact missing; C10 Elastic --live; Collector Docker; Jan Windows PENDING"
 worktreeIgnoreOnly:
   - .redstamp/
   - redstamp-proposal-issue-body.md
@@ -21,33 +21,23 @@ worktreeIgnoreOnly:
 
 **6.31.30** — Trusted Publish [40965172063](https://github.com/rajudandigam/agent-inspect/actions/runs/40965172063); Version Packages [#515](https://github.com/rajudandigam/agent-inspect/pull/515). npm `agent-inspect@6.31.30` (registry confirmed).
 
-## Oct 29 prompt queue
+## Oct 30 residual queue
 
 | Chunk | Status | Proof |
 | --- | --- | --- |
-| 03 Nest consumption | **published** | N01–N08 |
-| 04 HTML lifecycle + CLI steps | **published** | html-exporter tests; CLI.md |
-| 05 Om wait diagnostics | **published** | om-wait-diagnostics |
-| 06 Timeout-ledger terminology | **published** | windowCheck/handlerMarkers |
-| 07 #494 reconcile | **docs** | do not merge #494 |
-| 08 Roy -003 packet | **docs** | `docs/evidence/otlp-identity-003-2026-10-29/` |
-| 09 Swapnil receipt design | **proposed** | awaiting maintainer fields |
-| 10 Indu v3 | **blocked** | exact artifact missing |
-| 11 #487 deps | **decision** | no safe slice this turn |
-| 12A #491 audit | **ready for maintainer** | closure recommendation prepared |
+| R5 Roy path scrub | **local** | `check-otlp-identity-003-shareable.mjs` |
+| N1 Jan packed SDK | **local** | `packed-mcp-sdk-e2e.mjs` M01b/M01c |
+| R1 Gary reject | **local** | comparable-cohort tampers |
+| R2 Nest exact join | **local** | N09a–N09f |
+| R3 HTML attempts | **local** | presentation-lifecycle + html-exporter tests |
+| R4 Om budget | **local** | ready-after-budget scenario |
+| N2 Roy UNPROVABLE | **local** | `roy-437-unprovable-2026-10-30` + check script |
+| R6 docs | **local** | ROADMAP/status/Windows PENDING |
+| Email | **gated** | no send unless asked |
 
 ## Honesty
 
-Partner issues stay open until acceptance. No email. No 6.32 without EVIDENCE_GATE. v7 NO-GO.
-
-## Stop marker
-
-```text
-LAST_PUBLISHED_RELEASE: 6.31.30
-PENDING_PUBLISH: none
-ACTIVE: residual partner acceptance
-NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
-V7_DECISION: NO-GO
-EVIDENCE_GATE: not approved
-ADOPTION_FREEZE: excluded
-```
+- Partner issues stay open for acceptance.
+- Windows matrix for packed MCP SDK remains **NOT RUN / PENDING**.
+- #496 / #506 stay red; do not merge.
+- Indu v3 / Swapnil fields / EVIDENCE_GATE / v7 unchanged.

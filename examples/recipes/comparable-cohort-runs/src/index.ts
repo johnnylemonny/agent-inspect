@@ -391,7 +391,7 @@ function tamperCopy(
 const g01 = stageTable.find((r) => r.pair === "G01-matching-stages");
 if (!g01?.left || !g01.right) throw new Error("missing G01 for tamper");
 
-const tampers = [
+const tampers: Array<{ id: string; ok: boolean; detail: string }> = [
   tamperCopy("left-tool-bytes", (table) => {
     const row = table.find((r) => r.pair === "G01-matching-stages")!;
     row.left.toolOutputBytes = `${row.left.toolOutputBytes}-tamper`;
@@ -421,7 +421,106 @@ const tampers = [
     row.right = null;
     row.class = "equivalent_stage_inputs";
   }),
+  tamperCopy("missing-trace-ref", (table) => {
+    const row = table.find((r) => r.pair === "G01-matching-stages")!;
+    delete row.left.traceDir;
+  }),
+  tamperCopy("execution-link", (table) => {
+    const row = table.find((r) => r.pair === "G01-matching-stages")!;
+    row.left.executionId = "exec_foreign_tampered";
+  }),
+  tamperCopy("testcase-link", (table) => {
+    const row = table.find((r) => r.pair === "G01-matching-stages")!;
+    row.left.testCaseId = "foreign-test-case";
+  }),
 ];
+
+// Additional structural rejects (not just table field swaps).
+{
+  const emptyDir = path.join(evidenceDir, "tampers", "empty-table");
+  rmSync(emptyDir, { recursive: true, force: true });
+  mkdirSync(emptyDir, { recursive: true });
+  writeFileSync(path.join(emptyDir, "per-stage-commitments.json"), "[]\n");
+  const emptyVerdict = verifySaved(emptyDir);
+  if (emptyVerdict.ok) {
+    throw new Error("empty table unexpectedly verified");
+  }
+  tampers.push({
+    id: "empty-table",
+    ok: true,
+    detail: emptyVerdict.failures[0] ?? "rejected",
+  });
+}
+{
+  const corruptDir = path.join(evidenceDir, "tampers", "corrupt-jsonl");
+  rmSync(corruptDir, { recursive: true, force: true });
+  mkdirSync(corruptDir, { recursive: true });
+  const table = JSON.parse(readFileSync(tablePath, "utf8")) as TableRow[];
+  const row = table.find((r) => r.pair === "G01-matching-stages")!;
+  const badTrace = path.join(corruptDir, "trace");
+  mkdirSync(badTrace, { recursive: true });
+  writeFileSync(path.join(badTrace, "run_corrupt.jsonl"), "{not-json\n");
+  row.left.traceDir = badTrace;
+  writeFileSync(
+    path.join(corruptDir, "per-stage-commitments.json"),
+    `${JSON.stringify([row], null, 2)}\n`,
+  );
+  const corruptVerdict = verifySaved(corruptDir);
+  if (corruptVerdict.ok) {
+    throw new Error("corrupt JSONL unexpectedly verified");
+  }
+  const status = corruptVerdict.pairs[0]?.integrity[0]?.status;
+  if (status !== "corrupt_jsonl") {
+    throw new Error(`corrupt JSONL expected corrupt_jsonl status, got ${status}`);
+  }
+  tampers.push({
+    id: "corrupt-jsonl",
+    ok: true,
+    detail: corruptVerdict.failures[0] ?? "rejected",
+  });
+}
+{
+  // Substring false positive: foreign runId that appears inside another string field.
+  const subDir = path.join(evidenceDir, "tampers", "substring-run");
+  rmSync(subDir, { recursive: true, force: true });
+  mkdirSync(subDir, { recursive: true });
+  const table = JSON.parse(readFileSync(tablePath, "utf8")) as TableRow[];
+  const row = structuredClone(
+    table.find((r) => r.pair === "G01-matching-stages")!,
+  );
+  const fakeTrace = path.join(subDir, "trace");
+  mkdirSync(fakeTrace, { recursive: true });
+  const decoy = `prefix-${row.left.runId}-suffix`;
+  writeFileSync(
+    path.join(fakeTrace, "run_decoy.jsonl"),
+    `${JSON.stringify({
+      schemaVersion: "0.1",
+      event: "run_started",
+      runId: "run_unrelated_physical",
+      name: "decoy",
+      metadata: {
+        cohortId: row.left.cohortId,
+        testCaseId: row.left.testCaseId,
+        executionId: row.left.executionId,
+        note: decoy,
+      },
+    })}\n`,
+  );
+  row.left.traceDir = fakeTrace;
+  writeFileSync(
+    path.join(subDir, "per-stage-commitments.json"),
+    `${JSON.stringify([row], null, 2)}\n`,
+  );
+  const subVerdict = verifySaved(subDir);
+  if (subVerdict.ok) {
+    throw new Error("substring runId hit unexpectedly verified");
+  }
+  tampers.push({
+    id: "substring-run",
+    ok: true,
+    detail: subVerdict.failures[0] ?? "rejected",
+  });
+}
 
 for (const t of tampers) {
   if (!t.ok) {

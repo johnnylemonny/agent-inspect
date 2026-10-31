@@ -64,23 +64,26 @@ export class InjectedClock {
 
 export function runWaitScenario(scenario: WaitScenario): WaitObservation {
   const clock = new InjectedClock();
-  let last = scenario.schedule[0];
-  if (!last) {
+  // Only observations at/within the wait budget may inform readiness.
+  const inBudget = scenario.schedule.filter((tick) => tick.atMs <= scenario.budgetMs);
+  if (inBudget.length === 0) {
+    // Waited the full budget with no in-budget observation — never inherit
+    // readiness from a beyond-budget schedule tick.
     return {
       clock: "injected-synthetic",
       documentLoading: "unknown",
       inFlight: "unknown",
       obstruction: "unknown",
-      elapsedMs: 0,
+      elapsedMs: scenario.budgetMs,
       budgetMs: scenario.budgetMs,
-      remainingMs: scenario.budgetMs,
-      stopReason: "unknown-readiness",
+      remainingMs: 0,
+      stopReason: "budget-exhausted",
       ready: "unknown",
     };
   }
 
-  for (const tick of scenario.schedule) {
-    if (tick.atMs > scenario.budgetMs) break;
+  let last = inBudget[0]!;
+  for (const tick of inBudget) {
     clock.advanceTo(tick.atMs);
     last = tick;
     if (scenario.stopWhenReady && tick.ready === true) {
@@ -230,6 +233,21 @@ export const OM_WAIT_SCENARIOS: WaitScenario[] = [
       },
       {
         atMs: 25,
+        documentLoading: "complete",
+        inFlight: "none",
+        obstruction: "none",
+        ready: true,
+      },
+    ],
+  },
+  {
+    // First (and only) ready tick is strictly beyond the wait budget — must not report ready.
+    id: "ready-after-budget",
+    budgetMs: 100,
+    stopWhenReady: true,
+    schedule: [
+      {
+        atMs: 200,
         documentLoading: "complete",
         inFlight: "none",
         obstruction: "none",

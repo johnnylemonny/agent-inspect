@@ -1,6 +1,6 @@
 # OTLP identity evidence — `rajudandigam-003` packet (2026-10-29)
 
-Controlled local evidence for [#484](https://github.com/rajudandigam/agent-inspect/issues/484) (W04 / Roy–Robb OTLP identity). Identity fidelity fixes shipped in **6.31.22** and **6.31.23**; this packet is a **fresh full-matrix capture** at **agent-inspect@6.31.29** (`cb74e6b1`).
+Controlled local evidence for [#484](https://github.com/rajudandigam/agent-inspect/issues/484) (W04 / Roy–Robb OTLP identity). Identity fidelity fixes shipped in **6.31.22** and **6.31.23**; this packet is a **fresh full-matrix capture** at **agent-inspect@6.31.29** (`cb74e6b1`). On **2026-10-30** the shareable derivative scrubbed absolute host paths from O02 error stacks (`<repo>/…`); see [LIMITS.md](LIMITS.md) and `manifest.pathSanitization`.
 
 | Artifact | Role |
 | --- | --- |

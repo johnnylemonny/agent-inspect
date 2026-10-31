@@ -74,6 +74,11 @@ export type IntegrityStatus =
   | "declared_mismatch"
   | "run_link_broken"
   | "cohort_link_broken"
+  | "execution_link_broken"
+  | "testcase_link_broken"
+  | "missing_trace_ref"
+  | "corrupt_jsonl"
+  | "empty_table"
   | "missing_right"
   | "class_mismatch"
   | "unverifiable";
@@ -289,30 +294,78 @@ export function commitmentsToSide(c: StageCommitments): SideRecord {
   };
 }
 
-function readTraceText(traceDir: string | undefined): string | null {
-  if (!traceDir || !existsSync(traceDir)) return null;
+interface ParsedTraceEvent {
+  event?: string;
+  runId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+type TraceParseResult =
+  | { ok: true; events: ParsedTraceEvent[] }
+  | { ok: false; reason: "missing" | "empty" | "corrupt"; detail: string };
+
+function metaString(
+  metadata: Record<string, unknown> | undefined,
+  key: string,
+): string | undefined {
+  const value = metadata?.[key];
+  return typeof value === "string" && value.trim() !== "" ? value : undefined;
+}
+
+function parseTraceDir(traceDir: string | undefined): TraceParseResult {
+  if (!traceDir) {
+    return { ok: false, reason: "missing", detail: "traceDir absent" };
+  }
+  if (!existsSync(traceDir)) {
+    return { ok: false, reason: "missing", detail: `trace directory missing: ${traceDir}` };
+  }
   const files = readdirSync(traceDir).filter((f) => f.endsWith(".jsonl"));
-  if (files.length === 0) return null;
-  return files.map((f) => readFileSync(path.join(traceDir, f), "utf8")).join("\n");
+  if (files.length === 0) {
+    return { ok: false, reason: "empty", detail: "trace directory has no JSONL files" };
+  }
+  const events: ParsedTraceEvent[] = [];
+  for (const file of files) {
+    const full = path.join(traceDir, file);
+    const text = readFileSync(full, "utf8");
+    for (const line of text.split("\n")) {
+      if (line.trim() === "") continue;
+      try {
+        events.push(JSON.parse(line) as ParsedTraceEvent);
+      } catch {
+        return {
+          ok: false,
+          reason: "corrupt",
+          detail: `invalid JSONL in ${file}`,
+        };
+      }
+    }
+  }
+  if (events.length === 0) {
+    return { ok: false, reason: "empty", detail: "JSONL files contain no events" };
+  }
+  return { ok: true, events };
 }
 
-function cohortInTrace(traceText: string | null, cohortId: string | undefined): boolean {
-  if (!traceText || !cohortId) return false;
-  return (
-    traceText.includes(`"cohortId":"${cohortId}"`) ||
-    traceText.includes(`"cohortId": "${cohortId}"`)
+function runStartedFor(
+  events: ParsedTraceEvent[],
+  runId: string,
+): ParsedTraceEvent | undefined {
+  return events.find(
+    (e) => e.event === "run_started" && typeof e.runId === "string" && e.runId === runId,
   );
-}
-
-function runInTrace(traceText: string | null, runId: string | null): boolean {
-  if (!traceText || !runId) return false;
-  return traceText.includes(runId);
 }
 
 export function checkSideIntegrity(
   side: SideRecord,
   which: "left" | "right",
 ): SideIntegrity {
+  if (!side.executionId || side.executionId.trim() === "") {
+    return {
+      side: which,
+      status: "execution_link_broken",
+      detail: "executionId missing on saved side",
+    };
+  }
   if (sha256(side.toolOutputBytes) !== side.toolOutputDigest) {
     return {
       side: which,
@@ -333,32 +386,86 @@ export function checkSideIntegrity(
     side.declaredToolCommitment !== sha256(side.toolOutputBytes)
   ) {
     // Declared mismatch is a valid G07 signal when recomputing class; integrity of
-    // retained bytes can still be ok. Flag explicitly for inspectability.
-    // Fall through to run/cohort checks.
+    // retained bytes can still be ok. Fall through to run/cohort checks.
   }
-  const traceText = readTraceText(side.traceDir);
-  if (side.traceDir && !traceText) {
+
+  // Physical run claims require a retained trace reference — substring matches are not enough.
+  if (side.runId && !side.traceDir) {
+    return {
+      side: which,
+      status: "missing_trace_ref",
+      detail: "runId present without traceDir capture reference",
+    };
+  }
+
+  if (!side.traceDir) {
+    return { side: which, status: "ok", detail: "digests hold (no traceDir claimed)" };
+  }
+
+  const parsed = parseTraceDir(side.traceDir);
+  if (!parsed.ok) {
+    if (parsed.reason === "corrupt") {
+      return { side: which, status: "corrupt_jsonl", detail: parsed.detail };
+    }
     return {
       side: which,
       status: "unverifiable",
-      detail: "trace directory missing or empty",
+      detail: parsed.detail,
     };
   }
-  if (side.runId && side.traceDir && !runInTrace(traceText, side.runId)) {
+
+  if (side.runId) {
+    const started = runStartedFor(parsed.events, side.runId);
+    if (!started) {
+      // Reject substring-only hits: require an exact run_started.runId field match.
+      const substringHit = parsed.events.some(
+        (e) => JSON.stringify(e).includes(side.runId!),
+      );
+      return {
+        side: which,
+        status: "run_link_broken",
+        detail: substringHit
+          ? "runId appears as substring but no exact run_started.runId match"
+          : "saved runId not found as run_started.runId in retained JSONL",
+      };
+    }
+    const executionId = metaString(started.metadata, "executionId");
+    if (executionId !== side.executionId) {
+      return {
+        side: which,
+        status: "execution_link_broken",
+        detail: `executionId mismatch (saved=${side.executionId} trace=${executionId ?? "missing"})`,
+      };
+    }
+    if (side.cohortId) {
+      const cohortId = metaString(started.metadata, "cohortId");
+      if (cohortId !== side.cohortId) {
+        return {
+          side: which,
+          status: "cohort_link_broken",
+          detail: `cohortId mismatch (saved=${side.cohortId} trace=${cohortId ?? "missing"})`,
+        };
+      }
+    }
+    if (side.testCaseId) {
+      const testCaseId = metaString(started.metadata, "testCaseId");
+      if (testCaseId !== side.testCaseId) {
+        return {
+          side: which,
+          status: "testcase_link_broken",
+          detail: `testCaseId mismatch (saved=${side.testCaseId} trace=${testCaseId ?? "missing"})`,
+        };
+      }
+    }
+  } else if (side.cohortId || side.testCaseId) {
     return {
       side: which,
       status: "run_link_broken",
-      detail: "saved runId not found in retained JSONL",
+      detail: "cohort/testCase claimed without runId",
     };
   }
-  if (side.cohortId && side.traceDir && !cohortInTrace(traceText, side.cohortId)) {
-    return {
-      side: which,
-      status: "cohort_link_broken",
-      detail: "saved cohortId not found in retained JSONL metadata",
-    };
-  }
-  return { side: which, status: "ok", detail: "digests and links hold" };
+
+  return { side: which, status: "ok", detail: "digests and exact links hold" };
 }
 
 export function loadTable(tablePath: string): TableRow[] {
@@ -406,6 +513,11 @@ export function verifyTableRow(row: TableRow): PairVerifyResult {
       i.status === "digest_mismatch" ||
       i.status === "run_link_broken" ||
       i.status === "cohort_link_broken" ||
+      i.status === "execution_link_broken" ||
+      i.status === "testcase_link_broken" ||
+      i.status === "missing_trace_ref" ||
+      i.status === "corrupt_jsonl" ||
+      i.status === "empty_table" ||
       i.status === "unverifiable",
   );
   const classMatches = compared.class === row.class;
@@ -431,7 +543,25 @@ export function verifySaved(evidenceDir: string): EvidenceVerifyResult {
       failures: [`missing table ${tablePath}`],
     };
   }
-  const table = loadTable(tablePath);
+  let table: TableRow[];
+  try {
+    table = loadTable(tablePath);
+  } catch (error) {
+    return {
+      ok: false,
+      pairs: [],
+      failures: [
+        `corrupt table ${tablePath}: ${error instanceof Error ? error.message : String(error)}`,
+      ],
+    };
+  }
+  if (table.length === 0) {
+    return {
+      ok: false,
+      pairs: [],
+      failures: [`empty table ${tablePath}`],
+    };
+  }
   const pairs = table.map(verifyTableRow);
   const failures = pairs
     .filter((p) => !p.ok)

@@ -200,13 +200,67 @@ describe("exportHtml", () => {
       children: conflictTree.children.filter((n) => n.event.kind !== "RUN" || n.event.status !== "running"),
     };
     const stepNodes = forced.children.filter((n) => n.event.attributes?.stepId === "s1");
-    if (stepNodes.length >= 2) {
-      const html = exportHtml({
-        ...forced,
-        children: stepNodes,
-      }).content;
-      expect(html).toMatch(/ok/);
-      expect(html).toMatch(/error/);
-    }
+    expect(stepNodes.length).toBeGreaterThanOrEqual(2);
+    const html = exportHtml({
+      ...forced,
+      children: stepNodes,
+    }).content;
+    expect(html).toMatch(/ok/);
+    expect(html).toMatch(/error/);
+  });
+
+  it("preserves distinct attempts that share a stepId, including a later running attempt", () => {
+    const tree = traceEventsToPersistedRunTrees([
+      {
+        schemaVersion: "0.1",
+        event: "run_started",
+        timestamp: 1,
+        runId: "run_attempts",
+        name: "attempts",
+        startTime: 1,
+      },
+      {
+        schemaVersion: "0.1",
+        event: "step_started",
+        timestamp: 10,
+        runId: "run_attempts",
+        stepId: "shared_step",
+        name: "call",
+        type: "tool",
+        startTime: 10,
+        metadata: { attemptId: "a1" },
+      },
+      {
+        schemaVersion: "0.1",
+        event: "step_completed",
+        timestamp: 20,
+        runId: "run_attempts",
+        stepId: "shared_step",
+        status: "error",
+        endTime: 20,
+        durationMs: 10,
+        error: { message: "429" },
+      },
+      {
+        schemaVersion: "0.1",
+        event: "step_started",
+        timestamp: 30,
+        runId: "run_attempts",
+        stepId: "shared_step",
+        name: "call",
+        type: "tool",
+        startTime: 30,
+        metadata: { attemptId: "a2" },
+      },
+    ])[0]!;
+
+    const html = exportHtml(tree).content;
+    const treeSection =
+      html.match(/<section class="tree">[\s\S]*?<\/section>/)?.[0] ?? "";
+    // Joined a1 completion + preserved a2 running (not collapsed into one node).
+    expect(treeSection).toMatch(/error/);
+    expect(treeSection).toMatch(/\[TOOL\] running/);
+    const statusHits = [...treeSection.matchAll(/\[(?:TOOL|LOGIC)\] (?:ok|error|running)/g)];
+    expect(statusHits.length).toBeGreaterThanOrEqual(2);
   });
 });

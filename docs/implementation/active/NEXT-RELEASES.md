@@ -14,7 +14,7 @@
 5. **6.31.28** — starter `steps.orderRelations` tool-before-answer — **published**
 6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — **published**
 7. **6.31.30** — Nest consumption; HTML lifecycle join; Om wait diagnostics (+ evidence/docs for 06–12) — **published**
-8. **Residual** — #484 partner acceptance of -003; #494 close with reconcile note; #491 maintainer closure; Swapnil #437 field decision; Indu v3 **blocked**
+8. **Residual (Oct 30)** — R1–R6 + N1 packed-SDK assertions + N2 Roy UNPROVABLE fixtures; then #484 partner acceptance of path-scrubbed -003; #494 Windows rerun (**PENDING** until measured); #491 maintainer closure; Swapnil #437 field decision; Indu v3 **blocked**; leave #496/#506 failing
 9. **W22** — C10 Elastic / Collector Docker — credential/environment gated
 10. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
 11. **v7** — NO-GO

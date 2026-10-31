@@ -509,6 +509,135 @@ await evalCase(
   );
 }
 
+/** Exact-relationship negatives — each must fail consumption, never vacuous pass. */
+function rewriteOutcomes(
+  sourcePath: string,
+  destName: string,
+  mutate: (rows: Array<Record<string, unknown>>) => void,
+): string {
+  const dir = path.join(baseDir, destName);
+  rmSync(dir, { recursive: true, force: true });
+  mkdirSync(dir, { recursive: true });
+  const dest = path.join(dir, "case.jsonl");
+  const rows = readFileSync(sourcePath, "utf8")
+    .split("\n")
+    .filter((l) => l.trim() !== "")
+    .map((l) => JSON.parse(l) as Record<string, unknown>);
+  mutate(rows);
+  writeFileSync(dest, `${rows.map((r) => JSON.stringify(r)).join("\n")}\n`);
+  return dest;
+}
+
+{
+  const good = await captureAsk("N09-exact-source", {
+    requestedTenantRef: TENANT_ALPHA,
+  });
+  if (!good.tracePath) throw new Error("N09 source missing");
+  if (verifyConsumption(good.tracePath).class !== "pass") {
+    throw new Error("N09 baseline must pass");
+  }
+
+  const cases: Array<{ id: string; path: string; expectDetail?: RegExp }> = [
+    {
+      id: "N09a-foreign-run",
+      path: rewriteOutcomes(good.tracePath, "N09a-foreign-run", (rows) => {
+        for (const row of rows) {
+          if (row.event === "outcome_observed" && row.name === "policy-consumption") {
+            row.runId = "run_foreign_other";
+          }
+        }
+      }),
+      expectDetail: /foreign runIds/,
+    },
+    {
+      id: "N09b-wrong-retrieved-resultRef",
+      path: rewriteOutcomes(good.tracePath, "N09b-wrong-retrieved-resultRef", (rows) => {
+        for (const row of rows) {
+          if (row.event === "outcome_observed" && row.name === "policy-retrieval") {
+            const evidence = (row.evidence ?? {}) as Record<string, unknown>;
+            evidence.resultRef = "rref-wrong-retrieved";
+            row.evidence = evidence;
+          }
+        }
+      }),
+      expectDetail: /resultRef/,
+    },
+    {
+      id: "N09c-consumption-before-retrieval",
+      path: rewriteOutcomes(
+        good.tracePath,
+        "N09c-consumption-before-retrieval",
+        (rows) => {
+          const retrievedIdx = rows.findIndex(
+            (r) => r.event === "outcome_observed" && r.name === "policy-retrieval",
+          );
+          const consumedIdx = rows.findIndex(
+            (r) => r.event === "outcome_observed" && r.name === "policy-consumption",
+          );
+          if (retrievedIdx >= 0 && consumedIdx >= 0 && consumedIdx > retrievedIdx) {
+            const [consumed] = rows.splice(consumedIdx, 1);
+            rows.splice(retrievedIdx, 0, consumed!);
+          }
+        },
+      ),
+      expectDetail: /before retrieval|order relation/,
+    },
+    {
+      id: "N09d-failed-retrieval",
+      path: rewriteOutcomes(good.tracePath, "N09d-failed-retrieval", (rows) => {
+        for (const row of rows) {
+          if (row.event === "outcome_observed" && row.name === "policy-retrieval") {
+            row.status = "failed";
+          }
+        }
+      }),
+      expectDetail: /not success/,
+    },
+    {
+      id: "N09e-contradictory-tenant",
+      path: rewriteOutcomes(good.tracePath, "N09e-contradictory-tenant", (rows) => {
+        for (const row of rows) {
+          if (row.event === "outcome_observed" && row.name === "policy-retrieval") {
+            const evidence = (row.evidence ?? {}) as Record<string, unknown>;
+            evidence.policyTenantRef = TENANT_BETA;
+            row.evidence = evidence;
+          }
+        }
+      }),
+      expectDetail: /contradict/,
+    },
+    {
+      id: "N09f-operation-mismatch",
+      path: rewriteOutcomes(good.tracePath, "N09f-operation-mismatch", (rows) => {
+        for (const row of rows) {
+          if (row.event === "outcome_observed" && row.name === "policy-consumption") {
+            const evidence = (row.evidence ?? {}) as Record<string, unknown>;
+            evidence.operationId = "op-ref-foreign";
+            row.evidence = evidence;
+          }
+        }
+      }),
+      expectDetail: /operationId mismatch/,
+    },
+  ];
+
+  for (const c of cases) {
+    const v = verifyConsumption(c.path);
+    const detailOk = c.expectDetail ? c.expectDetail.test(v.detail) : true;
+    const ok = v.class === "fail" && detailOk;
+    results.push({
+      id: c.id,
+      expected: "pass",
+      observed: ok ? "pass" : "fail",
+      consumption: v.class,
+    });
+    console.log(
+      `  ${c.id}: expected=pass observed=${ok ? "pass" : "fail"} consumption=${v.class}`,
+    );
+    console.log(`    note: ${v.detail}`);
+  }
+}
+
 console.log(
   `classes: ${results
     .map((r) => {

@@ -442,6 +442,14 @@ console.log(
     if (o.stopReason === "budget-exhausted" && o.remainingMs !== 0) {
       throw new Error("budget-exhausted requires remainingMs=0");
     }
+    if (scenario.id === "ready-after-budget") {
+      if (o.ready === true) {
+        throw new Error("ready-after-budget must not report ready from beyond-budget ticks");
+      }
+      if (o.stopReason !== "budget-exhausted") {
+        throw new Error("ready-after-budget must stop with budget-exhausted");
+      }
+    }
   }
 }
 
