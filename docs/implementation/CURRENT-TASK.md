@@ -33,7 +33,7 @@ worktreeIgnoreOnly:
 | R4 Om budget | **published** | ready-after-budget scenario |
 | N2 Roy UNPROVABLE | **published** | `roy-437-unprovable-2026-10-30` + check script |
 | R6 docs | **published** | ROADMAP/status/Windows PENDING |
-| Email | **gated** | drafts in `EMAIL-FOLLOWUPS-2026-10-30-DRAFTS.md`; send only if asked |
+| Email / GitHub follow-through | **partial** | Jan #494 + Roy #437/#484 comments posted; Faham/Hashim Gmail still gated (no Gmail tool here) |
 
 ## Honesty
 

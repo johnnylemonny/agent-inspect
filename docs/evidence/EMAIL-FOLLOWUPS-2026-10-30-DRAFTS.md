@@ -1,27 +1,27 @@
-# Email follow-ups — drafts only (2026-10-30)
+# Email follow-ups — drafts (2026-10-30 / updated after 6.31.31)
 
-**Status:** Not sent. Maintainer must explicitly authorize any Gmail send.
+**Status:** GitHub partner notes posted for Jan (#494) and Roy (#437 / #484). Gmail send still needs maintainer authorization + a connected Gmail tool in this session (none available here).
 
-## Jan / John — native Windows rerun (after N1)
+## Jan / John — native Windows rerun (after N1) — GitHub posted
 
-**Context:** N1 assertions are now in `scripts/packed-mcp-sdk-e2e.mjs` (`wrapped.ping()`, zero `outside inspectRun` warnings, saved `mcp:tools/list` + `mcpServerName` under the M01/M02 `runId`). Windows matrix in [PR-494-PACKED-MCP-SDK-HARNESS-RECONCILE.md](./PR-494-PACKED-MCP-SDK-HARNESS-RECONCILE.md) stays **PENDING / NOT RUN**.
+Posted on [#494](https://github.com/rajudandigam/agent-inspect/pull/494#issuecomment-6540024681) asking for a measured Windows rerun against **agent-inspect@6.31.31** / `scripts/packed-mcp-sdk-e2e.mjs`. Matrix stays **PENDING / NOT RUN**.
 
-**Proposed ask (do not invent PASS):**
+Optional email mirror (do not invent PASS):
 
 ```text
-Subject: AgentInspect packed MCP SDK — Windows rerun after harness N1
+Subject: AgentInspect packed MCP SDK — Windows rerun after 6.31.31 N1
 
 Hi Jan,
 
 Thanks again for the packed real-SDK coverage and the Windows offer.
 
-We carried your three checks into the canonical harness on main:
+Your three checks are now in the canonical harness on agent-inspect@6.31.31:
   scripts/packed-mcp-sdk-e2e.mjs
   - await wrapped.ping()
   - zero "outside inspectRun" warnings for the intended run
   - saved JSONL asserts mcp:tools/list + mcpServerName under that runId
 
-When you have a moment, could you rerun on native Windows with mutually agreed pins and reply with Node/npm/pnpm/package versions + exit status?
+I also left the ask on PR #494. When you have a moment, please rerun on native Windows and reply with Node/npm/pnpm/package versions + exit status:
 
   pnpm run build && node scripts/packed-mcp-sdk-e2e.mjs
 
@@ -31,14 +31,14 @@ Thanks,
 Raju
 ```
 
-## Faham — hold existing unsent draft
+## Faham — existing unsent draft (hold / ready to send)
 
-**Gmail draft already prepared:** pins **agent-inspect@6.31.28** and `node prove-same-output-wrong-path.mjs`.  
-**Action:** keep unsent until maintainer asks to send. No independent result yet.
+**Gmail draft already prepared:** pins **agent-inspect@6.31.28** and `node prove-same-output-wrong-path.mjs` — still a valid retest baseline.  
+**Action:** send that draft when you authorize Gmail send. No independent result yet. Do not silently retarget to 6.31.31 unless Faham asks.
 
-## Hashim — one small runnable example
+## Hashim — one small runnable example (draft ready)
 
-**Goal:** interest follow-up only; ask for one concrete friction point.
+Pin updated to **6.31.31**. Create/send via Gmail when authorized:
 
 ```text
 Subject: AgentInspect — tiny TypeScript starter + one friction ask
@@ -47,7 +47,7 @@ Hi Hashim,
 
 Thanks for the interest. If useful, here is a minimal local loop (Node >=20):
 
-  npm i agent-inspect@6.31.30
+  npm i agent-inspect@6.31.31
   # then in a .mjs / .ts file:
 
   import { inspectRun, step } from "agent-inspect";
@@ -67,5 +67,5 @@ Raju
 
 ## Roy / Uduak / Robb
 
-- Roy: GitHub-link resend confirmed; N2 synthetic UNPROVABLE cases added under `docs/evidence/roy-437-unprovable-2026-10-30/`; `-003` acceptance still pending.
-- Uduak / Robb: replacement Sent; receipt unconfirmed — no chase unless asked.
+- Roy: GitHub notes posted — [#437 UNPROVABLE fixtures](https://github.com/rajudandigam/agent-inspect/issues/437#issuecomment-6540024813), [#484 path-scrubbed -003](https://github.com/rajudandigam/agent-inspect/issues/484#issuecomment-6540024992). Acceptance still pending.
+- Uduak / Robb: replacement Sent earlier; receipt unconfirmed — no chase unless asked.
