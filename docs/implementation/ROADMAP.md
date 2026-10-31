@@ -1,8 +1,8 @@
 # AgentInspect Canonical Roadmap (permanent)
 
-**Baseline:** `agent-inspect@6.31.30` (published; all 18)
-**Roadmap horizon:** **6.31.30** published; Oct 30 residual queue (R1–R6 / N1–N2) in flight on main; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
-**Status:** **6.31.30 published**; named train `stability-after-63111`; next = land Oct 30 residuals + partner acceptance; **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
+**Baseline:** `agent-inspect@6.31.31` (published; all 18)
+**Roadmap horizon:** **6.31.31** published (Oct 30 residuals); partner acceptance; **6.32.0 BLOCKED_ON_EXTERNAL_EVIDENCE**; **V7_DECISION: NO-GO**
+**Status:** **6.31.31 published**; named train `stability-after-63111`; next = partner acceptance (Jan Windows PENDING); **6.32.0 never published** (reserved); **V7_DECISION: NO-GO**
 **Primary objective:** Finish verifier/SDK/timing/transport correctness and consumer evidence milestones—without schema 1.1, hosted SaaS, or fabricated external evidence
 **Persisted trace schema:** remains `1.0`
 **Package policy:** no new public packages before the conditional v7 decision
@@ -105,7 +105,8 @@ The canonical release sequence is:
 6.31.28 Starter tool-before-answer orderRelations  (published)
 6.31.29 Recipe evidence integrity (#492 probes, #486 one-pass, Nest opaque refs)  (published)
 6.31.30 Nest/HTML/Om + Oct 29 evidence packets  (published)
-6.31.31+ Conditional public defect only (omit empty slots)
+6.31.31 Oct 30 residuals (R1–R6 / N1–N2)  (published)
+6.31.32+ Conditional public defect only (omit empty slots)
 
 recipes   Collector roundtrip; executable Promptfoo; Elastic indexed readback (no root vendor deps)
 
@@ -245,7 +246,8 @@ Fail-closed deterministic gate hardening:
 | **6.31.28** | Starter tool-before-answer orderRelations | published | Done |
 | **6.31.29** | Recipe evidence integrity (#492/#486/Nest privacy) | published | Done |
 | **6.31.30** | Nest/HTML/Om + Oct 29 evidence packets | published | Done |
-| **6.31.31+** | Conditional public defect / Oct 30 residuals | omit if empty | Skip unless defect reproduces |
+| **6.31.31** | Oct 30 residuals (R1–R6 / N1–N2) | published | Done |
+| **6.31.32+** | Conditional public defect only | omit if empty | Skip unless defect reproduces |
 | **6.32.0** | External conformance + compact review | conditional | **BLOCKED_ON_EXTERNAL_EVIDENCE** |
 | **6.33.0** | Additive usability when justified | recipes / APIs | Conditional minor |
 

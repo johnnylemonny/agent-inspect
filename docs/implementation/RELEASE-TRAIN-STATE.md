@@ -9,14 +9,14 @@ baselineVersion: "6.31.31"
 publishedVersion: "6.31.31"
 pendingPublishVersion: ""
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.30 published; Oct 30 residuals implemented locally; 6.32 blocked"
+trainStatus: "6.31.31 published; Oct 30 residuals shipped; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "oct-30-residuals R1–R6/N1–N2"
-lastConfirmedCommit: "dc63ad72"
-lastValidationLevel: "Publish 40965172063 success; npm agent-inspect@6.31.30; local residual validation"
-nextAction: "Maintainer review of Oct 30 residuals; partner acceptance; hold Indu v3 / Swapnil fields / email; no 6.32 without EVIDENCE_GATE"
+currentChunk: "post-63131 partner acceptance"
+lastConfirmedCommit: "cf0f7e1e"
+lastValidationLevel: "Publish 41174039799 success; npm agent-inspect@6.31.31"
+nextAction: "Partner acceptance; hold Indu v3 / Swapnil fields / email; Jan Windows PENDING; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -56,6 +56,7 @@ completedChunks:
   - "6.31.28 starter tool-before-answer orderRelations (e65e9445 → #512 → Publish 40939596146)"
   - "6.31.29 recipe evidence integrity (dcd714dc → #514 → Publish 40943406555)"
   - "6.31.30 Oct 29 Nest/HTML/Om + evidence packets (#515 → Publish 40965172063)"
+  - "6.31.31 Oct 30 residuals R1–R6/N1–N2 (1ca1c119 → #516 → Publish 41174039799)"
   - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08)"
   - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs"
   - "chunk 05 Om wait/readiness diagnostics"
@@ -87,17 +88,18 @@ amendments:
   - "2026-10-29 6.31.28 published (Trusted Publish 40939596146)"
   - "2026-10-29 6.31.29 published (Trusted Publish 40943406555)"
   - "2026-10-29 6.31.30 published (Trusted Publish 40965172063)"
+  - "2026-10-31 6.31.31 published (Trusted Publish 41174039799)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.30
+  LAST_PUBLISHED_RELEASE: 6.31.31
   PENDING_PUBLISH: none
   ACTIVE: residual partner acceptance
-  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
+  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision; Jan Windows PENDING
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
-updatedAt: "2026-10-29"
+updatedAt: "2026-10-31"
 ```
 

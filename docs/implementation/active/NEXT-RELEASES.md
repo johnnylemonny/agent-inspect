@@ -1,9 +1,9 @@
 # Active execution plan — after 6.31.27
 
 **Authority:** [../ROADMAP.md](../ROADMAP.md)
-**Baseline:** **published** `agent-inspect@6.31.30` (all 18)
+**Baseline:** **published** `agent-inspect@6.31.31` (all 18)
 **Named train:** `stability-after-63111`
-**Program status:** Oct 29 chunks 03–12 **executed**; **6.31.30 published**; residual partner acceptance; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
+**Program status:** Oct 30 residuals **published** in **6.31.31**; partner acceptance; **EVIDENCE_GATE not approved**; **V7_DECISION: NO-GO**
 
 ## Sequence
 
@@ -14,10 +14,11 @@
 5. **6.31.28** — starter `steps.orderRelations` tool-before-answer — **published**
 6. **6.31.29** — recipe evidence integrity (#492 saved probes, #486 one-pass verifier, Nest opaque refs) — **published**
 7. **6.31.30** — Nest consumption; HTML lifecycle join; Om wait diagnostics (+ evidence/docs for 06–12) — **published**
-8. **Residual (Oct 30)** — R1–R6 + N1 packed-SDK assertions + N2 Roy UNPROVABLE fixtures; then #484 partner acceptance of path-scrubbed -003; #494 Windows rerun (**PENDING** until measured); #491 maintainer closure; Swapnil #437 field decision; Indu v3 **blocked**; leave #496/#506 failing
-9. **W22** — C10 Elastic / Collector Docker — credential/environment gated
-10. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
-11. **v7** — NO-GO
+8. **6.31.31** — Oct 30 residuals (R1–R6, N1 packed-SDK assertions, N2 Roy UNPROVABLE) — **published**
+9. **Residual** — #484 partner acceptance of path-scrubbed -003; #494 Windows rerun (**PENDING** until measured); #491 maintainer closure; Swapnil #437 field decision; Indu v3 **blocked**; leave #496/#506 failing
+10. **W22** — C10 Elastic / Collector Docker — credential/environment gated
+11. **6.32.0** — **BLOCKED_ON_EXTERNAL_EVIDENCE** ([EXTERNAL-ACCEPTANCE-GATE.md](./EXTERNAL-ACCEPTANCE-GATE.md))
+12. **v7** — NO-GO
 
 ## Claim discipline
 
@@ -37,10 +38,10 @@
 ## External stop marker
 
 ```text
-LAST_PUBLISHED_RELEASE: 6.31.30
+LAST_PUBLISHED_RELEASE: 6.31.31
 PENDING_PUBLISH: none
 ACTIVE: residual partner acceptance
-NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision
+NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision; Jan Windows PENDING
 V7_DECISION: NO-GO
 EVIDENCE_GATE: not approved
 ADOPTION_FREEZE: excluded
