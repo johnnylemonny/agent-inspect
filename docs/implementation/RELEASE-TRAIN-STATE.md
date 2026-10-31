@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.33"
 publishedVersion: "6.31.33"
-pendingPublishVersion: "6.31.33"
+pendingPublishVersion: ""
 currentTrain: "stability-after-63111"
-trainStatus: "#521/#522 fixed + changeset; pending Version Packages → 6.31.33"
+trainStatus: "6.31.33 published; #521/#522 closed; 6.32 blocked"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "unfinished-order + lookalike tool findings"
-lastConfirmedCommit: "1008b9e1"
-lastValidationLevel: "focused vitest green for #521/#522"
-nextAction: "Push; Version Packages; Trusted Publish 6.31.33; close #521/#522; partner acceptance still open"
+currentChunk: "post-63133 partner acceptance"
+lastConfirmedCommit: "e3c2d198"
+lastValidationLevel: "Publish 41226295704 success; npm agent-inspect@6.31.33"
+nextAction: "Partner acceptance; hold Indu v3 / Swapnil fields / email; Jan Windows PENDING; no 6.32 without EVIDENCE_GATE"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -58,7 +58,7 @@ completedChunks:
   - "6.31.30 Oct 29 Nest/HTML/Om + evidence packets (#515 → Publish 40965172063)"
   - "6.31.31 Oct 30 residuals R1–R6/N1–N2 (1ca1c119 → #516 → Publish 41174039799)"
   - "6.31.32 overnight #517/#518/#519/#520/#523 (d9ab3e98 → #524 → Publish 41220820360)"
-  - "#521/#522 unfinished order + lookalike findings (pending 6.31.33)"
+  - "6.31.33 #521/#522 unfinished order + lookalike findings (b2adf039 → #525 → Publish 41226295704)"
   - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08)"
   - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs"
   - "chunk 05 Om wait/readiness diagnostics"
@@ -92,14 +92,15 @@ amendments:
   - "2026-10-29 6.31.30 published (Trusted Publish 40965172063)"
   - "2026-10-31 6.31.31 published (Trusted Publish 41174039799)"
   - "2026-10-31 6.31.32 published (Trusted Publish 41220820360)"
+  - "2026-10-31 6.31.33 published (Trusted Publish 41226295704)"
 worktreeIgnoreOnly:
   - ".redstamp/"
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
-  LAST_PUBLISHED_RELEASE: 6.31.32
-  PENDING_PUBLISH: 6.31.33 (changeset unfinished-order-lookalike-63133)
-  ACTIVE: #521/#522 patch train + partner acceptance
-  NEXT: Version Packages → Trusted Publish; then no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Jan Windows PENDING
+  LAST_PUBLISHED_RELEASE: 6.31.33
+  PENDING_PUBLISH: none
+  ACTIVE: residual partner acceptance
+  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision; Jan Windows PENDING
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded
