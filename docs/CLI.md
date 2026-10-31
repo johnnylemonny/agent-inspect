@@ -349,6 +349,8 @@ Options:
 - `--evidence-profile <local|share|strict>`: redaction profile for Evidence (default `share`)
 - `--evidence-format <directory|html|zip>`: Evidence layout (default `directory`)
 
+Evidence `assessment.status` is residual `verify-safe` of the redacted artifact (same sense as `bundle`), not the trajectory check pass/fail. Check results stay in `check-results.json` / the summary text.
+
 By default, `check` runs `run.status`. Additional built-in rules can be selected with `--rule` or config when their options are available. Prefer `--preset trajectory` in CI, then `verify-safe` before sharing.
 
 Config files use either `checks` (flat rule options) or top-level `contract`
@@ -1097,7 +1099,7 @@ Options:
 - `--format <format>` — `markdown`, `json`, `json-compact`, `html`, `junit`, `github`, or `github-annotations` (default: `markdown`)
 - `-o, --output <dir>` — write `gate-results.json`, `gate-summary.md`, `gate-report.html`, `junit.xml`, `github-step-summary.md`, `github-annotations.txt`
 - `--json` — print deterministic JSON result (pretty); use `--format json-compact` for CI logs
-- `--evidence-on <fail|always|never>` — write local Evidence v2 (no upload); omitted = never
+- `--evidence-on <fail|always|never>` — write local Evidence v2 (no upload); omitted = never. `assessment.status` is residual verify-safe of the redacted artifact, not gate pass/fail.
 - `--evidence-dir <path>` — Evidence output directory or base path
 - `--evidence-profile <local|share|strict>` — redaction profile (default `share`)
 - `--evidence-format <directory|html|zip>` — Evidence layout (default `directory`)

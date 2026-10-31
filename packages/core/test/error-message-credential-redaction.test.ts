@@ -71,6 +71,19 @@ describe("pre-disk error message credential protection", () => {
     );
   });
 
+  it("detects Stripe and Slack value formats (#520)", () => {
+    // Assemble at runtime so push protection does not treat fixtures as live secrets.
+    const stripeLive = ["sk", "live", "FAKE0EVAL0NOT0A0REAL0KEY0000"].join("_");
+    const stripeRestricted = ["rk", "live", "FAKE0EVAL0NOT0A0REAL0KEY0000"].join("_");
+    const slack = ["xoxb", "1234567890", "abcdefghij"].join("-");
+    expect(stringContainsHighConfidenceCredential(`processor key ${stripeLive}`)).toBe(true);
+    expect(stringContainsHighConfidenceCredential(stripeRestricted)).toBe(true);
+    expect(stringContainsHighConfidenceCredential(`token ${slack}`)).toBe(true);
+    // Fixture-shaped short token must not false-positive (PR template sk_test_fake).
+    expect(stringContainsHighConfidenceCredential(["sk", "test", "fake"].join("_"))).toBe(false);
+    expect(redactHighConfidenceCredentialsInString(`note ${stripeLive}`)).toBe("[REDACTED]");
+  });
+
   it("preparePersistedInspectEventForWrite redacts free-text secrets in error.message", () => {
     const event = preparePersistedInspectEventForWrite(
       {

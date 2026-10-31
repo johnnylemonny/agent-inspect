@@ -1068,6 +1068,22 @@ describe("built-in structure and safety checks", () => {
     expect(JSON.stringify(result.findings)).not.toContain("raw retrieval query");
   });
 
+  it("flags Stripe-format keys with the default secret-pattern detectors (#520)", () => {
+    const stripeLive = ["sk", "live", "FAKE0EVAL0NOT0A0REAL0KEY0000"].join("_");
+    const event = persisted("event-a", {
+      attributes: {
+        note: `processor key ${stripeLive} used for this refund`,
+      },
+    });
+    const result = runTraceChecks(
+      { read: readResult([event]) },
+      { rules: [createSafetySecretPatternRule()] },
+    );
+    expect(result.status).toBe("fail");
+    expect(result.findings.some((f) => f.ruleId === "safety.secretPattern")).toBe(true);
+    expect(JSON.stringify(result.findings)).not.toContain(stripeLive);
+  });
+
   it("reports redaction, raw-content, secret-pattern, and oversized-attribute findings without leaking values", () => {
     const event = persisted("event-a", {
       attributes: {

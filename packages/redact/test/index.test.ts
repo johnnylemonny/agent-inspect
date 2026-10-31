@@ -225,6 +225,26 @@ describe("@agent-inspect/redact", () => {
     expect(JSON.stringify(result.findings)).not.toContain(value);
   });
 
+  it("redacts Stripe and Slack value formats assembled at runtime (#520)", () => {
+    const cases = [
+      ["value.stripeSecretKey", ["sk", "live", "FAKE0EVAL0NOT0A0REAL0KEY0000"].join("_")],
+      ["value.stripeSecretKey", ["rk", "live", "FAKE0EVAL0NOT0A0REAL0KEY0000"].join("_")],
+      ["value.slackToken", ["xoxb", "1234567890", "abcdefghij"].join("-")],
+    ] as const;
+    for (const [detector, value] of cases) {
+      const result = redact({ value }, { profile: "local" });
+      expect(result.value).toEqual({ value: "[REDACTED]" });
+      expect(result.findings).toContainEqual({
+        path: "value",
+        detector,
+        action: "replace",
+        severity: "error",
+        matchKind: "value",
+      });
+      expect(JSON.stringify(result.findings)).not.toContain(value);
+    }
+  });
+
   it("does not redact invalid credit-card-like strings that fail Luhn", () => {
     const result = redact({ value: "4242 4242 4242 4241" }, { profile: "share" });
     expect(result.value).toEqual({ value: "4242 4242 4242 4241" });

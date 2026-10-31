@@ -751,6 +751,52 @@ describe("check command", () => {
     }
   });
 
+  it("sets evidence assessment from residual safety, not check pass/fail (#519)", async () => {
+    const failEvidenceDir = path.join(tmp, "evidence-fail-clean");
+    const failFile = await writeTrace(tmp, "fail-clean.jsonl", [
+      event("event-a", { status: "error", runId: "run-fail-clean" }),
+    ]);
+    const failResult = await runCheck(failFile, {
+      evidenceOn: "fail",
+      evidenceDir: failEvidenceDir,
+      evidenceProfile: "share",
+    });
+    expect(failResult.status).toBe("fail");
+    const failAssessment = JSON.parse(
+      readFileSync(path.join(failEvidenceDir, "evidence.json"), "utf-8"),
+    ) as { assessment?: { status?: string } };
+    expect(failAssessment.assessment?.status).toBe("SAFE");
+
+    // Glued OpenAI-shaped key: share redactor is \\b-anchored and leaves it;
+    // verify-safe openai-key is unanchored and marks residual UNSAFE.
+    // trajectory preset excludes safety.secretPattern so the check can pass.
+    process.exitCode = 0;
+    const glued = "acct_sk-proj-FAKEevalNOTrealKEY000000";
+    const passEvidenceDir = path.join(tmp, "evidence-pass-unsafe");
+    const passFile = await writeTrace(tmp, "pass-unsafe.jsonl", [
+      event("event-a", {
+        runId: "run-pass-unsafe",
+        attributes: { paymentRef: glued },
+      }),
+    ]);
+    const passResult = await runCheck(passFile, {
+      preset: "trajectory",
+      evidenceOn: "always",
+      evidenceDir: passEvidenceDir,
+      evidenceProfile: "share",
+    });
+    expect(
+      passResult.status,
+      JSON.stringify(passResult.findings ?? passResult.diagnostics),
+    ).toBe("pass");
+    expect(process.exitCode ?? 0).toBe(0);
+    const passAssessment = JSON.parse(
+      readFileSync(path.join(passEvidenceDir, "evidence.json"), "utf-8"),
+    ) as { assessment?: { status?: string } };
+    expect(passAssessment.assessment?.status).toBe("UNSAFE");
+    expect(readFileSync(path.join(passEvidenceDir, "trace.jsonl"), "utf-8")).toContain(glued);
+  });
+
   it("respects --evidence-dir and keeps failure exit code", async () => {
     const evidenceDir = path.join(tmp, "custom-evidence");
     const file = await writeTrace(tmp, "error-dir.jsonl", [

@@ -9,6 +9,7 @@ import {
 import {
   parseEvidenceFormat,
   parseEvidenceProfile,
+  residualStatusToEvidenceSafe,
   shouldEmitEvidence,
 } from "../src/evidence-on.js";
 
@@ -180,6 +181,15 @@ describe("shouldEmitEvidence", () => {
     expect(shouldEmitEvidence("fail", true)).toBe(true);
     expect(shouldEmitEvidence("fail", false)).toBe(false);
     expect(shouldEmitEvidence("always", false)).toBe(true);
+  });
+});
+
+describe("residualStatusToEvidenceSafe", () => {
+  it("maps residual verify-safe statuses onto Evidence assessment (#519)", () => {
+    expect(residualStatusToEvidenceSafe("SAFE")).toBe("SAFE");
+    expect(residualStatusToEvidenceSafe("SAFE_WITH_WARNINGS")).toBe("SAFE WITH WARNINGS");
+    expect(residualStatusToEvidenceSafe("UNSAFE")).toBe("UNSAFE");
+    expect(residualStatusToEvidenceSafe("UNKNOWN")).toBe("UNKNOWN");
   });
 });
 

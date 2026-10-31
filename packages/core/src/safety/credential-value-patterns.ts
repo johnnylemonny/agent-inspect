@@ -20,6 +20,10 @@ const HIGH_CONFIDENCE_CREDENTIAL_PATTERNS: readonly RegExp[] = [
   /\b[a-z0-9_.-]+=[^;\s]+(?:;\s*[a-z0-9_.-]+=[^;\s]+)+/i,
   /\beyJ[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\.[a-zA-Z0-9_-]{8,}\b/,
   /\b(?:sk-(?:proj-)?[a-zA-Z0-9_-]{16,}|sk-ant-[a-zA-Z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,})\b/,
+  // Stripe secret / restricted keys use underscores (not sk-). Keep in sync with
+  // packages/redact/src/index.ts + packages/core/src/checks DEFAULT_SECRET_PATTERNS (#520).
+  /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+  /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/,
   /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/,
   /\b(?:AKIA|ASIA)[A-Z0-9]{16}\b/,
   /-----BEGIN [A-Z ]*PRIVATE KEY-----[\s\S]*-----END [A-Z ]*PRIVATE KEY-----/,

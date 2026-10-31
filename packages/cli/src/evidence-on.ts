@@ -15,6 +15,10 @@ import type { RedactionProfile } from "@agent-inspect/redact";
 
 import { version as packageVersion } from "../../../package.json";
 import { redactTraceContent } from "./redact.js";
+import {
+  assessResidualFromContent,
+  type ResidualSafetyStatus,
+} from "./safety.js";
 
 export type EvidenceOnMode = "fail" | "always" | "never";
 export type EvidenceEmitFormat = "directory" | "html" | "zip";
@@ -52,8 +56,12 @@ export function parseEvidenceFormat(
   );
 }
 
-function toAssessmentStatus(failed: boolean): EvidenceSafeStatus {
-  return failed ? "UNSAFE" : "SAFE";
+/** Map residual verify-safe status onto Evidence assessment.status (#519). */
+export function residualStatusToEvidenceSafe(
+  status: ResidualSafetyStatus,
+): EvidenceSafeStatus {
+  if (status === "SAFE_WITH_WARNINGS") return "SAFE WITH WARNINGS";
+  return status;
 }
 
 function stableJson(value: unknown): string {
@@ -68,7 +76,11 @@ export interface WriteLocalEvidenceInput {
   sourceContents?: ReadonlyMap<string, string> | Record<string, string>;
   /** Trace directory used when sourceContents omit a run. */
   dir?: string;
-  failed: boolean;
+  /**
+   * @deprecated Ignored for assessment.status. Trajectory pass/fail belongs in
+   * check-results / summaryText; assessment is residual verify-safe (#519).
+   */
+  failed?: boolean;
   checkResultsJson: string;
   summaryText?: string;
   redactionProfile?: RedactionProfile;
@@ -126,7 +138,11 @@ export async function writeLocalEvidence(
       : `${redacted.content}\n`;
   }
 
-  const assessmentStatus = toAssessmentStatus(input.failed);
+  // Assessment is residual safety of the written artifact, not check pass/fail (#519).
+  const residual = await assessResidualFromContent(combined, {
+    format: "agent-inspect-jsonl",
+  });
+  const assessmentStatus = residualStatusToEvidenceSafe(residual.status);
   const evidencePackage = buildEvidenceCiPackage({
     generatorVersion: packageVersion,
     runIds: input.runIds,

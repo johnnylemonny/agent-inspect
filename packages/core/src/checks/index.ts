@@ -772,6 +772,12 @@ const SAFE_USAGE_LEAF_KEYS = new Set([
 const DEFAULT_SECRET_PATTERNS: readonly SafetySecretPattern[] = [
   { id: "bearer-token", pattern: /Bearer\s+[A-Za-z0-9._~+/-]{12,}=*/ },
   { id: "openai-key", pattern: /sk-[A-Za-z0-9_-]{16,}/ },
+  // Stripe + Slack: keep in sync with packages/redact + credential-value-patterns (#520).
+  {
+    id: "stripe-key",
+    pattern: /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+  },
+  { id: "slack-token", pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/ },
   { id: "aws-access-key", pattern: /AKIA[0-9A-Z]{16}/ },
   { id: "github-token", pattern: /gh[opsu]_[A-Za-z0-9_]{20,}/ },
   // Keep in sync with packages/redact/src/key-value-secret.ts (KEY_VALUE_SECRET_PATTERN_SOURCE).

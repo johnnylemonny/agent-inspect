@@ -7,16 +7,16 @@
 ```yaml
 baselineVersion: "6.31.31"
 publishedVersion: "6.31.31"
-pendingPublishVersion: ""
+pendingPublishVersion: "6.31.32"
 currentTrain: "stability-after-63111"
-trainStatus: "6.31.31 published; Oct 30 residuals shipped; 6.32 blocked"
+trainStatus: "overnight bugs fixed + changeset; pending Version Packages → 6.31.32"
 executionMode: "maintainer-reviewed"
 namedTrain: "stability-after-63111"
 branch: "main"
-currentChunk: "post-63131 partner acceptance"
-lastConfirmedCommit: "cf0f7e1e"
-lastValidationLevel: "Publish 41174039799 success; npm agent-inspect@6.31.31"
-nextAction: "Partner acceptance; hold Indu v3 / Swapnil fields / email; Jan Windows PENDING; no 6.32 without EVIDENCE_GATE"
+currentChunk: "overnight patch — #517/#518/#519/#520/#523; triage #521/#522"
+lastConfirmedCommit: "79188cc0"
+lastValidationLevel: "focused vitest green for overnight fixes; #518 merged"
+nextAction: "Push; Version Packages; Trusted Publish 6.31.32; close fixed issues; partner acceptance still open"
 pendingManualGate: "EVIDENCE_GATE not approved; Elastic --live (C10); Collector Docker"
 githubIssues:
   "481": "closed — W01 Promptfoo identity"
@@ -57,6 +57,7 @@ completedChunks:
   - "6.31.29 recipe evidence integrity (dcd714dc → #514 → Publish 40943406555)"
   - "6.31.30 Oct 29 Nest/HTML/Om + evidence packets (#515 → Publish 40965172063)"
   - "6.31.31 Oct 30 residuals R1–R6/N1–N2 (1ca1c119 → #516 → Publish 41174039799)"
+  - "overnight #518 merge + #519/#520/#523 fixes (pending 6.31.32)"
   - "chunk 03 Nest SupportService consumption from saved evidence (N01–N08)"
   - "chunk 04 HTML lifecycle presentation join + CLI steps.orderRelations docs"
   - "chunk 05 Om wait/readiness diagnostics"
@@ -94,9 +95,9 @@ worktreeIgnoreOnly:
   - "redstamp-proposal-issue-body.md"
 stopMarker: |
   LAST_PUBLISHED_RELEASE: 6.31.31
-  PENDING_PUBLISH: none
-  ACTIVE: residual partner acceptance
-  NEXT: no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Swapnil design awaiting decision; Jan Windows PENDING
+  PENDING_PUBLISH: 6.31.32 (changeset overnight-bugs-63132)
+  ACTIVE: overnight patch train + partner acceptance
+  NEXT: Version Packages → Trusted Publish; then no 6.32 without EVIDENCE_GATE; Indu v3 blocked; Jan Windows PENDING
   V7_DECISION: NO-GO
   EVIDENCE_GATE: not approved
   ADOPTION_FREEZE: excluded

@@ -329,6 +329,18 @@ const credentialDetectors: readonly RedactionDetector[] = [
     pattern: /\b(?:sk-(?:proj-)?[a-zA-Z0-9_-]{16,}|sk-ant-[a-zA-Z0-9_-]{16,}|AIza[0-9A-Za-z_-]{20,})\b/,
     severity: "error",
   }),
+  // Stripe secret/restricted keys (underscore form). Keep in sync with
+  // packages/core/src/safety/credential-value-patterns.ts + checks DEFAULT_SECRET_PATTERNS (#520).
+  patternDetector({
+    id: "value.stripeSecretKey",
+    pattern: /\b(?:sk|rk)_(?:live|test)_[A-Za-z0-9]{16,}\b/,
+    severity: "error",
+  }),
+  patternDetector({
+    id: "value.slackToken",
+    pattern: /\bxox[abposr]-[A-Za-z0-9-]{10,}\b/,
+    severity: "error",
+  }),
   patternDetector({
     id: "value.githubToken",
     pattern: /\b(?:ghp|gho|ghu|ghs|ghr)_[A-Za-z0-9_]{20,}\b/,

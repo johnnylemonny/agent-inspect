@@ -4,6 +4,7 @@
  * Usage (from this directory): node prove-same-output-wrong-path.mjs
  */
 import { spawnSync } from "node:child_process";
+import { unlink } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 
@@ -75,6 +76,8 @@ async function evaluateFile(runId, dir = traceDir) {
 }
 
 async function writeControl(name, run) {
+  // Fixed run ids: clear prior control file so re-runs do not append (#523).
+  await unlink(path.join(controlDir, `${name}.jsonl`)).catch(() => {});
   const inspector = createInspector({
     writer: fileWriter({ dir: controlDir }),
     traceDir: controlDir,
